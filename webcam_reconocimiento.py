@@ -12,7 +12,7 @@ from insightface.app import FaceAnalysis
 # =========================
 
 CAMARA = 0  # 0 = webcam principal. Si no funciona, prueba 1 o 2.
-CARPETA_REFERENCIAS = "referencias"
+CARPETA_REFERENCIAS = "referencias_reconocimiento"
 CARPETA_PENDIENTES = "referencias_pendientes"
 INTERVALO_REVISION_CARPETAS = 2.0  # segundos
 
@@ -121,7 +121,9 @@ def cargar_referencias(modelo):
             print(f"Referencia cargada: {ruta_imagen.stem} | tipo: {tipo}")
 
     if not referencias:
-        raise Exception("No se pudo cargar ningun rostro de referencia valido.")
+        print("No hay rostros de referencia validos todavia.")
+        print(f"Puedes agregar imagenes manualmente en: {CARPETA_REFERENCIAS}")
+        print(f"Las capturas de desconocidos se guardaran en: {CARPETA_PENDIENTES}")
 
     return referencias
 
