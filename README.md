@@ -4,11 +4,12 @@ Aplicacion local de reconocimiento facial en tiempo real usando webcam. Detecta 
 
 ## Que usa
 
-- `OpenCV`: lectura de webcam, dibujo de cajas y ventana de video.
+- `OpenCV`: lectura de webcam, procesamiento de frames, dibujo de cajas y generacion del video web.
 - `InsightFace`: deteccion de rostros y generacion de embeddings faciales.
 - `SCRFD`: detector facial usado internamente por InsightFace.
 - `ByteTrack`: seguimiento de rostros para mantener un ID estable por persona.
 - `NumPy`: calculo de similitud entre embeddings.
+- `ThreadingHTTPServer`: servidor web local integrado en Python.
 
 ## Estructura de carpetas
 
@@ -21,23 +22,38 @@ referencias_pendientes/
 
 `referencias_reconocimiento/` contiene las imagenes oficiales que la app debe reconocer. Puedes poner ahi fotos tuyas o de otras personas autorizadas. El nombre del archivo se usa como nombre en pantalla, por ejemplo `matias.jpg` se mostrara como `matias`.
 
-`referencias_pendientes/` contiene capturas generadas automaticamente cuando aparece una persona desconocida durante algunos segundos. Luego puedes revisar esas imagenes y mover/copiar las que quieras aprobar a `referencias_reconocimiento/`.
+`referencias_pendientes/` contiene capturas generadas automaticamente cuando aparece una persona desconocida durante algunos segundos. Luego puedes revisar esas imagenes desde la interfaz y mover las que quieras aprobar a `referencias_reconocimiento/`.
 
 ## Primer uso
 
 La primera vez puedes ejecutar la app aunque no exista ninguna imagen de referencia. Si `referencias_reconocimiento/` esta vacia, el programa avisa por consola y sigue funcionando.
 
-Cuando detecte un rostro desconocido valido por varios segundos, guardara una captura en `referencias_pendientes/`. Despues puedes revisar esa captura y pasarla manualmente a `referencias_reconocimiento/` si quieres que esa persona quede como reconocida.
+Cuando detecte un rostro desconocido valido por varios segundos, guardara una captura en `referencias_pendientes/`. Despues puedes revisar esa captura en la pagina y pasarla a `referencias_reconocimiento/` si quieres que esa persona quede como reconocida.
 
 ## Instalacion
 
-Se recomienda usar un entorno virtual.
+Esta aplicacion fue desarrollada y probada con `Python 3.11.9`.
+
+Requisitos recomendados en Windows:
+
+- `Python 3.11.9`.
+- `pip` actualizado.
+- `Microsoft C++ Build Tools`, necesario para instalar algunas dependencias de `InsightFace` cuando `pip` necesita compilar paquetes nativos.
+- Webcam funcional.
+- Chrome u otro navegador moderno.
+
+Para instalar `Microsoft C++ Build Tools`, descarga el instalador desde Visual Studio Build Tools y marca la carga de trabajo `Desktop development with C++`. Esto instala el compilador de C++ que puede pedir `InsightFace` durante la instalacion.
+
+Despues, crea un entorno virtual e instala las dependencias:
 
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\activate
+python -m pip install --upgrade pip
 pip install -r requirements.txt
 ```
+
+Si la instalacion de `insightface` falla con errores de compilacion, casi siempre significa que falta `Microsoft C++ Build Tools` o que no se reinicio la terminal despues de instalarlo.
 
 ## Ejecucion
 
@@ -45,17 +61,49 @@ pip install -r requirements.txt
 python webcam_reconocimiento.py
 ```
 
-Para salir, presiona `Q` en la ventana de video.
+Luego abre en Chrome:
+
+```text
+http://localhost:8000/
+```
+
+Desde la interfaz web puedes iniciar o detener la webcam. El video mostrado en la pagina viene desde Python, ya procesado por Witcam.
+
+No es necesario ejecutar `php -S`. Si ya hay un servidor PHP usando el puerto `8000`, cierralo con `Ctrl+C` antes de iniciar `webcam_reconocimiento.py`.
+
+Para cerrar el servidor, vuelve a la terminal y presiona `Ctrl+C`.
+
+## Interfaz web
+
+La pagina permite:
+
+- Iniciar y detener la webcam.
+- Ver el video procesado por Python.
+- Ver la cantidad de referencias y capturas pendientes.
+- Ver el umbral real cargado desde `webcam_reconocimiento.py`.
+- Recargar referencias manualmente con el boton `Recargar referencias`.
+- Actualizar automaticamente la lista cuando aparecen nuevas capturas pendientes, sin interrumpir si estas renombrando una imagen.
+- Renombrar imagenes manteniendo fija la extension (`.jpg`, `.png`, `.webp`, etc.).
+- Mover imagenes desde pendientes a referencias.
+- Mover imagenes desde referencias a pendientes.
+- Eliminar imagenes pendientes.
+
+Para borrar una referencia oficial, primero debes moverla a pendientes y luego eliminarla desde ahi.
+
+La app soporta nombres con mayusculas, minusculas y acentos en los archivos de referencia. En Windows tambien maneja correctamente cambios solo de mayusculas/minusculas, por ejemplo pasar de `matias.jpg` a `MATIAS.jpg`.
 
 ## Flujo de reconocimiento
 
-1. La webcam captura frames en vivo.
-2. Cada cierto numero de frames, la app reduce la imagen para analizarla mas rapido.
-3. InsightFace/SCRFD detecta los rostros y genera embeddings.
-4. ByteTrack asigna un `ID` estable a cada rostro detectado.
-5. Cada embedding se compara con las referencias cargadas.
-6. Si supera el umbral de similitud, se muestra como persona reconocida.
-7. Si no se reconoce y permanece visible, se guarda una captura en `referencias_pendientes/`.
+1. La interfaz web llama al servidor local de Python.
+2. Python abre la webcam cuando presionas `Iniciar`.
+3. Cada cierto numero de frames, la app reduce la imagen para analizarla mas rapido.
+4. InsightFace/SCRFD detecta los rostros y genera embeddings.
+5. ByteTrack asigna un `ID` estable a cada rostro detectado.
+6. Cada embedding se compara con las referencias cargadas.
+7. Si supera el umbral de similitud, se muestra como persona reconocida.
+8. Si no se reconoce y permanece visible, se guarda una captura en `referencias_pendientes/`.
+9. La interfaz recibe el video procesado desde `/video_feed`.
+10. Si cambian las carpetas de referencias o pendientes, Python recarga las referencias automaticamente.
 
 ## Oclusion
 
@@ -81,8 +129,10 @@ ANCHO_ANALISIS = 416
 ALTO_ANALISIS = 312
 ANALIZAR_CADA_N_FRAMES = 10
 DET_SIZE = 256
+JPEG_QUALITY = 82
 TIEMPO_CONFIRMACION_DESCONOCIDO = 3.0
 MIN_MUESTRAS_DESCONOCIDO = 4
+COOLDOWN_CAPTURA = 15
 ```
 
 `CAMARA`: indice de la webcam. Si no abre, prueba `1` o `2`.
@@ -93,9 +143,13 @@ MIN_MUESTRAS_DESCONOCIDO = 4
 
 `ANCHO_ANALISIS`, `ALTO_ANALISIS` y `DET_SIZE`: controlan la carga del modelo. Subirlos puede mejorar deteccion de rostros pequenos, pero aumenta el lag.
 
+`JPEG_QUALITY`: calidad del video enviado al navegador. Subirlo mejora imagen pero puede aumentar carga y lag.
+
 `TIEMPO_CONFIRMACION_DESCONOCIDO`: segundos minimos antes de guardar un desconocido.
 
 `MIN_MUESTRAS_DESCONOCIDO`: cantidad minima de lecturas antes de guardar un desconocido.
+
+`COOLDOWN_CAPTURA`: segundos minimos antes de volver a guardar una captura del mismo desconocido.
 
 ## Colores en pantalla
 
