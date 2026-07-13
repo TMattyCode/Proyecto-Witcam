@@ -1,3 +1,8 @@
+create database WitcamBD
+go
+use WitcamBD
+go
+
 create table Rol (
 	id_rol int identity(1,1) primary key,
 	nombre_rol varchar(100) not null unique,
