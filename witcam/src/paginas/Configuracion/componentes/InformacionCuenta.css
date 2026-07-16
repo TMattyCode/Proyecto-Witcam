@@ -1,0 +1,39 @@
+﻿.configuracion-cuenta {
+  height: 220px;
+  padding: 14px 20px;
+}
+
+.cuenta-tabla {
+  width: 100%;
+  margin-top: 10px;
+
+  border: 1px solid #e1e7f0;
+  overflow: hidden;
+}
+
+.cuenta-fila {
+  height: 40px;
+  padding: 0 12px;
+
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: center;
+  gap: 16px;
+
+  border-bottom: 1px solid #e1e7f0;
+  color: #020418;
+  font-size: 13px;
+  box-sizing: border-box;
+}
+
+.cuenta-fila:last-child {
+  border-bottom: none;
+}
+
+.cuenta-fila span {
+  font-weight: 500;
+}
+
+.cuenta-fila strong {
+  font-weight: 500;
+}

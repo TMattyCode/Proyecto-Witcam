@@ -1,0 +1,53 @@
+﻿@import "./HistorialDetecciones.css";
+
+.tabla-alertas {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.tabla-alertas thead {
+  background: #f7f9fc;
+}
+
+.tabla-alertas th {
+  padding: 8px 1px;
+  text-align: left;
+  font-size: 13px;
+  font-weight: 600;
+  color: #4b5565;
+  line-height: 1.15;
+}
+
+.tabla-alertas td {
+  padding: 60px 10px;
+  font-size: 14px;
+  color: #1d2433;
+  border-top: 1px solid #edf0f5;
+}
+
+.tabla-alertas th:nth-child(1),
+.tabla-alertas td:nth-child(1){
+    padding-left: 10px;
+}
+
+/* Hora */
+.tabla-alertas th:nth-child(3),
+.tabla-alertas td:nth-child(3){
+    text-align: center;
+}
+
+/* Coincidencia */
+.tabla-alertas th:nth-child(4),
+.tabla-alertas td:nth-child(4){
+    text-align: center;
+}
+
+/* Cámara */
+.tabla-alertas th:nth-child(5),
+.tabla-alertas td:nth-child(5){
+    text-align: center;
+}
+
+
+

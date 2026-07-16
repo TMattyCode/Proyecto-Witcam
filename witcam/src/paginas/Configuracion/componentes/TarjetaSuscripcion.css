@@ -1,0 +1,104 @@
+﻿.configuracion-suscripcion {
+  height: 220px;
+  padding: 14px 20px 12px;
+
+  display: flex;
+  flex-direction: column;
+}
+
+.suscripcion-informacion {
+  margin-top: 10px;
+
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.suscripcion-fila {
+  display: grid;
+  grid-template-columns: minmax(130px, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+
+  color: #020418;
+  font-size: 14px;
+}
+
+.suscripcion-fila span {
+  font-weight: 500;
+}
+
+.suscripcion-fila strong {
+  font-size: 14px;
+  font-weight: 700;
+  text-align: right;
+}
+
+.suscripcion-plan {
+  padding: 5px 12px;
+  border-radius: 7px;
+  background: #eee9ff;
+  color: #5006c6;
+  font-weight: 500 !important;
+}
+
+.suscripcion-dias {
+  color: #3c00ff;
+  font-size: 18px !important;
+}
+
+.suscripcion-pie {
+  margin-top: auto;
+  padding-top: 8px;
+
+  border-top: 1px solid #e1e7f0;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.suscripcion-renovacion {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+
+  color: #020418;
+  font-size: 14px;
+}
+
+.suscripcion-estado {
+  width: 11px;
+  height: 11px;
+  flex-shrink: 0;
+
+  border-radius: 50%;
+  background: #0aa63c;
+}
+
+.suscripcion-activada {
+  color: #0aa63c;
+  font-weight: 500;
+}
+
+.boton-editar-suscripcion {
+  min-width: 100px;
+  height: 38px;
+  padding: 0 14px;
+
+  border: 1.5px solid #014dfd;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #014dfd;
+
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+}

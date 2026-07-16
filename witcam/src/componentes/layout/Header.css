@@ -1,0 +1,88 @@
+﻿.header {
+  width: 100%;
+  height: 80px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 35px;
+  box-sizing: border-box;
+}
+
+.header-title {
+  display: flex;
+  flex-direction: column;
+}
+
+.header-title h1 {
+  margin: 0;
+  font-size: 32px;
+  font-weight: 700;
+  color: #071534;
+}
+
+.header-title p {
+  margin-top: 2px;
+  margin-bottom: 0;
+
+  font-size: 18px;
+  color: #1d2433;
+}
+
+.header-title span {
+  color: #014dfd;
+  font-weight: 600;
+}
+
+.header-info {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+}
+
+.header-date,
+.header-time,
+.header-user {
+  display: flex;
+  align-items: center;
+}
+
+.header-date img{
+  width: 30px;
+  height: 30px;
+  margin-right: 10px;
+}
+.header-time img {
+  width: 40px;
+  height: 40px;
+  margin-right: 10px;
+}
+
+.header-date span,
+.header-time span {
+  font-size: 18px;
+  font-weight: 500;
+  color: #1d2433;
+}
+
+.header-separator {
+  width: 1px;
+  height: 34px;
+  margin-right: -10px;
+  background: #d8dce5;
+}
+
+.header-avatar {
+  width: 48px;
+  height: 48px;
+
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.header-arrow {
+  width: 35px;
+  height: 35px;
+  margin-left: -5px;
+  object-fit: contain;
+  cursor: pointer;
+}

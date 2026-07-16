@@ -1,0 +1,73 @@
+﻿.estado-sistema{
+    margin: 10px 0 0;
+    height: 80px;
+    background: linear-gradient(180deg,#f7faff 0%,#eef5ff 100%);
+    border:1px solid #dce8ff;
+    border-radius:14px;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    padding:0 22px;
+    box-sizing:border-box;
+}
+
+.estado-info{
+    display:flex;
+    align-items:center;
+    gap:18px;
+}
+
+.estado-icono{
+    width:55px;
+    height:55px;
+    border-radius:50%;
+    background:#e6efff;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+}
+
+.estado-icono img{
+    width:36px;
+}
+
+.estado-texto h3{
+    margin:0;
+    font-size:18px;
+    font-weight:700;
+    color:#071534;
+}
+
+.estado-texto p{
+    margin-top:4px;
+    margin-bottom:0;
+    font-size:14px;
+    color:#4b5565;
+}
+
+.estado-boton{
+    height:48px;
+    padding:0 20px;
+    display:flex;
+    align-items:center;
+    gap:10px;
+    border:1.5px solid #014dfd;
+    border-radius:10px;
+    background:#ffffff;
+    color:#014dfd;
+    font-size:14px;
+    font-weight:600;
+    cursor:pointer;
+    transition:.25s;
+}
+
+.estado-boton:hover{
+    background:#014dfd;
+    color:#ffffff;
+}
+
+.estado-boton img{
+    width:40px;
+    height:40px;
+    margin-left:-15px;
+}

@@ -1,0 +1,32 @@
+﻿.ingresos-identificados {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  box-sizing: border-box;
+}
+
+.ingresos-panel-temporal {
+  flex: 1;
+  width: 100%;
+  min-height: 300px;
+  padding: 24px;
+  background: #ffffff;
+  border: 1px solid #e1e7f0;
+  border-radius: 12px;
+  box-sizing: border-box;
+}
+
+.ingresos-panel-temporal h2 {
+  margin: 0 0 10px;
+  color: #020418;
+  font-size: 19px;
+  font-weight: 700;
+}
+
+.ingresos-panel-temporal p {
+  margin: 0;
+  color: #535f7b;
+  font-size: 14px;
+}

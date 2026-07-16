@@ -1,0 +1,18 @@
+﻿.resumen-contenido {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+
+  display: flex;
+  flex-direction: column;
+
+  box-sizing: border-box;
+}
+
+.resumen-tablas {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 22px;
+
+  margin-top: 12px;
+}

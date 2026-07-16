@@ -1,0 +1,86 @@
+﻿.tarjetas-resumen {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 28px;
+  padding: 0;
+}
+
+.tarjeta-resumen {
+  height: 130px;
+  background: #ffffff;
+  border: 1px solid #e6eaf1;
+  border-radius: 14px;
+  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.04);
+  padding:18px 22px;
+  box-sizing: border-box;
+}
+
+.tarjeta-contenido {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.tarjeta-icono{
+    width:45px;
+    height:45px;
+    border-radius:8px;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+}
+
+.tarjeta-icono img.icono-personas-resumen {
+  width: 50px;
+  height: 50px;
+}
+
+.tarjeta-icono img.icono-alerta-resumen {
+  width: 45px;
+  height: 45px;
+}
+
+.tarjeta-icono img.icono-ojo-resumen {
+  width: 55px;
+  height: 55px;
+}
+
+.tarjeta-icono.azul {
+  background: #edf3ff;
+}
+
+.tarjeta-icono.rojo {
+  background: #fff0f0;
+}
+
+.tarjeta-icono.morado {
+  background: #f3eaff;
+}
+
+.tarjeta-contenido h3 {
+  margin: 0;
+  max-width: 210px;
+  font-size: 16px;
+  line-height: 1.35;
+  font-weight: 700;
+  color: #071534;
+}
+
+.tarjeta-numero {
+  margin: 10px 0 0;
+  font-size: 40px;
+  line-height: 1;
+  font-weight: 800;
+}
+
+.tarjeta-numero.azul {
+  color: #071534;
+}
+
+.tarjeta-numero.rojo {
+  color: #ff0000;
+}
+
+.tarjeta-numero.morado {
+  color: #5006c6;
+}

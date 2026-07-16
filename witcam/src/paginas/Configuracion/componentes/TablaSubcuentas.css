@@ -1,0 +1,271 @@
+﻿.configuracion-subcuentas {
+  width: 100%;
+  min-height: 0;
+  flex: 1;
+
+  display: flex;
+  flex-direction: column;
+
+  overflow: hidden;
+}
+
+.subcuentas-encabezado {
+  min-height: 64px;
+  flex-shrink: 0;
+  padding: 9px 18px;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+
+  border-bottom: 1px solid #e1e7f0;
+  box-sizing: border-box;
+}
+
+.subcuentas-titulo {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.subcuentas-titulo h2 {
+  margin: 0 0 2px;
+  color: #020418;
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.subcuentas-titulo p {
+  margin: 0;
+  color: #020418;
+  font-size: 13px;
+}
+
+.boton-anadir-subcuenta {
+  height: 36px;
+  padding: 0 15px;
+
+  border: none;
+  border-radius: 7px;
+  background: #014dfd;
+  color: #ffffff;
+
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.subcuentas-tabla-contenedor {
+  width: 100%;
+  min-height: 0;
+  flex: 1;
+
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.subcuentas-tabla {
+  width: 100%;
+  min-width: 0;
+
+  border-collapse: collapse;
+  table-layout: fixed;
+
+  color: #020418;
+  font-size: 12px;
+}
+
+.subcuentas-tabla th,
+.subcuentas-tabla td {
+  padding: 6px 5px;
+
+  border-right: 1px solid #e1e7f0;
+  border-bottom: 1px solid #e1e7f0;
+
+  text-align: center;
+  vertical-align: middle;
+  box-sizing: border-box;
+
+  overflow: hidden;
+}
+
+.subcuentas-tabla th:last-child,
+.subcuentas-tabla td:last-child {
+  border-right: none;
+}
+
+.subcuentas-tabla thead {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: #ffffff;
+}
+
+.subcuentas-tabla thead th {
+  background: #ffffff;
+  color: #020418;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.subcuentas-tabla thead tr:first-child th {
+  height: 32px;
+  padding: 4px 5px;
+}
+
+.subcuentas-tabla thead tr:nth-child(2) th {
+  height: 28px;
+  padding: 3px 2px;
+  font-size: 10px;
+}
+
+.subcuentas-tabla tbody td {
+  height: 46px;
+  padding: 4px 5px;
+  background: #ffffff;
+  font-weight: 500;
+}
+
+/* Distribucion correcta de columnas */
+
+.col-nombre {
+  width: 15%;
+}
+
+.col-usuario {
+  width: 9%;
+}
+
+.col-contrasena {
+  width: 9%;
+}
+
+.col-correo {
+  width: 15%;
+}
+
+.col-permiso {
+  width: 7%;
+}
+
+.col-configuracion {
+  width: 9%;
+}
+
+.col-acciones {
+  width: 10%;
+}
+
+.subcuentas-permisos-titulo {
+  text-align: center;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.subcuenta-usuario {
+  width: 100%;
+  min-width: 0;
+
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  text-align: left;
+}
+
+.subcuenta-avatar {
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+
+  border-radius: 50%;
+  background: #eaeaea;
+  color: #020418;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.subcuenta-texto-recortado {
+  display: block;
+  width: 100%;
+  min-width: 0;
+
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.permiso {
+  width: 28px;
+  height: 28px;
+  margin: 0 auto;
+
+  border-radius: 5px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.permiso-activo {
+  background: #e7f7e9;
+  color: #079239;
+}
+
+.permiso-inactivo {
+  background: #ffe9e9;
+  color: #ff1717;
+}
+
+.subcuenta-acciones {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+
+.boton-accion {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+
+  border-radius: 5px;
+  background: #ffffff;
+
+  font-family: inherit;
+  font-size: 16px;
+  cursor: pointer;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.boton-accion-editar {
+  border: 1.5px solid #014dfd;
+  color: #014dfd;
+}
+
+.boton-accion-eliminar {
+  border: 1.5px solid #ff2828;
+  color: #ff2828;
+}
+
+.subcuentas-tabla thead tr:nth-child(2) th:last-child {
+  border-right: 1px solid #e1e7f0;
+}

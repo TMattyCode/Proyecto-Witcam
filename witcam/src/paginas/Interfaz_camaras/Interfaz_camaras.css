@@ -1,0 +1,295 @@
+﻿
+/* Panel general */
+
+.camaras-panel {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  box-sizing: border-box;
+}
+/* Barra superior */
+
+.camaras-barra-superior {
+  min-height: 78px;
+  padding: 0 18px 0 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  background: #ffffff;
+  border: 1px solid #e3e9f2;
+  border-radius: 16px;
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.04);
+}
+
+.camaras-tab {
+  position: relative;
+  height: 78px;
+  padding: 0 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: none;
+  background: transparent;
+  color: #53617d;
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.camaras-tab.activo {
+  color: #014dfd;
+}
+
+.camaras-tab.activo::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 4px;
+  background: #014dfd;
+  border-radius: 8px 8px 0 0;
+}
+
+.camaras-tab-icono {
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.camaras-tab-icono svg {
+  width: 100%;
+  height: 100%;
+}
+
+.camaras-controles {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.control-camaras-boton,
+.control-pantalla-completa {
+  height: 54px;
+  border: 1px solid #d5ddea;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #273552;
+  font-family: inherit;
+  font-size: 15px;
+  cursor: pointer;
+  transition:
+    border-color 0.2s ease,
+    background 0.2s ease;
+}
+
+.control-camaras-boton {
+  min-width: 210px;
+  padding: 0 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.control-camaras-boton:hover,
+.control-pantalla-completa:hover {
+  border-color: #014dfd;
+  background: #f7f9ff;
+}
+
+.control-camaras-icono {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  color: #53617d;
+}
+
+.control-camaras-icono svg {
+  width: 100%;
+  height: 100%;
+}
+
+.control-flecha {
+  margin-left: auto;
+  font-size: 20px;
+  line-height: 1;
+  color: #53617d;
+  transform: translateY(-2px);
+}
+
+.control-pantalla-completa {
+  width: 54px;
+  padding: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.control-pantalla-completa svg {
+  width: 100%;
+  height: 100%;
+}
+
+/* Espacio destinado a las cámaras */
+
+.camaras-area {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background: #f8faff;
+  border: 1px dashed #cbd6e7;
+  border-radius: 18px;
+}
+
+.camaras-vista-vacia {
+  width: 100%;
+  min-height: 100%;
+  padding: 25px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  box-sizing: border-box;
+}
+
+.camaras-area::-webkit-scrollbar {
+  width: 8px;
+}
+
+.camaras-area::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.camaras-area::-webkit-scrollbar-thumb {
+  background: #c7d2e5;
+  border-radius: 10px;
+}
+
+.camaras-area::-webkit-scrollbar-thumb:hover {
+  background: #9eacc4;
+}
+
+.camaras-vista-icono {
+  width: 76px;
+  height: 76px;
+  margin-bottom: 20px;
+  padding: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #014dfd;
+  background: #e9f0ff;
+  border-radius: 50%;
+}
+
+.camaras-vista-icono svg {
+  width: 100%;
+  height: 100%;
+}
+
+.camaras-vista-vacia h2 {
+  margin: 0 0 10px;
+  color: #07142f;
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.camaras-vista-vacia p {
+  max-width: 450px;
+  margin: 0;
+  color: #69758c;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+/* Barra inferior */
+
+.camaras-estado {
+  min-height: 82px;
+  padding: 0 26px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  background: #edf3ff;
+  border: 1px solid #ccdafe;
+  border-radius: 16px;
+  color: #07142f;
+  font-size: 17px;
+  box-sizing: border-box;
+}
+
+.camaras-estado-icono {
+  width: 52px;
+  height: 52px;
+  padding: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #014dfd;
+  background: #d7e3ff;
+  border-radius: 50%;
+}
+
+.camaras-estado-icono svg {
+  width: 100%;
+  height: 100%;
+}
+
+/* Diseño adaptable */
+
+@media (max-width: 1100px) {
+  .camaras-barra-superior {
+    padding: 14px;
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .camaras-tab {
+    width: 100%;
+    height: 58px;
+  }
+
+  .camaras-controles {
+    width: 100%;
+  }
+
+  .control-camaras-boton {
+    flex: 1;
+    min-width: 0;
+  }
+}
+
+@media (max-width: 760px) {
+  .interfaz-camaras-contenido {
+    margin-left: 0;
+    padding: 0 16px 24px;
+  }
+
+  .camaras-controles {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .control-camaras-boton,
+  .control-pantalla-completa {
+    width: 100%;
+  }
+
+  .camaras-vista-vacia {
+    min-height: 330px;
+    padding: 24px;
+  }
+
+  .camaras-estado {
+    min-height: 90px;
+  }
+}
