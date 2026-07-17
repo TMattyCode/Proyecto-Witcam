@@ -58,7 +58,7 @@ Si la instalacion de `insightface` falla con errores de compilacion, casi siempr
 ## Ejecucion
 
 ```powershell
-python webcam_reconocimiento.py
+python app.py
 ```
 
 Luego abre en Chrome:
@@ -69,7 +69,7 @@ http://localhost:8000/
 
 Desde la interfaz web puedes iniciar o detener la webcam. El video mostrado en la pagina viene desde Python, ya procesado por Witcam.
 
-No es necesario ejecutar `php -S`. Si ya hay un servidor PHP usando el puerto `8000`, cierralo con `Ctrl+C` antes de iniciar `webcam_reconocimiento.py`.
+No es necesario ejecutar `php -S`. Si ya hay un servidor PHP usando el puerto `8000`, cierralo con `Ctrl+C` antes de iniciar `app.py`.
 
 Para cerrar el servidor, vuelve a la terminal y presiona `Ctrl+C`.
 
@@ -80,7 +80,7 @@ La pagina permite:
 - Iniciar y detener la webcam.
 - Ver el video procesado por Python.
 - Ver la cantidad de referencias y capturas pendientes.
-- Ver el umbral real cargado desde `webcam_reconocimiento.py`.
+- Ver el umbral real cargado desde `app.py`.
 - Recargar referencias manualmente con el boton `Recargar referencias`.
 - Actualizar automaticamente la lista cuando aparecen nuevas capturas pendientes, sin interrumpir si estas renombrando una imagen.
 - Renombrar imagenes manteniendo fija la extension (`.jpg`, `.png`, `.webp`, etc.).
@@ -120,7 +120,7 @@ Esto ayuda a evitar que alguien conocido sea guardado como desconocido solo por 
 
 ## Parametros importantes
 
-Estos valores estan al inicio de `webcam_reconocimiento.py`.
+Estos valores estan al inicio de `app.py`.
 
 ```python
 CAMARA = 0

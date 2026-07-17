@@ -969,7 +969,7 @@ def main():
     except OSError:
         print(f"No se pudo iniciar Witcam en http://{HOST}:{PUERTO_WEB}/")
         print("Ese puerto probablemente esta ocupado por otro servidor, por ejemplo php -S.")
-        print("Cierra ese servidor con Ctrl+C y vuelve a ejecutar: python webcam_reconocimiento.py")
+        print("Cierra ese servidor con Ctrl+C y vuelve a ejecutar: python app.py")
         return
 
     print(f"Witcam web listo en http://{HOST}:{PUERTO_WEB}/")

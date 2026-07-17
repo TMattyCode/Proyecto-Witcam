@@ -214,7 +214,7 @@ async function loadStatus() {
   } catch (error) {
     state.running = false;
     state.streaming = false;
-    state.lastEvent = "Abre la app con python webcam_reconocimiento.py";
+    state.lastEvent = "Abre la app con python app.py";
     renderStatus();
     console.error(error);
   }
