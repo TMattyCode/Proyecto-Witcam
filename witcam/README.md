@@ -1,16 +1,64 @@
-# React + Vite
+# Witcam - Frontend React
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Interfaz web de Witcam desarrollada con React y Vite. Esta carpeta contiene las pantallas de inicio de sesion, registro, resumen del sistema, camaras, ingresos identificados, lista de observacion y configuracion.
 
-Currently, two official plugins are available:
+## Estado actual
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+La navegacion entre pantallas se administra mediante `NavegacionContext`. La interfaz todavia no esta conectada a la API del backend Python ni a SQL Server, por lo que algunos datos y acciones son demostrativos.
 
-## React Compiler
+El backend se encuentra en `../app.py` y actualmente escucha en `http://localhost:8000`. Durante el desarrollo, Vite sirve esta interfaz normalmente desde `http://localhost:5173`.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Requisitos
 
-## Expanding the ESLint configuration
+- Node.js compatible con Vite 8.
+- npm.
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## Instalacion
+
+Desde esta carpeta:
+
+```powershell
+npm install
+```
+
+La carpeta `node_modules/` no se guarda en Git y se genera localmente con este comando.
+
+## Ejecucion
+
+```powershell
+npm run dev
+```
+
+Abre la direccion que muestre Vite, normalmente:
+
+```text
+http://localhost:5173/
+```
+
+## Comandos disponibles
+
+```powershell
+npm run dev
+npm run lint
+npm run build
+npm run preview
+```
+
+## Estructura principal
+
+```text
+src/
+  assets/       Imagenes, logos e iconos
+  componentes/  Componentes reutilizables y layout
+  contextos/    Estado de navegacion compartido
+  paginas/      Pantallas principales de la aplicacion
+  App.jsx       Seleccion y navegacion de paginas
+  main.jsx      Punto de entrada de React
+public/         Archivos publicos
+```
+
+## Integracion pendiente
+
+Para conectar este frontend con Witcam se debera configurar un proxy de Vite o CORS y reemplazar los datos demostrativos por solicitudes a los endpoints de `app.py`. El video procesado se obtiene actualmente desde `/video_feed`, mientras que el estado y las operaciones se exponen mediante rutas bajo `/api/`.
+
+Consulta el `README.md` de la raiz del repositorio para la instalacion completa del backend Python, la IA y la base de datos.

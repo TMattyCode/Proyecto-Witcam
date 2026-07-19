@@ -1,6 +1,30 @@
-# Witcam - Reconocimiento facial local
+# Witcam - Reconocimiento facial y monitoreo de camaras
 
-Aplicacion local de reconocimiento facial en tiempo real usando webcam. Detecta rostros con InsightFace/SCRFD, mantiene IDs de seguimiento con ByteTrack y guarda capturas de personas desconocidas para revisarlas despues.
+Witcam es una aplicacion de reconocimiento facial en tiempo real. Actualmente puede analizar una webcam local, detectar rostros con InsightFace/SCRFD, mantener IDs de seguimiento con ByteTrack y guardar capturas de personas desconocidas para revisarlas despues.
+
+El repositorio tambien contiene la interfaz definitiva desarrollada con React y Vite, ademas del script inicial para la base de datos SQL Server. La integracion entre estos componentes sigue en desarrollo.
+
+## Estado actual
+
+- El backend de IA en `app.py` funciona con una fuente de video y expone una API HTTP local.
+- La interfaz de prueba formada por `index.html`, `app.js` y `styles.css` esta conectada al backend Python.
+- La interfaz React se encuentra en `witcam/` y contiene las pantallas de la aplicacion final, pero todavia no consume la API de `app.py`.
+- El script `database/Tablas.sql` crea la base de datos inicial en SQL Server, pero todavia no esta conectado al backend.
+- Actualmente se usa `CAMARA = 0` para la webcam. La version final debera registrar una cantidad variable de camaras IP y consumir sus streams RTSP/ONVIF.
+
+## Arquitectura prevista
+
+```text
+Camaras IP (RTSP/ONVIF)
+          |
+          v
+Backend Python (API + IA)
+   |                 |
+   v                 v
+SQL Server      Frontend React
+```
+
+El NVR no es obligatorio para el reconocimiento. Python puede analizar directamente el stream secundario de cada camara IP. Un NVR podria incorporarse posteriormente si se necesita grabacion continua o reproduccion de video historico.
 
 ## Que usa
 
@@ -10,8 +34,27 @@ Aplicacion local de reconocimiento facial en tiempo real usando webcam. Detecta 
 - `ByteTrack`: seguimiento de rostros para mantener un ID estable por persona.
 - `NumPy`: calculo de similitud entre embeddings.
 - `ThreadingHTTPServer`: servidor web local integrado en Python.
+- `React`: interfaz de usuario final.
+- `Vite`: servidor de desarrollo y compilacion del frontend React.
+- `SQL Server`: base de datos prevista para usuarios, roles, permisos, empresas, locales y suscripciones.
 
-## Estructura de carpetas
+## Estructura del repositorio
+
+```text
+app.py                         Backend, API local y motor de reconocimiento
+requirements.txt              Dependencias de Python
+index.html                    Interfaz de prueba conectada a Python
+app.js
+styles.css
+witcam/                       Interfaz final React/Vite
+database/Tablas.sql           Creacion inicial de la base de datos SQL Server
+referencias_reconocimiento/   Rostros aprobados (se crea automaticamente)
+referencias_pendientes/       Capturas por revisar (se crea automaticamente)
+```
+
+Dentro de `witcam/src/` se encuentran las paginas de inicio de sesion, registro, resumen del sistema, camaras, ingresos identificados, lista de observacion y configuracion. Los componentes compartidos, contextos, estilos e imagenes tambien se mantienen dentro de esa carpeta.
+
+## Carpetas de reconocimiento
 
 El programa crea automaticamente las carpetas necesarias si no existen.
 
@@ -30,7 +73,7 @@ La primera vez puedes ejecutar la app aunque no exista ninguna imagen de referen
 
 Cuando detecte un rostro desconocido valido por varios segundos, guardara una captura en `referencias_pendientes/`. Despues puedes revisar esa captura en la pagina y pasarla a `referencias_reconocimiento/` si quieres que esa persona quede como reconocida.
 
-## Instalacion
+## Requisitos
 
 Esta aplicacion fue desarrollada y probada con `Python 3.11.9`.
 
@@ -39,12 +82,16 @@ Requisitos recomendados en Windows:
 - `Python 3.11.9`.
 - `pip` actualizado.
 - `Microsoft C++ Build Tools`, necesario para instalar algunas dependencias de `InsightFace` cuando `pip` necesita compilar paquetes nativos.
+- `Node.js` y `npm`, necesarios para ejecutar la interfaz React/Vite.
+- `SQL Server` y SQL Server Management Studio o Azure Data Studio, necesarios para crear y administrar la base de datos.
 - Webcam funcional.
 - Chrome u otro navegador moderno.
 
 Para instalar `Microsoft C++ Build Tools`, descarga el instalador desde Visual Studio Build Tools y marca la carga de trabajo `Desktop development with C++`. Esto instala el compilador de C++ que puede pedir `InsightFace` durante la instalacion.
 
-Despues, crea un entorno virtual e instala las dependencias:
+### Backend Python
+
+Crea un entorno virtual e instala las dependencias desde la raiz del proyecto:
 
 ```powershell
 python -m venv .venv
@@ -55,7 +102,24 @@ pip install -r requirements.txt
 
 Si la instalacion de `insightface` falla con errores de compilacion, casi siempre significa que falta `Microsoft C++ Build Tools` o que no se reinicio la terminal despues de instalarlo.
 
-## Ejecucion
+### Frontend React
+
+Las dependencias de Node no se guardan en Git. Despues de descargar el proyecto, instalalas desde la carpeta `witcam`:
+
+```powershell
+cd witcam
+npm install
+```
+
+### Base de datos
+
+El archivo `database/Tablas.sql` esta escrito para SQL Server. En su estado actual debe ejecutarse una sola vez desde SSMS, Azure Data Studio o una herramienta compatible con separadores `GO`. El script crea la base de datos `WitcamBD` y sus tablas iniciales.
+
+Si `WitcamBD` ya existe, volver a ejecutar el script completo producira errores porque todavia no es un script idempotente.
+
+## Ejecucion del prototipo funcional
+
+Desde la raiz del repositorio, con el entorno virtual activado:
 
 ```powershell
 python app.py
@@ -73,7 +137,32 @@ No es necesario ejecutar `php -S`. Si ya hay un servidor PHP usando el puerto `8
 
 Para cerrar el servidor, vuelve a la terminal y presiona `Ctrl+C`.
 
-## Interfaz web
+## Ejecucion de React
+
+En otra terminal:
+
+```powershell
+cd witcam
+npm run dev
+```
+
+Vite mostrara la direccion local, normalmente:
+
+```text
+http://localhost:5173/
+```
+
+El backend Python usa `http://localhost:8000/` y React usa normalmente `http://localhost:5173/`. Por ahora son aplicaciones separadas. Para completar la integracion se debera configurar el proxy de Vite o CORS y hacer que React consuma los endpoints de `app.py`.
+
+Comandos adicionales del frontend:
+
+```powershell
+npm run lint
+npm run build
+npm run preview
+```
+
+## Interfaz web de prueba
 
 La pagina permite:
 
@@ -172,3 +261,5 @@ Esto evita subir fotos privadas al repositorio por accidente.
 ## Notas
 
 La app esta configurada para CPU. Si el equipo tiene GPU compatible con ONNX Runtime/CUDA, se puede mejorar el rendimiento agregando deteccion automatica de `CUDAExecutionProvider`.
+
+Para la futura conexion de camaras IP, se recomienda que cada modelo soporte RTSP y ONVIF, ademas de un stream secundario configurable. Analizar un stream secundario de menor resolucion y entre 10 y 15 FPS reduce la carga sin impedir que otro sistema grabe el stream principal en alta calidad.
