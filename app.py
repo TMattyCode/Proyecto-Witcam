@@ -1,5 +1,6 @@
 import json
 import mimetypes
+import os
 import shutil
 import threading
 import time
@@ -12,6 +13,7 @@ import cv2
 import numpy as np
 import supervision as sv
 from insightface.app import FaceAnalysis
+from insightface.utils import face_align
 
 # =========================
 # CONFIGURACION
@@ -34,19 +36,30 @@ TIEMPO_CONFIRMACION_DESCONOCIDO = 3.0
 MIN_MUESTRAS_DESCONOCIDO = 4
 MIN_ANCHO_ROSTRO = 70
 MIN_ALTO_ROSTRO = 70
+MIN_CONFIANZA_ROSTRO_ANALIZABLE = 0.60
+MIN_SIMETRIA_ROSTRO_ANALIZABLE = 0.45
+MAX_DESVIACION_NARIZ_ANALIZABLE = 0.35
 COOLDOWN_CAPTURA = 15
 TOLERANCIA_OCLUSION_SEGUNDOS = 6.0
 MIN_SIMILITUD_POSIBLE_MISMA_PERSONA = 0.30
+MIN_SIMILITUD_REIDENTIFICACION = 0.35
+MIN_IOU_REIDENTIFICACION = 0.10
 
 UMBRAL_SIMILITUD = 0.45
 
 ANCHO_CAMARA = 640
 ALTO_CAMARA = 480
-ANCHO_ANALISIS = 416
-ALTO_ANALISIS = 312
-ANALIZAR_CADA_N_FRAMES = 10
-DET_SIZE = 256
-JPEG_QUALITY = 82
+ANCHO_ANALISIS = 512
+ALTO_ANALISIS = 384
+DETECTAR_CADA_N_FRAMES = 2
+RECONOCER_CADA_N_DETECCIONES = 3
+DET_SIZE = 320
+JPEG_QUALITY = 86
+FPS_VIDEO_WEB = 12
+ANCHO_MAX_VIDEO_WEB = 1280
+ALTO_MAX_VIDEO_WEB = 720
+MAX_INTENTOS_RECONEXION = 5
+INTERVALO_RECONEXION = 1.0
 
 EXTENSIONES_IMAGEN = {".jpg", ".jpeg", ".png", ".webp"}
 
@@ -77,6 +90,7 @@ def crear_modelo():
 
     modelo = FaceAnalysis(
         name="buffalo_l",
+        allowed_modules=["detection", "recognition"],
         providers=["CPUExecutionProvider"]
     )
 
@@ -196,6 +210,53 @@ def calcular_iou(caja_a, caja_b):
     return inter_area / union
 
 
+def evaluar_calidad_rostro(caja, puntos_clave, confianza):
+    x1, y1, x2, y2 = caja
+    ancho = x2 - x1
+    alto = y2 - y1
+
+    if ancho < MIN_ANCHO_ROSTRO or alto < MIN_ALTO_ROSTRO:
+        return False, "rostro muy pequeno"
+
+    if confianza < MIN_CONFIANZA_ROSTRO_ANALIZABLE:
+        return False, "baja confianza"
+
+    if puntos_clave is None or len(puntos_clave) < 3:
+        return False, "puntos faciales insuficientes"
+
+    ojo_izquierdo = np.asarray(puntos_clave[0], dtype=np.float32)
+    ojo_derecho = np.asarray(puntos_clave[1], dtype=np.float32)
+    nariz = np.asarray(puntos_clave[2], dtype=np.float32)
+    eje_ojos = ojo_derecho - ojo_izquierdo
+    distancia_ojos = float(np.linalg.norm(eje_ojos))
+
+    if distancia_ojos <= 1.0:
+        return False, "ojos no visibles"
+
+    distancia_nariz_izquierda = float(np.linalg.norm(nariz - ojo_izquierdo))
+    distancia_nariz_derecha = float(np.linalg.norm(nariz - ojo_derecho))
+    distancia_mayor = max(distancia_nariz_izquierda, distancia_nariz_derecha)
+    simetria = (
+        min(distancia_nariz_izquierda, distancia_nariz_derecha) / distancia_mayor
+        if distancia_mayor > 0
+        else 0.0
+    )
+
+    punto_medio_ojos = (ojo_izquierdo + ojo_derecho) / 2.0
+    eje_ojos_normalizado = eje_ojos / distancia_ojos
+    desviacion_nariz = abs(
+        float(np.dot(nariz - punto_medio_ojos, eje_ojos_normalizado))
+    ) / distancia_ojos
+
+    if (
+        simetria < MIN_SIMETRIA_ROSTRO_ANALIZABLE
+        or desviacion_nariz > MAX_DESVIACION_NARIZ_ANALIZABLE
+    ):
+        return False, "angulo insuficiente"
+
+    return True, None
+
+
 def limpiar_tracks_antiguos(tracks, tiempo_maximo_sin_ver=2.0):
     ahora = time.time()
     ids_a_eliminar = []
@@ -225,6 +286,106 @@ def limpiar_historial_reconocidos(historial, tiempo_maximo_sin_ver=10.0):
 # =========================
 
 
+class CapturadorFrames:
+    def __init__(self, fuente, stop_event):
+        self.fuente = fuente
+        self.stop_event = stop_event
+        self.local_stop_event = threading.Event()
+        self.lock = threading.Lock()
+        self.camara = None
+        self.thread = None
+        self.latest_frame = None
+        self.sequence = 0
+        self.error = None
+        self.fps = 15.0
+
+    def start(self):
+        self._abrir_camara()
+        self.thread = threading.Thread(target=self._run, daemon=True)
+        self.thread.start()
+
+    def _abrir_camara(self):
+        if isinstance(self.fuente, str):
+            os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = "rtsp_transport;tcp"
+            self.camara = cv2.VideoCapture(
+                self.fuente,
+                cv2.CAP_FFMPEG,
+                [
+                    cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, 5000,
+                    cv2.CAP_PROP_READ_TIMEOUT_MSEC, 2000,
+                ]
+            )
+        else:
+            self.camara = cv2.VideoCapture(self.fuente, cv2.CAP_DSHOW)
+            self.camara.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
+            self.camara.set(cv2.CAP_PROP_FPS, 15)
+            self.camara.set(cv2.CAP_PROP_FRAME_WIDTH, ANCHO_CAMARA)
+            self.camara.set(cv2.CAP_PROP_FRAME_HEIGHT, ALTO_CAMARA)
+
+        self.camara.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+
+        if not self.camara.isOpened():
+            raise RuntimeError(f"No se pudo abrir la fuente de video: {self.fuente}")
+
+        fps_camara = self.camara.get(cv2.CAP_PROP_FPS)
+        if fps_camara > 0:
+            self.fps = fps_camara
+
+    def _run(self):
+        intentos_reconexion = 0
+
+        while not self.stop_event.is_set() and not self.local_stop_event.is_set():
+            correcto, frame = self.camara.read()
+
+            if not correcto:
+                intentos_reconexion += 1
+
+                if self.camara is not None:
+                    self.camara.release()
+
+                if intentos_reconexion > MAX_INTENTOS_RECONEXION:
+                    with self.lock:
+                        self.error = "No se pudo leer la transmision de video."
+                    return
+
+                if self.stop_event.wait(INTERVALO_RECONEXION):
+                    return
+
+                try:
+                    self._abrir_camara()
+                except RuntimeError:
+                    continue
+
+                continue
+
+            intentos_reconexion = 0
+
+            with self.lock:
+                self.latest_frame = frame
+                self.sequence += 1
+
+    def snapshot(self):
+        with self.lock:
+            frame = None if self.latest_frame is None else self.latest_frame.copy()
+            return self.sequence, frame, self.error
+
+    def current_sequence(self):
+        with self.lock:
+            return self.sequence
+
+    def stop(self):
+        self.local_stop_event.set()
+
+        if self.thread and self.thread.is_alive():
+            self.thread.join(timeout=2.5)
+
+        if self.camara is not None:
+            self.camara.release()
+
+        if self.thread and self.thread.is_alive():
+            self.thread.join(timeout=1.0)
+
+
 class MotorReconocimiento:
     def __init__(self):
         self.lock = threading.Lock()
@@ -237,6 +398,7 @@ class MotorReconocimiento:
         self.last_event = "Detenido"
         self.detections = []
         self.references_count = 0
+        self.resultados_dibujo = []
 
     def start(self):
         if self.thread and self.thread.is_alive():
@@ -250,6 +412,7 @@ class MotorReconocimiento:
             self.last_event = "Iniciando camara"
             self.latest_jpeg = crear_frame_mensaje("Iniciando camara...")
             self.detections = []
+            self.resultados_dibujo = []
 
         self.thread = threading.Thread(target=self._run, daemon=True)
         self.thread.start()
@@ -262,6 +425,7 @@ class MotorReconocimiento:
             self.latest_jpeg = crear_frame_mensaje("Presiona Iniciar en la interfaz")
             self.last_event = "Detenido"
             self.detections = []
+            self.resultados_dibujo = []
 
         if self.thread and self.thread.is_alive() and threading.current_thread() != self.thread:
             self.thread.join(timeout=2.0)
@@ -299,18 +463,44 @@ class MotorReconocimiento:
             return
 
         with self.lock:
+            if self.stop_event.is_set():
+                return
             self.latest_jpeg = buffer.tobytes()
             self.streaming = True
 
     def _run(self):
         modelo = None
-        camara = None
+        capturador = None
+        thread_video = None
 
         try:
             with self.lock:
                 self.running = True
                 self.streaming = False
                 self.last_error = None
+                self.last_event = "Abriendo fuente de video"
+
+            capturador = CapturadorFrames(CAMARA, self.stop_event)
+            capturador.start()
+            thread_video = threading.Thread(
+                target=self._publicar_video,
+                args=(capturador,),
+                daemon=True
+            )
+            thread_video.start()
+
+            limite_espera = time.time() + 30.0
+            while not self.stop_event.is_set():
+                _, primer_frame, error_captura = capturador.snapshot()
+                if error_captura:
+                    raise RuntimeError(error_captura)
+                if primer_frame is not None:
+                    break
+                if time.time() >= limite_espera:
+                    raise RuntimeError("La fuente de video no entrego ningun frame.")
+                self.stop_event.wait(0.05)
+
+            with self.lock:
                 self.last_event = "Cargando modelo"
 
             modelo = crear_modelo()
@@ -323,40 +513,30 @@ class MotorReconocimiento:
             candidatos_desconocidos = {}
             historial_reconocidos = {}
 
-            camara = cv2.VideoCapture(CAMARA, cv2.CAP_DSHOW)
-            camara.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
-            camara.set(cv2.CAP_PROP_FPS, 15)
-            camara.set(cv2.CAP_PROP_FRAME_WIDTH, ANCHO_CAMARA)
-            camara.set(cv2.CAP_PROP_FRAME_HEIGHT, ALTO_CAMARA)
-            camara.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-
-            if not camara.isOpened():
-                raise RuntimeError("No se pudo abrir la webcam. Prueba CAMARA = 1 o CAMARA = 2.")
-
-            fps_camara = camara.get(cv2.CAP_PROP_FPS)
-            if fps_camara <= 0:
-                fps_camara = 15
-
             tracker = sv.ByteTrack(
                 track_activation_threshold=0.25,
                 lost_track_buffer=30,
                 minimum_matching_threshold=0.8,
-                frame_rate=fps_camara,
+                frame_rate=capturador.fps,
                 minimum_consecutive_frames=1
             )
 
-            contador_frames = 0
-            ultimos_resultados = []
+            ultima_secuencia_detectada = capturador.current_sequence()
+            contador_detecciones = RECONOCER_CADA_N_DETECCIONES - 1
 
             with self.lock:
-                self.last_event = "Webcam activa"
+                self.last_event = "Fuente de video activa"
                 self.references_count = len(referencias)
 
             while not self.stop_event.is_set():
-                correcto, frame = camara.read()
+                secuencia, frame, error_captura = capturador.snapshot()
 
-                if not correcto:
-                    raise RuntimeError("No se pudo leer la imagen de la webcam.")
+                if error_captura:
+                    raise RuntimeError(error_captura)
+
+                if frame is None:
+                    self.stop_event.wait(0.01)
+                    continue
 
                 ahora_revision = time.time()
 
@@ -368,36 +548,49 @@ class MotorReconocimiento:
                         estado_carpetas = nuevo_estado_carpetas
                         candidatos_desconocidos.clear()
                         historial_reconocidos.clear()
+                        contador_detecciones = RECONOCER_CADA_N_DETECCIONES - 1
 
                         with self.lock:
                             self.references_count = len(referencias)
                             self.last_event = "Referencias actualizadas"
+                            self.resultados_dibujo = []
 
                     ultima_revision_carpetas = ahora_revision
 
-                contador_frames += 1
+                if secuencia - ultima_secuencia_detectada < DETECTAR_CADA_N_FRAMES:
+                    self.stop_event.wait(0.01)
+                    continue
 
-                if contador_frames % ANALIZAR_CADA_N_FRAMES == 0:
-                    ultimos_resultados = self._analizar_frame(
-                        frame,
-                        modelo,
-                        referencias,
-                        tracker,
-                        candidatos_desconocidos,
-                        historial_reconocidos
-                    )
+                contador_detecciones += 1
+                realizar_reconocimiento = (
+                    contador_detecciones >= RECONOCER_CADA_N_DETECCIONES
+                )
 
-                    limpiar_tracks_antiguos(candidatos_desconocidos)
-                    limpiar_historial_reconocidos(historial_reconocidos)
+                resultados = self._analizar_frame(
+                    frame,
+                    modelo,
+                    referencias,
+                    tracker,
+                    candidatos_desconocidos,
+                    historial_reconocidos,
+                    realizar_reconocimiento
+                )
 
-                    with self.lock:
-                        self.detections = [
-                            {"texto": texto, "color": color}
-                            for _, _, _, _, texto, color in ultimos_resultados
-                        ]
+                if realizar_reconocimiento:
+                    contador_detecciones = 0
 
-                self._dibujar_resultados(frame, ultimos_resultados)
-                self._set_frame(frame)
+                limpiar_tracks_antiguos(candidatos_desconocidos)
+                limpiar_historial_reconocidos(historial_reconocidos)
+
+                with self.lock:
+                    self.resultados_dibujo = resultados
+                    self.detections = [
+                        {"texto": texto, "color": color}
+                        for _, _, _, _, texto, color in resultados
+                    ]
+
+                # Descarta los frames recibidos mientras el detector estaba ocupado.
+                ultima_secuencia_detectada = capturador.current_sequence()
 
         except Exception as error:
             with self.lock:
@@ -405,8 +598,13 @@ class MotorReconocimiento:
                 self.last_event = "Error"
             print(f"Error en motor de reconocimiento: {error}")
         finally:
-            if camara is not None:
-                camara.release()
+            self.stop_event.set()
+
+            if capturador is not None:
+                capturador.stop()
+
+            if thread_video and thread_video.is_alive():
+                thread_video.join(timeout=1.0)
 
             with self.lock:
                 self.running = False
@@ -414,6 +612,49 @@ class MotorReconocimiento:
                 self.latest_jpeg = crear_frame_mensaje("Presiona Iniciar en la interfaz")
                 self.last_event = "Detenido"
                 self.detections = []
+                self.resultados_dibujo = []
+
+    def _publicar_video(self, capturador):
+        intervalo = 1.0 / FPS_VIDEO_WEB
+
+        while not self.stop_event.is_set():
+            inicio = time.perf_counter()
+            _, frame, error_captura = capturador.snapshot()
+
+            if error_captura:
+                return
+
+            if frame is not None:
+                with self.lock:
+                    resultados = list(self.resultados_dibujo)
+
+                self._dibujar_resultados(frame, resultados)
+                frame = self._ajustar_frame_video_web(frame)
+                self._set_frame(frame)
+
+            restante = intervalo - (time.perf_counter() - inicio)
+            if restante > 0:
+                self.stop_event.wait(restante)
+
+    @staticmethod
+    def _ajustar_frame_video_web(frame):
+        alto, ancho = frame.shape[:2]
+        factor = min(
+            1.0,
+            ANCHO_MAX_VIDEO_WEB / ancho,
+            ALTO_MAX_VIDEO_WEB / alto
+        )
+
+        if factor >= 1.0:
+            return frame
+
+        nuevo_ancho = max(1, round(ancho * factor))
+        nuevo_alto = max(1, round(alto * factor))
+        return cv2.resize(
+            frame,
+            (nuevo_ancho, nuevo_alto),
+            interpolation=cv2.INTER_AREA
+        )
 
     def _analizar_frame(
         self,
@@ -422,21 +663,37 @@ class MotorReconocimiento:
         referencias,
         tracker,
         candidatos_desconocidos,
-        historial_reconocidos
+        historial_reconocidos,
+        realizar_reconocimiento
     ):
-        frame_ia = cv2.resize(frame, (ANCHO_ANALISIS, ALTO_ANALISIS))
-        rostros = modelo.get(frame_ia)
+        alto_original, ancho_original = frame.shape[:2]
+        factor_escala = min(
+            ANCHO_ANALISIS / ancho_original,
+            ALTO_ANALISIS / alto_original
+        )
+        ancho_ia = max(1, round(ancho_original * factor_escala))
+        alto_ia = max(1, round(alto_original * factor_escala))
+        frame_ia = cv2.resize(frame, (ancho_ia, alto_ia))
         resultados_actuales = []
 
         cajas_originales = []
         confianzas_originales = []
         analisis_rostros = []
 
-        escala_x = frame.shape[1] / frame_ia.shape[1]
-        escala_y = frame.shape[0] / frame_ia.shape[0]
+        escala_x = ancho_original / ancho_ia
+        escala_y = alto_original / alto_ia
 
-        for rostro in rostros:
-            x1, y1, x2, y2 = rostro.bbox.astype(int)
+        bboxes, puntos_clave = modelo.det_model.detect(
+            frame_ia,
+            max_num=0,
+            metric="default"
+        )
+
+        recortes = []
+        indices_analizables = []
+
+        for indice, bbox_detectado in enumerate(bboxes):
+            x1, y1, x2, y2 = bbox_detectado[:4].astype(int)
 
             x1 = int(x1 * escala_x)
             x2 = int(x2 * escala_x)
@@ -444,22 +701,60 @@ class MotorReconocimiento:
             y2 = int(y2 * escala_y)
 
             bbox_actual = [x1, y1, x2, y2]
-            embedding_actual = normalizar_vector(rostro.embedding)
-            nombre, similitud, tipo, reconocido = comparar_con_referencias(
-                embedding_actual,
-                referencias
+            puntos = (
+                puntos_clave[indice]
+                if puntos_clave is not None and indice < len(puntos_clave)
+                else None
+            )
+            evaluable, motivo_no_evaluable = evaluar_calidad_rostro(
+                bbox_actual,
+                puntos,
+                float(bbox_detectado[4])
             )
 
             cajas_originales.append(bbox_actual)
-            confianzas_originales.append(float(rostro.det_score))
+            confianzas_originales.append(float(bbox_detectado[4]))
             analisis_rostros.append({
                 "bbox": bbox_actual,
-                "embedding": embedding_actual,
-                "nombre": nombre,
-                "similitud": similitud,
-                "tipo": tipo,
-                "reconocido": reconocido
+                "embedding": None,
+                "nombre": "Desconocido",
+                "similitud": -1.0,
+                "tipo": None,
+                "reconocido": False,
+                "evaluable": evaluable,
+                "motivo_no_evaluable": motivo_no_evaluable,
+                "reconocimiento_ejecutado": realizar_reconocimiento
             })
+
+            if realizar_reconocimiento and evaluable and puntos is not None:
+                recortes.append(
+                    face_align.norm_crop(
+                        frame_ia,
+                        landmark=puntos,
+                        image_size=112
+                    )
+                )
+                indices_analizables.append(indice)
+
+        if recortes:
+            embeddings = modelo.models["recognition"].get_feat(recortes)
+
+            for indice, embedding_detectado in zip(
+                indices_analizables,
+                embeddings
+            ):
+                embedding_actual = normalizar_vector(embedding_detectado)
+                nombre, similitud, tipo, reconocido = comparar_con_referencias(
+                    embedding_actual,
+                    referencias
+                )
+                analisis_rostros[indice].update({
+                    "embedding": embedding_actual,
+                    "nombre": nombre,
+                    "similitud": similitud,
+                    "tipo": tipo,
+                    "reconocido": reconocido
+                })
 
         if cajas_originales:
             detections = sv.Detections(
@@ -501,6 +796,79 @@ class MotorReconocimiento:
                 resultados_actuales.append((x1, y1, x2, y2, texto, color))
                 continue
 
+            if not mejor_dato["evaluable"]:
+                bbox_actual = tuple(mejor_dato["bbox"])
+                historial = historial_reconocidos.get(tracker_id)
+
+                if historial is None:
+                    historial = self._buscar_identidad_por_posicion(
+                        tracker_id,
+                        bbox_actual,
+                        historial_reconocidos
+                    )
+
+                    if historial is not None:
+                        historial_reconocidos[tracker_id] = {
+                            **historial,
+                            "ultimo_visto": time.time(),
+                            "bbox": bbox_actual
+                        }
+
+                candidatos_desconocidos.pop(tracker_id, None)
+
+                if historial is not None:
+                    historial["ultimo_visto"] = time.time()
+                    historial["bbox"] = bbox_actual
+                    color = (0, 180, 255)
+                    texto = (
+                        f"ID {tracker_id} | {historial['nombre']} | "
+                        f"{mejor_dato['motivo_no_evaluable']}"
+                    )
+                else:
+                    color = (160, 160, 160)
+                    texto = (
+                        f"ID {tracker_id} | No evaluable | "
+                        f"{mejor_dato['motivo_no_evaluable']}"
+                    )
+
+                resultados_actuales.append((x1, y1, x2, y2, texto, color))
+                continue
+
+            if not mejor_dato["reconocimiento_ejecutado"]:
+                bbox_actual = tuple(mejor_dato["bbox"])
+                historial = historial_reconocidos.get(tracker_id)
+
+                if historial is None:
+                    historial = self._buscar_identidad_por_posicion(
+                        tracker_id,
+                        bbox_actual,
+                        historial_reconocidos
+                    )
+
+                    if historial is not None:
+                        historial_reconocidos[tracker_id] = {
+                            **historial,
+                            "ultimo_visto": time.time(),
+                            "bbox": bbox_actual
+                        }
+
+                if historial is not None:
+                    historial["ultimo_visto"] = time.time()
+                    historial["bbox"] = bbox_actual
+                    candidatos_desconocidos.pop(tracker_id, None)
+                    color = (
+                        (0, 255, 0)
+                        if historial["tipo"] == "oficial"
+                        else (0, 255, 255)
+                    )
+                    texto = f"ID {tracker_id} | {historial['nombre']} | seguimiento"
+                else:
+                    color = (160, 160, 160)
+                    texto = f"ID {tracker_id} | Rostro detectado"
+
+                resultados_actuales.append((x1, y1, x2, y2, texto, color))
+                continue
+
             nombre = mejor_dato["nombre"]
             similitud = mejor_dato["similitud"]
             tipo = mejor_dato["tipo"]
@@ -508,12 +876,37 @@ class MotorReconocimiento:
             embedding_actual = mejor_dato["embedding"]
             bbox_actual = tuple(mejor_dato["bbox"])
 
+            historial_actual = historial_reconocidos.get(tracker_id)
+            if (
+                reconocido
+                and historial_actual is not None
+                and nombre != historial_actual["nombre"]
+                and time.time() - historial_actual["ultimo_visto"]
+                <= TOLERANCIA_OCLUSION_SEGUNDOS
+            ):
+                historial_actual["ultimo_visto"] = time.time()
+                historial_actual["bbox"] = bbox_actual
+                candidatos_desconocidos.pop(tracker_id, None)
+                color = (
+                    (0, 255, 0)
+                    if historial_actual["tipo"] == "oficial"
+                    else (0, 255, 255)
+                )
+                texto = (
+                    f"ID {tracker_id} | {historial_actual['nombre']} "
+                    f"| identidad estable"
+                )
+                resultados_actuales.append((x1, y1, x2, y2, texto, color))
+                continue
+
             if reconocido:
                 historial_reconocidos[tracker_id] = {
                     "nombre": nombre,
                     "similitud": similitud,
                     "tipo": tipo,
-                    "ultimo_visto": time.time()
+                    "ultimo_visto": time.time(),
+                    "embedding": embedding_actual.copy(),
+                    "bbox": bbox_actual
                 }
                 candidatos_desconocidos.pop(tracker_id, None)
 
@@ -567,9 +960,32 @@ class MotorReconocimiento:
 
             if tiempo_desde_reconocido <= TOLERANCIA_OCLUSION_SEGUNDOS or parece_misma_persona:
                 historial["ultimo_visto"] = time.time()
+                historial["bbox"] = bbox_actual
                 candidatos_desconocidos.pop(tracker_id, None)
                 texto = f"ID {tracker_id} | {historial['nombre']} | oclusion {similitud:.2f}"
                 return (0, 180, 255), texto
+
+        historial_reidentificado, similitud_reidentificacion = (
+            self._buscar_identidad_reciente(
+                tracker_id,
+                embedding_actual,
+                bbox_actual,
+                historial_reconocidos
+            )
+        )
+
+        if historial_reidentificado is not None:
+            historial_reconocidos[tracker_id] = {
+                **historial_reidentificado,
+                "ultimo_visto": time.time(),
+                "bbox": bbox_actual
+            }
+            candidatos_desconocidos.pop(tracker_id, None)
+            texto = (
+                f"ID {tracker_id} | {historial_reidentificado['nombre']} "
+                f"| reidentificado {similitud_reidentificacion:.2f}"
+            )
+            return (0, 180, 255), texto
 
         ahora = time.time()
         ancho_rostro = x2 - x1
@@ -627,6 +1043,63 @@ class MotorReconocimiento:
                 self.last_event = texto
 
         return (0, 0, 255), texto
+
+    def _buscar_identidad_reciente(
+        self,
+        tracker_id,
+        embedding_actual,
+        bbox_actual,
+        historial_reconocidos
+    ):
+        ahora = time.time()
+        mejor_historial = None
+        mejor_similitud = -1.0
+
+        for otro_tracker_id, historial in historial_reconocidos.items():
+            if otro_tracker_id == tracker_id or "embedding" not in historial:
+                continue
+
+            if ahora - historial["ultimo_visto"] > TOLERANCIA_OCLUSION_SEGUNDOS:
+                continue
+
+            similitud = float(np.dot(embedding_actual, historial["embedding"]))
+            iou = calcular_iou(bbox_actual, historial.get("bbox", bbox_actual))
+            misma_posicion = iou >= MIN_IOU_REIDENTIFICACION
+            similitud_fuerte = similitud >= UMBRAL_SIMILITUD
+
+            if (
+                similitud >= MIN_SIMILITUD_REIDENTIFICACION
+                and (misma_posicion or similitud_fuerte)
+                and similitud > mejor_similitud
+            ):
+                mejor_historial = historial
+                mejor_similitud = similitud
+
+        return mejor_historial, mejor_similitud
+
+    def _buscar_identidad_por_posicion(
+        self,
+        tracker_id,
+        bbox_actual,
+        historial_reconocidos
+    ):
+        ahora = time.time()
+        mejor_historial = None
+        mejor_iou = MIN_IOU_REIDENTIFICACION
+
+        for otro_tracker_id, historial in historial_reconocidos.items():
+            if otro_tracker_id == tracker_id:
+                continue
+
+            if ahora - historial["ultimo_visto"] > TOLERANCIA_OCLUSION_SEGUNDOS:
+                continue
+
+            iou = calcular_iou(bbox_actual, historial.get("bbox", bbox_actual))
+            if iou >= mejor_iou:
+                mejor_historial = historial
+                mejor_iou = iou
+
+        return mejor_historial
 
     def _dibujar_resultados(self, frame, resultados):
         for x1, y1, x2, y2, texto, color in resultados:

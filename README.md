@@ -10,7 +10,7 @@ El repositorio tambien contiene la interfaz definitiva desarrollada con React y 
 - La interfaz de prueba formada por `index.html`, `app.js` y `styles.css` esta conectada al backend Python.
 - La interfaz React se encuentra en `witcam/` y contiene las pantallas de la aplicacion final, pero todavia no consume la API de `app.py`.
 - El script `database/Tablas.sql` crea la base de datos inicial en SQL Server, pero todavia no esta conectado al backend.
-- Actualmente se usa `CAMARA = 0` para la webcam. La version final debera registrar una cantidad variable de camaras IP y consumir sus streams RTSP/ONVIF.
+- Actualmente el backend procesa una fuente configurable mediante `CAMARA`, que puede ser el indice de una webcam o una URL RTSP. La version final debera registrar una cantidad variable de camaras y canales de NVR.
 
 ## Arquitectura prevista
 
@@ -196,43 +196,58 @@ La app soporta nombres con mayusculas, minusculas y acentos en los archivos de r
 
 ## Oclusion
 
-Si una persona ya fue reconocida y despues se tapa parte de la cara, la app no la marca inmediatamente como desconocida. Mantiene una memoria temporal por `tracker_id`.
+Si una persona ya fue reconocida y despues se tapa parte de la cara o gira la cabeza, la app no la marca inmediatamente como desconocida. Mantiene una memoria temporal por `tracker_id` y tambien puede recuperar la identidad si ByteTrack le asigna un ID nuevo, comparando el embedding y la ultima posicion conocida.
 
 Parametros relacionados:
 
 ```python
 TOLERANCIA_OCLUSION_SEGUNDOS = 6.0
 MIN_SIMILITUD_POSIBLE_MISMA_PERSONA = 0.30
+MIN_SIMILITUD_REIDENTIFICACION = 0.35
+MIN_IOU_REIDENTIFICACION = 0.10
+MIN_CONFIANZA_ROSTRO_ANALIZABLE = 0.60
+MIN_SIMETRIA_ROSTRO_ANALIZABLE = 0.45
+MAX_DESVIACION_NARIZ_ANALIZABLE = 0.35
 ```
 
-Esto ayuda a evitar que alguien conocido sea guardado como desconocido solo por taparse los ojos, girar un poco la cara o aparecer parcialmente cubierto.
+Esto ayuda a evitar que alguien conocido sea guardado como desconocido solo por taparse los ojos, girar un poco la cara, aparecer parcialmente cubierto o recibir un nuevo ID del tracker.
+
+Antes de generar o comparar un embedding, Witcam comprueba que el rostro tenga tamano, confianza y simetria facial suficientes. Si la persona esta demasiado de perfil o no muestra informacion confiable, la caja indica `No evaluable` o conserva temporalmente la identidad anterior, pero no crea un nuevo desconocido ni guarda una captura hasta obtener un angulo mejor.
 
 ## Parametros importantes
 
 Estos valores estan al inicio de `app.py`.
 
 ```python
-CAMARA = 0
+CAMARA = 0  # O una URL como "rtsp://IP:8554/camara1"
 UMBRAL_SIMILITUD = 0.45
-ANCHO_ANALISIS = 416
-ALTO_ANALISIS = 312
-ANALIZAR_CADA_N_FRAMES = 10
-DET_SIZE = 256
-JPEG_QUALITY = 82
+ANCHO_ANALISIS = 512
+ALTO_ANALISIS = 384
+DETECTAR_CADA_N_FRAMES = 2
+RECONOCER_CADA_N_DETECCIONES = 3
+DET_SIZE = 320
+JPEG_QUALITY = 86
+FPS_VIDEO_WEB = 12
+ANCHO_MAX_VIDEO_WEB = 1280
+ALTO_MAX_VIDEO_WEB = 720
 TIEMPO_CONFIRMACION_DESCONOCIDO = 3.0
 MIN_MUESTRAS_DESCONOCIDO = 4
 COOLDOWN_CAPTURA = 15
 ```
 
-`CAMARA`: indice de la webcam. Si no abre, prueba `1` o `2`.
+`CAMARA`: indice de webcam o URL RTSP de una camara IP o canal de NVR.
 
 `UMBRAL_SIMILITUD`: umbral para considerar una cara como reconocida. Mas alto es mas estricto; mas bajo reconoce mas facil, pero puede equivocarse mas.
 
-`ANALIZAR_CADA_N_FRAMES`: mientras mas alto, menos lag pero menos actualizacion de reconocimiento. Mientras mas bajo, mas fluido el reconocimiento pero mas pesado.
+`DETECTAR_CADA_N_FRAMES`: controla cada cuantos frames SCRFD actualiza las cajas y ByteTrack. Un valor bajo mejora el seguimiento de movimiento, pero aumenta el uso de CPU.
 
-`ANCHO_ANALISIS`, `ALTO_ANALISIS` y `DET_SIZE`: controlan la carga del modelo. Subirlos puede mejorar deteccion de rostros pequenos, pero aumenta el lag.
+`RECONOCER_CADA_N_DETECCIONES`: controla cada cuantas actualizaciones del tracker InsightFace vuelve a generar embeddings. Entre reconocimientos, la identidad confirmada permanece asociada al track y se muestra como `seguimiento`.
+
+`ANCHO_ANALISIS`, `ALTO_ANALISIS` y `DET_SIZE`: controlan la carga del modelo. El video conserva su proporcion original dentro de esos limites para no deformar los rostros. Subirlos puede mejorar la deteccion de rostros pequenos, pero aumenta el lag.
 
 `JPEG_QUALITY`: calidad del video enviado al navegador. Subirlo mejora imagen pero puede aumentar carga y lag.
+
+`FPS_VIDEO_WEB`, `ANCHO_MAX_VIDEO_WEB` y `ALTO_MAX_VIDEO_WEB`: limitan la copia enviada al navegador para evitar codificar cada frame a 1080p. La IA sigue usando el frame original. La captura RTSP funciona en un hilo independiente y conserva solamente el frame mas reciente, evitando acumular video atrasado mientras trabaja la IA. Si la transmision se corta temporalmente, el capturador intenta reconectarse automaticamente.
 
 `TIEMPO_CONFIRMACION_DESCONOCIDO`: segundos minimos antes de guardar un desconocido.
 
