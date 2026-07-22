@@ -32,10 +32,10 @@ CARPETAS_REFERENCIAS = [
     {"ruta": CARPETA_PENDIENTES, "tipo": "pendiente"},
 ]
 
-TIEMPO_CONFIRMACION_DESCONOCIDO = 3.0
-MIN_MUESTRAS_DESCONOCIDO = 4
-MIN_ANCHO_ROSTRO = 70
-MIN_ALTO_ROSTRO = 70
+TIEMPO_CONFIRMACION_DESCONOCIDO = 1.5
+MIN_MUESTRAS_DESCONOCIDO = 3
+MIN_ANCHO_ROSTRO = 55
+MIN_ALTO_ROSTRO = 55
 MIN_CONFIANZA_ROSTRO_ANALIZABLE = 0.60
 MIN_SIMETRIA_ROSTRO_ANALIZABLE = 0.45
 MAX_DESVIACION_NARIZ_ANALIZABLE = 0.35
@@ -51,9 +51,9 @@ ANCHO_CAMARA = 640
 ALTO_CAMARA = 480
 ANCHO_ANALISIS = 512
 ALTO_ANALISIS = 384
-DETECTAR_CADA_N_FRAMES = 2
-RECONOCER_CADA_N_DETECCIONES = 3
-DET_SIZE = 320
+DETECTAR_CADA_N_FRAMES = 1
+RECONOCER_CADA_N_DETECCIONES = 6
+DET_SIZE = 352
 JPEG_QUALITY = 86
 FPS_VIDEO_WEB = 12
 ANCHO_MAX_VIDEO_WEB = 1280
@@ -706,9 +706,15 @@ class MotorReconocimiento:
                 if puntos_clave is not None and indice < len(puntos_clave)
                 else None
             )
+            puntos_originales = None
+            if puntos is not None:
+                puntos_originales = np.asarray(puntos, dtype=np.float32).copy()
+                puntos_originales[:, 0] *= escala_x
+                puntos_originales[:, 1] *= escala_y
+
             evaluable, motivo_no_evaluable = evaluar_calidad_rostro(
                 bbox_actual,
-                puntos,
+                puntos_originales,
                 float(bbox_detectado[4])
             )
 
@@ -726,11 +732,15 @@ class MotorReconocimiento:
                 "reconocimiento_ejecutado": realizar_reconocimiento
             })
 
-            if realizar_reconocimiento and evaluable and puntos is not None:
+            if (
+                realizar_reconocimiento
+                and evaluable
+                and puntos_originales is not None
+            ):
                 recortes.append(
                     face_align.norm_crop(
-                        frame_ia,
-                        landmark=puntos,
+                        frame,
+                        landmark=puntos_originales,
                         image_size=112
                     )
                 )
@@ -814,9 +824,8 @@ class MotorReconocimiento:
                             "bbox": bbox_actual
                         }
 
-                candidatos_desconocidos.pop(tracker_id, None)
-
                 if historial is not None:
+                    candidatos_desconocidos.pop(tracker_id, None)
                     historial["ultimo_visto"] = time.time()
                     historial["bbox"] = bbox_actual
                     color = (0, 180, 255)
@@ -825,6 +834,10 @@ class MotorReconocimiento:
                         f"{mejor_dato['motivo_no_evaluable']}"
                     )
                 else:
+                    candidato = candidatos_desconocidos.get(tracker_id)
+                    if candidato is not None:
+                        candidato["ultimo_visto"] = time.time()
+                        candidato["bbox"] = bbox_actual
                     color = (160, 160, 160)
                     texto = (
                         f"ID {tracker_id} | No evaluable | "
@@ -863,8 +876,26 @@ class MotorReconocimiento:
                     )
                     texto = f"ID {tracker_id} | {historial['nombre']} | seguimiento"
                 else:
+                    candidato = candidatos_desconocidos.get(tracker_id)
+                    if candidato is not None:
+                        ahora = time.time()
+                        area_rostro = max(0, x2 - x1) * max(0, y2 - y1)
+                        candidato["ultimo_visto"] = ahora
+                        candidato["bbox"] = bbox_actual
+
+                        if area_rostro > candidato["mejor_area"]:
+                            candidato["mejor_frame"] = frame.copy()
+                            candidato["mejor_bbox"] = bbox_actual
+                            candidato["mejor_area"] = area_rostro
+
+                        tiempo_visible = ahora - candidato["inicio"]
+                        texto = (
+                            f"ID {tracker_id} | Desconocido en seguimiento... "
+                            f"{tiempo_visible:.1f}s"
+                        )
+                    else:
+                        texto = f"ID {tracker_id} | Rostro detectado"
                     color = (160, 160, 160)
-                    texto = f"ID {tracker_id} | Rostro detectado"
 
                 resultados_actuales.append((x1, y1, x2, y2, texto, color))
                 continue

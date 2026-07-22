@@ -205,6 +205,8 @@ TOLERANCIA_OCLUSION_SEGUNDOS = 6.0
 MIN_SIMILITUD_POSIBLE_MISMA_PERSONA = 0.30
 MIN_SIMILITUD_REIDENTIFICACION = 0.35
 MIN_IOU_REIDENTIFICACION = 0.10
+MIN_ANCHO_ROSTRO = 55
+MIN_ALTO_ROSTRO = 55
 MIN_CONFIANZA_ROSTRO_ANALIZABLE = 0.60
 MIN_SIMETRIA_ROSTRO_ANALIZABLE = 0.45
 MAX_DESVIACION_NARIZ_ANALIZABLE = 0.35
@@ -223,15 +225,15 @@ CAMARA = 0  # O una URL como "rtsp://IP:8554/camara1"
 UMBRAL_SIMILITUD = 0.45
 ANCHO_ANALISIS = 512
 ALTO_ANALISIS = 384
-DETECTAR_CADA_N_FRAMES = 2
-RECONOCER_CADA_N_DETECCIONES = 3
-DET_SIZE = 320
+DETECTAR_CADA_N_FRAMES = 1
+RECONOCER_CADA_N_DETECCIONES = 6
+DET_SIZE = 352
 JPEG_QUALITY = 86
 FPS_VIDEO_WEB = 12
 ANCHO_MAX_VIDEO_WEB = 1280
 ALTO_MAX_VIDEO_WEB = 720
-TIEMPO_CONFIRMACION_DESCONOCIDO = 3.0
-MIN_MUESTRAS_DESCONOCIDO = 4
+TIEMPO_CONFIRMACION_DESCONOCIDO = 1.5
+MIN_MUESTRAS_DESCONOCIDO = 3
 COOLDOWN_CAPTURA = 15
 ```
 
@@ -243,13 +245,13 @@ COOLDOWN_CAPTURA = 15
 
 `RECONOCER_CADA_N_DETECCIONES`: controla cada cuantas actualizaciones del tracker InsightFace vuelve a generar embeddings. Entre reconocimientos, la identidad confirmada permanece asociada al track y se muestra como `seguimiento`.
 
-`ANCHO_ANALISIS`, `ALTO_ANALISIS` y `DET_SIZE`: controlan la carga del modelo. El video conserva su proporcion original dentro de esos limites para no deformar los rostros. Subirlos puede mejorar la deteccion de rostros pequenos, pero aumenta el lag.
+`ANCHO_ANALISIS`, `ALTO_ANALISIS` y `DET_SIZE`: controlan la carga del modelo. El video conserva su proporcion original dentro de esos limites para no deformar los rostros. Subirlos puede mejorar la deteccion de rostros pequenos, pero aumenta el lag. Los puntos faciales detectados se trasladan al frame original antes de generar el embedding, para aprovechar el detalle disponible en fuentes de alta resolucion.
 
 `JPEG_QUALITY`: calidad del video enviado al navegador. Subirlo mejora imagen pero puede aumentar carga y lag.
 
 `FPS_VIDEO_WEB`, `ANCHO_MAX_VIDEO_WEB` y `ALTO_MAX_VIDEO_WEB`: limitan la copia enviada al navegador para evitar codificar cada frame a 1080p. La IA sigue usando el frame original. La captura RTSP funciona en un hilo independiente y conserva solamente el frame mas reciente, evitando acumular video atrasado mientras trabaja la IA. Si la transmision se corta temporalmente, el capturador intenta reconectarse automaticamente.
 
-`TIEMPO_CONFIRMACION_DESCONOCIDO`: segundos minimos antes de guardar un desconocido.
+`TIEMPO_CONFIRMACION_DESCONOCIDO`: segundos minimos antes de guardar un desconocido. El tiempo acumulado se conserva durante frames intermedios y perdidas breves de calidad facial para no reiniciar el proceso mientras la persona camina.
 
 `MIN_MUESTRAS_DESCONOCIDO`: cantidad minima de lecturas antes de guardar un desconocido.
 
