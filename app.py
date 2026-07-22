@@ -14,12 +14,13 @@ import numpy as np
 import supervision as sv
 from insightface.app import FaceAnalysis
 from insightface.utils import face_align
+from ultralytics import YOLO
 
 # =========================
 # CONFIGURACION
 # =========================
 
-CAMARA = 0
+CAMARA = "rtsp://127.0.0.1:8554/camara1"
 HOST = "localhost"
 PUERTO_WEB = 8000
 
@@ -54,6 +55,19 @@ ALTO_ANALISIS = 384
 DETECTAR_CADA_N_FRAMES = 1
 RECONOCER_CADA_N_DETECCIONES = 6
 DET_SIZE = 352
+USAR_YOLO_PERSONAS = True
+MODELO_YOLO = str(Path(__file__).with_name("yolo26n.pt"))
+YOLO_IMGSZ = 416
+YOLO_CONFIANZA = 0.35
+DETECTAR_PERSONAS_CADA_N_CICLOS = 3
+TOLERANCIA_IDENTIDAD_CORPORAL_SEGUNDOS = 3.0
+MIN_CONFIRMACIONES_IDENTIDAD_INICIAL = 2
+MIN_SIMILITUD_IDENTIDAD_INICIAL = 0.50
+MIN_CONFIRMACIONES_CAMBIO_IDENTIDAD = 2
+MIN_SIMILITUD_CAMBIO_IDENTIDAD = 0.60
+MIN_SIMILITUD_TRASPASO_IDENTIDAD = 0.60
+MARGEN_SIMILITUD_TRASPASO_IDENTIDAD = 0.05
+MAX_SEGUNDOS_EVIDENCIA_FACIAL_ANTIGUA = 1.5
 JPEG_QUALITY = 86
 FPS_VIDEO_WEB = 12
 ANCHO_MAX_VIDEO_WEB = 1280
@@ -100,6 +114,11 @@ def crear_modelo():
     )
 
     return modelo
+
+
+def crear_modelo_personas():
+    print("Cargando modelo YOLO de deteccion de personas...")
+    return YOLO(MODELO_YOLO)
 
 
 def obtener_rostro_principal(rostros):
@@ -470,6 +489,7 @@ class MotorReconocimiento:
 
     def _run(self):
         modelo = None
+        modelo_personas = None
         capturador = None
         thread_video = None
 
@@ -504,6 +524,8 @@ class MotorReconocimiento:
                 self.last_event = "Cargando modelo"
 
             modelo = crear_modelo()
+            if USAR_YOLO_PERSONAS:
+                modelo_personas = crear_modelo_personas()
             referencias = cargar_referencias(modelo)
             estado_carpetas = obtener_estado_carpetas()
             ultima_revision_carpetas = time.time()
@@ -512,6 +534,7 @@ class MotorReconocimiento:
 
             candidatos_desconocidos = {}
             historial_reconocidos = {}
+            historial_personas = {}
 
             tracker = sv.ByteTrack(
                 track_activation_threshold=0.25,
@@ -520,9 +543,21 @@ class MotorReconocimiento:
                 frame_rate=capturador.fps,
                 minimum_consecutive_frames=1
             )
+            tracker_personas = sv.ByteTrack(
+                track_activation_threshold=YOLO_CONFIANZA,
+                lost_track_buffer=30,
+                minimum_matching_threshold=0.8,
+                frame_rate=max(
+                    1,
+                    round(capturador.fps / DETECTAR_PERSONAS_CADA_N_CICLOS)
+                ),
+                minimum_consecutive_frames=1
+            )
 
             ultima_secuencia_detectada = capturador.current_sequence()
             contador_detecciones = RECONOCER_CADA_N_DETECCIONES - 1
+            contador_personas = DETECTAR_PERSONAS_CADA_N_CICLOS - 1
+            personas_seguidas = []
 
             with self.lock:
                 self.last_event = "Fuente de video activa"
@@ -548,6 +583,7 @@ class MotorReconocimiento:
                         estado_carpetas = nuevo_estado_carpetas
                         candidatos_desconocidos.clear()
                         historial_reconocidos.clear()
+                        historial_personas.clear()
                         contador_detecciones = RECONOCER_CADA_N_DETECCIONES - 1
 
                         with self.lock:
@@ -566,6 +602,21 @@ class MotorReconocimiento:
                     contador_detecciones >= RECONOCER_CADA_N_DETECCIONES
                 )
 
+                if modelo_personas is not None:
+                    contador_personas += 1
+                    if contador_personas >= DETECTAR_PERSONAS_CADA_N_CICLOS:
+                        personas_seguidas = self._detectar_personas(
+                            frame,
+                            modelo_personas,
+                            tracker_personas
+                        )
+                        contador_personas = 0
+
+                    self._actualizar_personas_visibles(
+                        personas_seguidas,
+                        historial_personas
+                    )
+
                 resultados = self._analizar_frame(
                     frame,
                     modelo,
@@ -573,14 +624,30 @@ class MotorReconocimiento:
                     tracker,
                     candidatos_desconocidos,
                     historial_reconocidos,
-                    realizar_reconocimiento
+                    realizar_reconocimiento,
+                    personas_seguidas,
+                    historial_personas
                 )
+
+                if modelo_personas is not None:
+                    resultados = (
+                        self._crear_resultados_personas(
+                            personas_seguidas,
+                            resultados,
+                            historial_personas
+                        )
+                        + resultados
+                    )
 
                 if realizar_reconocimiento:
                     contador_detecciones = 0
 
                 limpiar_tracks_antiguos(candidatos_desconocidos)
                 limpiar_historial_reconocidos(historial_reconocidos)
+                limpiar_tracks_antiguos(
+                    historial_personas,
+                    TOLERANCIA_IDENTIDAD_CORPORAL_SEGUNDOS
+                )
 
                 with self.lock:
                     self.resultados_dibujo = resultados
@@ -664,7 +731,9 @@ class MotorReconocimiento:
         tracker,
         candidatos_desconocidos,
         historial_reconocidos,
-        realizar_reconocimiento
+        realizar_reconocimiento,
+        personas_seguidas,
+        historial_personas
     ):
         alto_original, ancho_original = frame.shape[:2]
         factor_escala = min(
@@ -793,6 +862,72 @@ class MotorReconocimiento:
                 if iou_actual > mejor_iou:
                     mejor_iou = iou_actual
                     mejor_dato = dato_rostro
+
+            persona = self._buscar_persona_para_rostro(
+                box,
+                personas_seguidas
+            )
+            persona_id = persona["tracker_id"] if persona is not None else None
+
+            if persona_id is not None:
+                if mejor_dato is not None and mejor_dato["reconocido"]:
+                    rostros_revocados = self._registrar_identidad_persona(
+                        persona_id,
+                        mejor_dato,
+                        historial_personas,
+                        tracker_id
+                    )
+                    for rostro_id in rostros_revocados:
+                        historial_reconocidos.pop(rostro_id, None)
+                        candidatos_desconocidos.pop(rostro_id, None)
+
+                identidad_corporal = historial_personas.get(persona_id)
+                if identidad_corporal is not None and "nombre" in identidad_corporal:
+                    identidad_corporal.setdefault(
+                        "rostros_asociados",
+                        set()
+                    ).add(tracker_id)
+                    bbox_actual = tuple(box.astype(int))
+                    historial_reconocidos[tracker_id] = {
+                        "nombre": identidad_corporal["nombre"],
+                        "similitud": identidad_corporal["similitud"],
+                        "tipo": identidad_corporal["tipo"],
+                        "ultimo_visto": time.time(),
+                        "embedding": identidad_corporal["embedding"].copy(),
+                        "bbox": bbox_actual
+                    }
+                    candidatos_desconocidos.pop(tracker_id, None)
+                    color = (
+                        (0, 255, 0)
+                        if identidad_corporal["tipo"] == "oficial"
+                        else (0, 255, 255)
+                    )
+                    texto = (
+                        f"ID {tracker_id} | {identidad_corporal['nombre']} "
+                        f"| identidad corporal"
+                    )
+                    resultados_actuales.append(
+                        (x1, y1, x2, y2, texto, color)
+                    )
+                    continue
+
+                if mejor_dato is not None and mejor_dato["reconocido"]:
+                    nombre_candidato = mejor_dato["nombre"]
+                    pertenece_a_otra = any(
+                        otro_id != persona_id
+                        and datos.get("nombre") == nombre_candidato
+                        for otro_id, datos in historial_personas.items()
+                    )
+                    estado = (
+                        "coincidencia ambigua"
+                        if pertenece_a_otra
+                        else "identidad por confirmar"
+                    )
+                    texto = f"ID {tracker_id} | {nombre_candidato} | {estado}"
+                    resultados_actuales.append(
+                        (x1, y1, x2, y2, texto, (160, 160, 160))
+                    )
+                    continue
 
             if mejor_dato is None or mejor_iou <= 0.3:
                 if tracker_id in historial_reconocidos:
@@ -965,6 +1100,308 @@ class MotorReconocimiento:
             resultados_actuales.append((x1, y1, x2, y2, texto, color))
 
         return resultados_actuales
+
+    @staticmethod
+    def _detectar_personas(frame, modelo_personas, tracker_personas):
+        resultado_yolo = modelo_personas.predict(
+            frame,
+            classes=[0],
+            conf=YOLO_CONFIANZA,
+            imgsz=YOLO_IMGSZ,
+            device="cpu",
+            verbose=False
+        )[0]
+
+        if resultado_yolo.boxes is None or len(resultado_yolo.boxes) == 0:
+            detecciones = sv.Detections.empty()
+        else:
+            detecciones = sv.Detections(
+                xyxy=resultado_yolo.boxes.xyxy.cpu().numpy().astype(np.float32),
+                confidence=(
+                    resultado_yolo.boxes.conf.cpu().numpy().astype(np.float32)
+                ),
+                class_id=np.zeros(len(resultado_yolo.boxes), dtype=int)
+            )
+
+        detecciones = tracker_personas.update_with_detections(detecciones)
+        if detecciones.tracker_id is None:
+            return []
+
+        return [
+            {
+                "bbox": tuple(caja.astype(int)),
+                "tracker_id": int(tracker_id)
+            }
+            for caja, tracker_id in zip(
+                detecciones.xyxy,
+                detecciones.tracker_id
+            )
+        ]
+
+    @staticmethod
+    def _actualizar_personas_visibles(personas, historial_personas):
+        ahora = time.time()
+        for persona in personas:
+            datos = historial_personas.setdefault(persona["tracker_id"], {})
+            datos["ultimo_visto"] = ahora
+            datos["bbox"] = persona["bbox"]
+
+    @staticmethod
+    def _buscar_persona_para_rostro(caja_rostro, personas):
+        rx1, ry1, rx2, ry2 = caja_rostro
+        centro_x = (rx1 + rx2) / 2.0
+        centro_y = (ry1 + ry2) / 2.0
+        candidatas = []
+
+        for persona in personas:
+            px1, py1, px2, py2 = persona["bbox"]
+            if not (px1 <= centro_x <= px2 and py1 <= centro_y <= py2):
+                continue
+
+            ancho = max(1, px2 - px1)
+            alto = max(1, py2 - py1)
+            centro_cabeza_x = px1 + ancho / 2.0
+            centro_cabeza_y = py1 + alto * 0.20
+            distancia = (
+                abs(centro_x - centro_cabeza_x) / ancho
+                + abs(centro_y - centro_cabeza_y) / alto
+            )
+            candidatas.append((distancia, persona))
+
+        if not candidatas:
+            return None
+
+        return min(candidatas, key=lambda candidata: candidata[0])[1]
+
+    @staticmethod
+    def _registrar_identidad_persona(
+        persona_id,
+        identidad_rostro,
+        historial_personas,
+        rostro_tracker_id
+    ):
+        if not identidad_rostro.get("reconocido", True):
+            return set()
+
+        nombre = identidad_rostro.get("nombre")
+        embedding = identidad_rostro.get("embedding")
+        tipo = identidad_rostro.get("tipo")
+        similitud = float(identidad_rostro.get("similitud", -1.0))
+        if not nombre or embedding is None or tipo is None:
+            return set()
+
+        persona = historial_personas.setdefault(persona_id, {})
+        if "nombre" not in persona:
+            if similitud < MIN_SIMILITUD_IDENTIDAD_INICIAL:
+                persona.pop("identidad_candidata", None)
+                return set()
+
+            candidata = persona.get("identidad_candidata")
+            if candidata is not None and candidata["nombre"] == nombre:
+                candidata["confirmaciones"] += 1
+                if similitud >= candidata["similitud"]:
+                    candidata.update({
+                        "similitud": similitud,
+                        "tipo": tipo,
+                        "embedding": embedding.copy()
+                    })
+            else:
+                candidata = {
+                    "nombre": nombre,
+                    "similitud": similitud,
+                    "tipo": tipo,
+                    "embedding": embedding.copy(),
+                    "confirmaciones": 1
+                }
+                persona["identidad_candidata"] = candidata
+
+            if candidata["confirmaciones"] < MIN_CONFIRMACIONES_IDENTIDAD_INICIAL:
+                return set()
+
+            rostros_revocados = MotorReconocimiento._resolver_propietarios_identidad(
+                persona_id,
+                candidata,
+                historial_personas
+            )
+            if rostros_revocados is None:
+                return set()
+
+            MotorReconocimiento._asignar_identidad_persona(
+                persona,
+                candidata,
+                rostro_tracker_id
+            )
+            return rostros_revocados
+
+        if nombre == persona["nombre"]:
+            if similitud >= persona["similitud"]:
+                persona["similitud"] = similitud
+                persona["embedding"] = embedding.copy()
+                persona["tipo"] = tipo
+            persona["ultima_evidencia_facial"] = time.time()
+            persona.setdefault("rostros_asociados", set()).add(rostro_tracker_id)
+            persona["cambio_candidato"] = None
+            persona["confirmaciones_cambio"] = 0
+            return set()
+
+        if similitud < MIN_SIMILITUD_CAMBIO_IDENTIDAD:
+            persona["cambio_candidato"] = None
+            persona["confirmaciones_cambio"] = 0
+            return set()
+
+        if persona.get("cambio_candidato") == nombre:
+            persona["confirmaciones_cambio"] += 1
+            if similitud >= persona["datos_cambio"]["similitud"]:
+                persona["datos_cambio"].update({
+                    "similitud": similitud,
+                    "tipo": tipo,
+                    "embedding": embedding.copy()
+                })
+        else:
+            persona["cambio_candidato"] = nombre
+            persona["confirmaciones_cambio"] = 1
+            persona["datos_cambio"] = {
+                "nombre": nombre,
+                "similitud": similitud,
+                "tipo": tipo,
+                "embedding": embedding.copy()
+            }
+
+        if persona["confirmaciones_cambio"] < MIN_CONFIRMACIONES_CAMBIO_IDENTIDAD:
+            return set()
+
+        nueva_identidad = persona["datos_cambio"]
+        rostros_revocados = MotorReconocimiento._resolver_propietarios_identidad(
+            persona_id,
+            nueva_identidad,
+            historial_personas
+        )
+        if rostros_revocados is None:
+            return set()
+
+        rostros_revocados.update(
+            MotorReconocimiento._revocar_identidad_persona(persona)
+        )
+        MotorReconocimiento._asignar_identidad_persona(
+            persona,
+            nueva_identidad,
+            rostro_tracker_id
+        )
+        return rostros_revocados
+
+    @staticmethod
+    def _resolver_propietarios_identidad(
+        persona_id,
+        nueva_identidad,
+        historial_personas
+    ):
+        ahora = time.time()
+        propietarios = [
+            datos
+            for otro_id, datos in historial_personas.items()
+            if otro_id != persona_id
+            and datos.get("nombre") == nueva_identidad["nombre"]
+        ]
+        rostros_revocados = set()
+
+        for propietario in propietarios:
+            evidencia_antigua = (
+                ahora - propietario.get("ultima_evidencia_facial", 0)
+                > MAX_SEGUNDOS_EVIDENCIA_FACIAL_ANTIGUA
+            )
+            evidencia_mas_fuerte = (
+                nueva_identidad["similitud"]
+                >= propietario.get("similitud", -1.0)
+                + MARGEN_SIMILITUD_TRASPASO_IDENTIDAD
+            )
+            evidencia_suficiente = (
+                nueva_identidad["similitud"]
+                >= MIN_SIMILITUD_TRASPASO_IDENTIDAD
+            )
+            if not evidencia_suficiente or not (
+                evidencia_antigua or evidencia_mas_fuerte
+            ):
+                return None
+
+        for propietario in propietarios:
+            rostros_revocados.update(
+                MotorReconocimiento._revocar_identidad_persona(propietario)
+            )
+
+        return rostros_revocados
+
+    @staticmethod
+    def _revocar_identidad_persona(persona):
+        rostros_asociados = set(persona.get("rostros_asociados", set()))
+        for campo in (
+            "nombre",
+            "similitud",
+            "tipo",
+            "embedding",
+            "ultima_evidencia_facial",
+            "rostros_asociados",
+            "identidad_candidata",
+            "cambio_candidato",
+            "confirmaciones_cambio",
+            "datos_cambio"
+        ):
+            persona.pop(campo, None)
+        return rostros_asociados
+
+    @staticmethod
+    def _asignar_identidad_persona(persona, identidad, rostro_tracker_id):
+        persona.update({
+            "nombre": identidad["nombre"],
+            "similitud": identidad["similitud"],
+            "tipo": identidad["tipo"],
+            "embedding": identidad["embedding"].copy(),
+            "ultima_evidencia_facial": time.time(),
+            "rostros_asociados": {rostro_tracker_id},
+            "cambio_candidato": None,
+            "confirmaciones_cambio": 0
+        })
+        persona.pop("identidad_candidata", None)
+        persona.pop("datos_cambio", None)
+
+    @staticmethod
+    def _crear_resultados_personas(
+        personas,
+        resultados_rostros,
+        historial_personas
+    ):
+        resultados = []
+
+        for persona in personas:
+            x1, y1, x2, y2 = persona["bbox"]
+            tiene_rostro = False
+
+            for rx1, ry1, rx2, ry2, _, _ in resultados_rostros:
+                centro_x = (rx1 + rx2) / 2.0
+                centro_y = (ry1 + ry2) / 2.0
+                if x1 <= centro_x <= x2 and y1 <= centro_y <= y2:
+                    tiene_rostro = True
+                    break
+
+            identidad = historial_personas.get(persona["tracker_id"], {})
+            if "nombre" in identidad:
+                estado = identidad["nombre"]
+                color = (
+                    (0, 255, 0)
+                    if identidad["tipo"] == "oficial"
+                    else (0, 255, 255)
+                )
+            else:
+                estado = (
+                    "rostro detectado"
+                    if tiene_rostro
+                    else "sin rostro visible"
+                )
+                color = (255, 140, 0)
+
+            texto = f"Persona {persona['tracker_id']} | {estado}"
+            resultados.append((x1, y1, x2, y2, texto, color))
+
+        return resultados
 
     def _manejar_desconocido(
         self,
@@ -1160,10 +1597,11 @@ def listar_imagenes(carpeta):
         if not archivo.is_file() or archivo.suffix.lower() not in EXTENSIONES_IMAGEN:
             continue
 
+        datos = archivo.stat()
         imagenes.append({
             "name": archivo.name,
-            "url": f"/{carpeta}/{archivo.name}",
-            "modified": archivo.stat().st_mtime,
+            "url": f"/{carpeta}/{archivo.name}?v={datos.st_mtime_ns}",
+            "modified": datos.st_mtime,
         })
 
     return sorted(imagenes, key=lambda item: item["modified"], reverse=True)
@@ -1390,6 +1828,7 @@ class WitcamHandler(BaseHTTPRequestHandler):
         body = json.dumps(data).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Cache-Control", "no-store")
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
@@ -1410,6 +1849,9 @@ class WitcamHandler(BaseHTTPRequestHandler):
 
         self.send_response(200)
         self.send_header("Content-Type", content_type)
+        if ruta.suffix.lower() in EXTENSIONES_IMAGEN:
+            self.send_header("Cache-Control", "no-store, max-age=0")
+            self.send_header("Pragma", "no-cache")
         self.send_header("Content-Length", str(len(data)))
         self.end_headers()
         self.wfile.write(data)

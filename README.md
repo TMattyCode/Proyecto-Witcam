@@ -1,6 +1,6 @@
 # Witcam - Reconocimiento facial y monitoreo de camaras
 
-Witcam es una aplicacion de reconocimiento facial en tiempo real. Actualmente puede analizar una webcam local, detectar rostros con InsightFace/SCRFD, mantener IDs de seguimiento con ByteTrack y guardar capturas de personas desconocidas para revisarlas despues.
+Witcam es una aplicacion de reconocimiento facial en tiempo real. Actualmente puede analizar una webcam o fuente RTSP, detectar personas con YOLO26n, detectar y reconocer rostros con InsightFace/SCRFD, mantener IDs de seguimiento con ByteTrack y guardar capturas de personas desconocidas para revisarlas despues.
 
 El repositorio tambien contiene la interfaz definitiva desarrollada con React y Vite, ademas del script inicial para la base de datos SQL Server. La integracion entre estos componentes sigue en desarrollo.
 
@@ -26,12 +26,16 @@ SQL Server      Frontend React
 
 El NVR no es obligatorio para el reconocimiento. Python puede analizar directamente el stream secundario de cada camara IP. Un NVR podria incorporarse posteriormente si se necesita grabacion continua o reproduccion de video historico.
 
+MediaMTX se usa solamente durante las pruebas para publicar un video local como un stream RTSP simulado. Si una camara IP o un canal de NVR ya entrega una URL RTSP, Witcam se conecta directamente a esa direccion y MediaMTX no es necesario. La instalacion local puede mantenerse dentro de `MediaMTX/`; esa carpeta, sus ejecutables, certificados y videos no se versionan en Git.
+
 ## Que usa
 
 - `OpenCV`: lectura de webcam, procesamiento de frames, dibujo de cajas y generacion del video web.
+- `YOLO26n`: deteccion de personas completas, incluso cuando el rostro no esta visible.
 - `InsightFace`: deteccion de rostros y generacion de embeddings faciales.
 - `SCRFD`: detector facial usado internamente por InsightFace.
-- `ByteTrack`: seguimiento de rostros para mantener un ID estable por persona.
+- `ByteTrack`: dos trackers independientes, uno para personas detectadas por YOLO y otro para rostros detectados por SCRFD.
+- `PyTorch` y `Ultralytics`: ejecucion e integracion del modelo YOLO26n.
 - `NumPy`: calculo de similitud entre embeddings.
 - `ThreadingHTTPServer`: servidor web local integrado en Python.
 - `React`: interfaz de usuario final.
@@ -181,18 +185,21 @@ Para borrar una referencia oficial, primero debes moverla a pendientes y luego e
 
 La app soporta nombres con mayusculas, minusculas y acentos en los archivos de referencia. En Windows tambien maneja correctamente cambios solo de mayusculas/minusculas, por ejemplo pasar de `matias.jpg` a `MATIAS.jpg`.
 
+Las vistas previas incluyen una version basada en la fecha de modificacion y se sirven sin cache. Si una imagen se elimina y posteriormente otra reutiliza el mismo nombre, la interfaz muestra el archivo nuevo en lugar de una copia antigua guardada por el navegador.
+
 ## Flujo de reconocimiento
 
 1. La interfaz web llama al servidor local de Python.
-2. Python abre la webcam cuando presionas `Iniciar`.
-3. Cada cierto numero de frames, la app reduce la imagen para analizarla mas rapido.
-4. InsightFace/SCRFD detecta los rostros y genera embeddings.
-5. ByteTrack asigna un `ID` estable a cada rostro detectado.
-6. Cada embedding se compara con las referencias cargadas.
-7. Si supera el umbral de similitud, se muestra como persona reconocida.
-8. Si no se reconoce y permanece visible, se guarda una captura en `referencias_pendientes/`.
-9. La interfaz recibe el video procesado desde `/video_feed`.
-10. Si cambian las carpetas de referencias o pendientes, Python recarga las referencias automaticamente.
+2. Python abre la webcam o URL RTSP configurada cuando presionas `Iniciar`.
+3. YOLO26n detecta personas y un ByteTrack corporal mantiene sus IDs.
+4. Si una persona no contiene una deteccion facial, se muestra como `sin rostro visible`.
+5. SCRFD detecta los rostros y un segundo ByteTrack mantiene sus IDs.
+6. InsightFace genera embeddings solamente cuando corresponde ejecutar reconocimiento.
+7. Cada embedding se compara con las referencias cargadas.
+8. Si supera el umbral de similitud, se muestra como persona reconocida.
+9. Si no se reconoce y permanece visible, se guarda una captura en `referencias_pendientes/`.
+10. La interfaz recibe el video procesado desde `/video_feed`.
+11. Si cambian las carpetas de referencias o pendientes, Python recarga las referencias automaticamente.
 
 ## Oclusion
 
@@ -228,6 +235,18 @@ ALTO_ANALISIS = 384
 DETECTAR_CADA_N_FRAMES = 1
 RECONOCER_CADA_N_DETECCIONES = 6
 DET_SIZE = 352
+USAR_YOLO_PERSONAS = True
+YOLO_IMGSZ = 416
+YOLO_CONFIANZA = 0.35
+DETECTAR_PERSONAS_CADA_N_CICLOS = 3
+TOLERANCIA_IDENTIDAD_CORPORAL_SEGUNDOS = 3.0
+MIN_CONFIRMACIONES_IDENTIDAD_INICIAL = 2
+MIN_SIMILITUD_IDENTIDAD_INICIAL = 0.50
+MIN_CONFIRMACIONES_CAMBIO_IDENTIDAD = 2
+MIN_SIMILITUD_CAMBIO_IDENTIDAD = 0.60
+MIN_SIMILITUD_TRASPASO_IDENTIDAD = 0.60
+MARGEN_SIMILITUD_TRASPASO_IDENTIDAD = 0.05
+MAX_SEGUNDOS_EVIDENCIA_FACIAL_ANTIGUA = 1.5
 JPEG_QUALITY = 86
 FPS_VIDEO_WEB = 12
 ANCHO_MAX_VIDEO_WEB = 1280
@@ -246,6 +265,14 @@ COOLDOWN_CAPTURA = 15
 `RECONOCER_CADA_N_DETECCIONES`: controla cada cuantas actualizaciones del tracker InsightFace vuelve a generar embeddings. Entre reconocimientos, la identidad confirmada permanece asociada al track y se muestra como `seguimiento`.
 
 `ANCHO_ANALISIS`, `ALTO_ANALISIS` y `DET_SIZE`: controlan la carga del modelo. El video conserva su proporcion original dentro de esos limites para no deformar los rostros. Subirlos puede mejorar la deteccion de rostros pequenos, pero aumenta el lag. Los puntos faciales detectados se trasladan al frame original antes de generar el embedding, para aprovechar el detalle disponible en fuentes de alta resolucion.
+
+`USAR_YOLO_PERSONAS`: activa YOLO26n para detectar cuerpos aunque SCRFD no encuentre un rostro. YOLO usa un ByteTrack independiente y muestra `Persona ID | sin rostro visible` cuando una persona permanece en escena sin una deteccion facial asociada.
+
+`YOLO_IMGSZ`, `YOLO_CONFIANZA` y `DETECTAR_PERSONAS_CADA_N_CICLOS`: equilibran alcance, confianza y carga de CPU. YOLO se limita a la clase COCO `person` y se ejecuta con menor frecuencia que SCRFD. El archivo `yolo26n.pt` se descarga automaticamente la primera vez y no se versiona en Git.
+
+Cuando InsightFace confirma un rostro dentro de una caja corporal, la identidad queda vinculada temporalmente al `Persona ID` de YOLO/ByteTrack. La asignacion inicial exige varias confirmaciones y una similitud minima propia. Mientras ese cuerpo siga activo, un resultado facial diferente aislado no reemplaza el nombre. El cambio requiere `MIN_CONFIRMACIONES_CAMBIO_IDENTIDAD` coincidencias consecutivas con una similitud minima de `MIN_SIMILITUD_CAMBIO_IDENTIDAD`.
+
+Una misma identidad no puede pertenecer a dos cuerpos activos. Si otro cuerpo obtiene evidencia facial mas reciente o claramente mas fuerte para el mismo nombre, la identidad se transfiere y se elimina del cuerpo anterior. La vinculacion caduca despues de `TOLERANCIA_IDENTIDAD_CORPORAL_SEGUNDOS` sin observar el cuerpo.
 
 `JPEG_QUALITY`: calidad del video enviado al navegador. Subirlo mejora imagen pero puede aumentar carga y lag.
 

@@ -18,3 +18,9 @@ desconocidos/
 *.avi
 *.mov
 *.mkv
+
+# Los pesos de IA se descargan al instalar/iniciar el proyecto.
+*.pt
+
+# Servidor RTSP local y archivos generados de MediaMTX.
+MediaMTX/
