@@ -138,16 +138,17 @@ body {
 }
 
 .input-icon.right {
-  width: 45px;
-  height: 45px;
-  margin-left: 16px;
+  width: 40px;
+  height: 40px;
+  margin-left: 0;
+  flex-shrink: 0;
 }
 
 .input-wrapper input {
   width: 100%;
   border: none;
   outline: none;
-  font-size: 14px;
+  font-size: 12px;
   color: #07142f;
   background: transparent;
 }
@@ -156,14 +157,7 @@ body {
   color: #8997b3;
 }
 
-.password-help {
-  display: block;
-  margin-top: -8px;
-  margin-bottom: 20px;
-  color: #7e8dac;
-  font-size: 15px;
-  line-height: 1.25;
-}
+
 
 .primary-button {
   width: 100%;
@@ -177,6 +171,7 @@ body {
   cursor: pointer;
   
 }
+
 
 .primary-button:hover {
   background: #0048dd;
@@ -214,4 +209,18 @@ body {
   max-width: none;
   max-height: none;
   margin-left: -18px;
+}
+
+.register-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px 18px;
+}
+
+.register-grid .input-group {
+  margin-bottom: 0;
+}
+
+.register-form .primary-button {
+  margin-top: 60px;
 }

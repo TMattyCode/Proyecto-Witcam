@@ -51,31 +51,47 @@ function Registro() {
             <p>Completa la información para registrarte</p>
 
             <form className="register-form" onSubmit={registrarUsuario}>
-              <Input
-                label="Nombre de usuario"
-                placeholder="Ingresa tu nombre de usuario"
-                icon={iconoUsuario}
-              />
+              <div className="register-grid">
+                <Input
+                  label="Nombre de usuario"
+                  placeholder="Ingresa tu nombre de usuario"
+                  icon={iconoUsuario}
+                />
 
-              <Input
-                label="Correo electrónico"
-                type="email"
-                placeholder="Ingresa tu correo electrónico"
-                icon={iconoCorreo}
-              />
+                <Input
+                  label="Contraseña ⓘ"
+                  type="password"
+                  placeholder="Crea una contraseña"
+                  icon={iconoCandado}
+                  rightIcon={iconoOjo}
+                />
 
-              <Input
-                label="Contraseña"
-                type="password"
-                placeholder="Crea una contraseña"
-                icon={iconoCandado}
-                rightIcon={iconoOjo}
-              />
+                <Input
+                  label="Correo electrónico"
+                  type="email"
+                  placeholder="Ingresa tu correo electrónico"
+                  icon={iconoCorreo}
+                />
 
-              <span className="password-help">
-                La contraseña debe tener al menos 8 caracteres, incluyendo
-                letras y números.
-              </span>
+                <Input
+                  label="Teléfono"
+                  type="tel"
+                  placeholder="Ingresa tu teléfono"
+                  icon={iconoUsuario}
+                />
+
+                <Input
+                  label="Nombre"
+                  placeholder="Ingresa tu nombre"
+                  icon={iconoUsuario}
+                />
+
+                <Input
+                  label="Apellido"
+                  placeholder="Ingresa tu apellido"
+                  icon={iconoUsuario}
+                />
+              </div>
 
               <Button type="submit">Registrarse</Button>
             </form>
