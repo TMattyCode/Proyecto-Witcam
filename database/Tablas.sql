@@ -47,6 +47,22 @@ create table Usuario_grupo (
 	fecha_registro datetime not null default getdate()
 )
 
+create table Grupo_Camara (
+	id_grupo_camara int identity(1,1) primary key,
+
+	id_usuario_grupo int not null
+		foreign key references Usuario_grupo(id_usuario_grupo),
+
+	nombre_grupo varchar(150) not null,
+	descripcion varchar(250),
+
+	estado_grupo bit not null default 1,
+	fecha_creacion datetime not null default getdate(),
+
+	constraint UQ_Grupo_Camara_Nombre
+		unique (id_usuario_grupo, nombre_grupo)
+)
+
 create table Estado_Plan (
 	id_estado_plan int identity(1,1) primary key,
 	nombre_estado varchar(100) not null unique
@@ -114,4 +130,18 @@ create table Usuario (
 
 	fecha_creacion datetime not null default getdate(),
 	ultimo_acceso datetime
+)
+create table Usuario_Grupo_Camara (
+	id_usuario_grupo_camara int identity(1,1) primary key,
+
+	id_usuario int not null
+		foreign key references Usuario(id_usuario),
+
+	id_grupo_camara int not null
+		foreign key references Grupo_Camara(id_grupo_camara),
+
+	fecha_asignacion datetime not null default getdate(),
+
+	constraint UQ_Usuario_Grupo_Camara
+		unique (id_usuario, id_grupo_camara)
 )
