@@ -1,0 +1,1 @@
+"""Utilidades puras del backend."""

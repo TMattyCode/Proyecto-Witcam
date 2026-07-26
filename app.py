@@ -22,7 +22,7 @@ from ultralytics import YOLO
 # =========================
 
 # Puede ser 0, una URL RTSP o una ruta como r"C:\Videos\prueba.mp4".
-CAMARA = "MediaMTX/prueba10m.mp4"
+CAMARA = "MediaMTX/prueba2_10m.mp4"
 HOST = "localhost"
 PUERTO_WEB = 8000
 

@@ -6,11 +6,12 @@ El repositorio tambien contiene la interfaz definitiva desarrollada con React y 
 
 ## Estado actual
 
-- El backend de IA en `app.py` funciona con una fuente de video y expone una API HTTP local.
+- El backend modular v2 se inicia con `main.py`, procesa una fuente de video y expone una API HTTP local.
+- `app.py` permanece congelado como version estable de respaldo mientras se valida y extiende la v2.
 - La interfaz de prueba formada por `index.html`, `app.js` y `styles.css` esta conectada al backend Python.
-- La interfaz React se encuentra en `witcam/` y contiene las pantallas de la aplicacion final, pero todavia no consume la API de `app.py`.
+- La interfaz React se encuentra en `witcam/` y contiene las pantallas de la aplicacion final, pero todavia no consume la API modular.
 - El script `database/Tablas.sql` crea la base de datos inicial en SQL Server, pero todavia no esta conectado al backend.
-- Actualmente el backend procesa una fuente configurable mediante `CAMARA`, que puede ser el indice de una webcam, una URL RTSP o la ruta de un video local. La version final debera registrar una cantidad variable de camaras y canales de NVR.
+- Actualmente el backend procesa una fuente configurable en `backend/config.py`, que puede ser el indice de una webcam, una URL RTSP o la ruta de un video local. La version final debera registrar una cantidad variable de camaras y canales de NVR.
 
 ## Arquitectura prevista
 
@@ -27,6 +28,16 @@ SQL Server      Frontend React
 El NVR no es obligatorio para el reconocimiento. Python puede analizar directamente el stream secundario de cada camara IP. Un NVR podria incorporarse posteriormente si se necesita grabacion continua o reproduccion de video historico.
 
 MediaMTX se usa solamente durante las pruebas para publicar un video local como un stream RTSP simulado. Si una camara IP o un canal de NVR ya entrega una URL RTSP, Witcam se conecta directamente a esa direccion y MediaMTX no es necesario. La instalacion local puede mantenerse dentro de `MediaMTX/`; esa carpeta, sus ejecutables, certificados y videos no se versionan en Git.
+
+### Backend modular v2
+
+La v2 separa configuracion, dominio, inteligencia artificial, video, galerias, servicios y API. `backend/container.py` ensambla manualmente los componentes y expone `construir_aplicacion` junto con el alias `build_application`.
+
+Solo los adaptadores de `backend/ia/adaptadores/` importan directamente InsightFace, Ultralytics y Supervision. El pipeline depende de contratos propios para `DetectorPersonas`, `DetectorRostros`, `ReconocedorFacial`, `RastreadorObjetos` y `AnalizadorFrame`. Esto permite probar las reglas con modelos falsos y cambiar proveedores sin reescribir el motor.
+
+`RepositorioGalerias` comparte un `threading.RLock` entre la API y el motor. El bloqueo cubre listados, firmas, carga completa, escritura, movimiento, renombrado, rechazo y reconciliacion. De esta forma la IA no puede leer una galeria a medio modificar mientras la interfaz realiza una operacion.
+
+SQL Server y `database/Tablas.sql` se mantienen fuera del backend v2 por ahora. Su integracion se realizara en una etapa posterior.
 
 ## Que usa
 
@@ -45,7 +56,17 @@ MediaMTX se usa solamente durante las pruebas para publicar un video local como 
 ## Estructura del repositorio
 
 ```text
-app.py                         Backend, API local y motor de reconocimiento
+main.py                        Punto de entrada del backend modular v2
+backend/config.py              Configuracion inmutable y rutas
+backend/container.py           Composicion manual de dependencias
+backend/dominio/               Modelos de datos del reconocimiento
+backend/ia/                    Pipeline, identidad, desconocidos y adaptadores
+backend/video/                 Captura, motor, renderizado y publicacion
+backend/galerias/              Referencias, muestras y repositorio bloqueado
+backend/aplicacion/            Servicios y ciclo de vida
+backend/api/                   API HTTP, JSON, archivos y MJPEG
+tests/                         Pruebas automaticas con unittest
+app.py                         Version estable anterior conservada
 requirements.txt              Dependencias de Python
 index.html                    Interfaz de prueba conectada a Python
 app.js
@@ -98,9 +119,11 @@ Requisitos recomendados en Windows:
 - `Python 3.11.9`.
 - `pip` actualizado.
 - `Microsoft C++ Build Tools`, necesario para instalar algunas dependencias de `InsightFace` cuando `pip` necesita compilar paquetes nativos.
+- El modelo facial `buffalo_l` de InsightFace disponible en su cache local.
+- El archivo de pesos `yolo26n.pt` en la raiz del proyecto.
 - `Node.js` y `npm`, necesarios para ejecutar la interfaz React/Vite.
 - `SQL Server` y SQL Server Management Studio o Azure Data Studio, necesarios para crear y administrar la base de datos.
-- Webcam funcional.
+- Una webcam, URL RTSP o archivo de video local para usar como fuente.
 - Chrome u otro navegador moderno.
 
 Para instalar `Microsoft C++ Build Tools`, descarga el instalador desde Visual Studio Build Tools y marca la carga de trabajo `Desktop development with C++`. Esto instala el compilador de C++ que puede pedir `InsightFace` durante la instalacion.
@@ -133,12 +156,12 @@ El archivo `database/Tablas.sql` esta escrito para SQL Server. En su estado actu
 
 Si `WitcamBD` ya existe, volver a ejecutar el script completo producira errores porque todavia no es un script idempotente.
 
-## Ejecucion del prototipo funcional
+## Ejecucion del backend
 
 Desde la raiz del repositorio, con el entorno virtual activado:
 
 ```powershell
-python app.py
+python main.py
 ```
 
 Luego abre en Chrome:
@@ -147,11 +170,17 @@ Luego abre en Chrome:
 http://localhost:8000/
 ```
 
-Desde la interfaz web puedes iniciar o detener la webcam. El video mostrado en la pagina viene desde Python, ya procesado por Witcam.
+Desde la interfaz web puedes iniciar o detener la fuente configurada. El video mostrado en la pagina viene desde Python, ya procesado por Witcam.
 
-No es necesario ejecutar `php -S`. Si ya hay un servidor PHP usando el puerto `8000`, cierralo con `Ctrl+C` antes de iniciar `app.py`.
+No es necesario ejecutar `php -S`. Si ya hay un servidor PHP usando el puerto `8000`, cierralo con `Ctrl+C` antes de iniciar `main.py`.
 
 Para cerrar el servidor, vuelve a la terminal y presiona `Ctrl+C`.
+
+La version estable anterior sigue disponible como respaldo:
+
+```powershell
+python app.py
+```
 
 ## Ejecucion de React
 
@@ -168,7 +197,7 @@ Vite mostrara la direccion local, normalmente:
 http://localhost:5173/
 ```
 
-El backend Python usa `http://localhost:8000/` y React usa normalmente `http://localhost:5173/`. Por ahora son aplicaciones separadas. Para completar la integracion se debera configurar el proxy de Vite o CORS y hacer que React consuma los endpoints de `app.py`.
+El backend Python usa `http://localhost:8000/` y React usa normalmente `http://localhost:5173/`. Por ahora son aplicaciones separadas. Para completar la integracion se debera configurar el proxy de Vite o CORS y hacer que React consuma los endpoints del backend modular.
 
 Comandos adicionales del frontend:
 
@@ -182,10 +211,10 @@ npm run preview
 
 La pagina permite:
 
-- Iniciar y detener la webcam.
+- Iniciar y detener la fuente de video.
 - Ver el video procesado por Python.
 - Ver la cantidad de personas reconocidas y pendientes.
-- Ver el umbral real cargado desde `app.py`.
+- Ver el umbral real cargado desde `backend/config.py`.
 - Recargar referencias manualmente con el boton `Recargar referencias`.
 - Actualizar automaticamente la lista cuando aparecen nuevas capturas pendientes, sin interrumpir si estas renombrando una imagen.
 - Ver la mejor muestra disponible como portada y la cantidad de muestras.
@@ -213,6 +242,33 @@ Las vistas previas incluyen una version basada en la fecha de modificacion y se 
 10. La interfaz recibe el video procesado desde `/video_feed`.
 11. Si cambian las carpetas de referencias o pendientes, Python recarga las referencias automaticamente.
 
+## API compatible
+
+La v2 conserva las mismas rutas, respuestas JSON y transmision MJPEG de la version estable:
+
+- `GET /`, `/video_feed`, `/placeholder`, `/api/status` y `/api/list`.
+- `POST /api/start`, `/api/stop`, `/api/approve`, `/api/unapprove`, `/api/rename` y `/api/reject`.
+- Los POST mantienen los campos `file`, `newName` y `type`, junto con las respuestas `ok/error`.
+
+La interfaz de prueba existente funciona sin modificar `index.html`, `app.js` ni `styles.css`.
+
+## Pruebas del backend
+
+La suite usa `unittest`, modelos falsos, galerias temporales y un servidor HTTP con puerto efimero. Cubre geometria, calidad facial, comparacion, reconciliacion, concurrencia, identidad, candidatos, pipeline y contratos HTTP/MJPEG.
+
+```powershell
+python -m compileall -q backend tests main.py
+python -m unittest discover -s tests -v
+```
+
+Actualmente existen 16 pruebas automaticas. Tambien se completo una reproduccion real de diez minutos, 1920x1080 a 30 FPS, con InsightFace/SCRFD, YOLO y ByteTrack usando galerias temporales. El pipeline llego al final del video sin cortes y la firma de galerias permanecio valida. Webcam y RTSP quedan como pruebas manuales dependientes de tener esas fuentes disponibles.
+
+El archivo estable `app.py` se conserva con el siguiente SHA-256:
+
+```text
+75810EC27092342559267D7AF41B5043232D32A4942692B2BE5210B3EF9B69D3
+```
+
 ## Oclusion
 
 Si una persona ya fue reconocida y despues se tapa parte de la cara o gira la cabeza, la app no la marca inmediatamente como desconocida. Mantiene una memoria temporal por `tracker_id` y tambien puede recuperar la identidad si ByteTrack le asigna un ID nuevo, comparando el embedding y la ultima posicion conocida.
@@ -220,15 +276,15 @@ Si una persona ya fue reconocida y despues se tapa parte de la cara o gira la ca
 Parametros relacionados:
 
 ```python
-TOLERANCIA_OCLUSION_SEGUNDOS = 6.0
-MIN_SIMILITUD_POSIBLE_MISMA_PERSONA = 0.30
-MIN_SIMILITUD_REIDENTIFICACION = 0.35
-MIN_IOU_REIDENTIFICACION = 0.10
-MIN_ANCHO_ROSTRO = 55
-MIN_ALTO_ROSTRO = 55
-MIN_CONFIANZA_ROSTRO_ANALIZABLE = 0.60
-MIN_SIMETRIA_ROSTRO_ANALIZABLE = 0.45
-MAX_DESVIACION_NARIZ_ANALIZABLE = 0.35
+ConfiguracionTracking.tolerancia_oclusion = 6.0
+ConfiguracionTracking.similitud_posible_misma_persona = 0.30
+ConfiguracionTracking.similitud_reidentificacion = 0.35
+ConfiguracionTracking.iou_reidentificacion = 0.10
+ConfiguracionRostro.ancho_minimo = 55
+ConfiguracionRostro.alto_minimo = 55
+ConfiguracionRostro.confianza_minima = 0.60
+ConfiguracionRostro.simetria_minima = 0.25
+ConfiguracionRostro.desviacion_maxima_nariz = 0.70
 ```
 
 Esto ayuda a evitar que alguien conocido sea guardado como desconocido solo por taparse los ojos, girar un poco la cara, aparecer parcialmente cubierto o recibir un nuevo ID del tracker.
@@ -237,93 +293,82 @@ Antes de generar o comparar un embedding, Witcam comprueba que el rostro tenga t
 
 ## Parametros importantes
 
-Estos valores estan al inicio de `app.py`.
+La configuracion de la v2 se encuentra en las dataclasses inmutables de `backend/config.py`. Para cambiar la fuente se modifica `ConfiguracionVideo.fuente`; acepta un indice de webcam, una URL RTSP o una ruta de video local.
 
 ```python
-CAMARA = 0  # Webcam
-# CAMARA = "rtsp://IP:8554/camara1"
-# CAMARA = r"C:\Videos\prueba.mp4"
-UMBRAL_SIMILITUD = 0.45
-MIN_SEGUNDA_SIMILITUD_GALERIA = 0.35
-UMBRAL_GALERIA_UNA_MUESTRA = 0.55
-MIN_SIMILITUD_EVITAR_GALERIA_DUPLICADA = 0.40
-ANCHO_ANALISIS = 512
-ALTO_ANALISIS = 384
-DETECTAR_CADA_N_FRAMES = 1
-RECONOCER_CADA_N_DETECCIONES = 6
-RECONOCER_CADA_N_DETECCIONES_SIN_IDENTIDAD = 3
-DET_SIZE = 352
-USAR_YOLO_PERSONAS = True
-YOLO_IMGSZ = 416
-YOLO_CONFIANZA = 0.35
-DETECTAR_PERSONAS_CADA_N_CICLOS = 3
-TOLERANCIA_IDENTIDAD_CORPORAL_SEGUNDOS = 3.0
-MIN_CONFIRMACIONES_IDENTIDAD_INICIAL = 2
-MIN_SIMILITUD_IDENTIDAD_INICIAL = 0.55
-MIN_CONFIRMACIONES_CAMBIO_IDENTIDAD = 3
-MIN_SIMILITUD_CAMBIO_IDENTIDAD = 0.60
-MIN_SIMILITUD_TRASPASO_IDENTIDAD = 0.60
-MARGEN_SIMILITUD_TRASPASO_IDENTIDAD = 0.10
-LIMITE_VERTICAL_CABEZA_EN_CUERPO = 0.55
-MIN_PROPORCION_ROSTRO_DENTRO_CUERPO = 0.65
-MARGEN_CAMBIO_ASOCIACION_ROSTRO_CUERPO = 0.18
-MIN_SIMILITUD_MAPEO_REFERENCIA_RENOMBRADA = 0.95
-MIN_IOU_REASOCIACION_CUERPO = 0.30
-MAX_MUESTRAS_POR_PERSONA = 6
-MAX_SIMILITUD_MUESTRA_REDUNDANTE = 0.92
-MIN_SIMILITUD_MUESTRA_CON_SEMILLA = 0.25
-INTERVALO_NUEVA_MUESTRA_SEGUNDOS = 1.0
-MIN_MEJORA_CALIDAD_REEMPLAZO = 0.05
-JPEG_QUALITY = 86
-FPS_VIDEO_WEB = 12
-ANCHO_MAX_VIDEO_WEB = 1280
-ALTO_MAX_VIDEO_WEB = 720
-TIEMPO_CONFIRMACION_DESCONOCIDO = 1.5
-MIN_MUESTRAS_DESCONOCIDO = 3
-COOLDOWN_CAPTURA = 15
+ConfiguracionVideo.fuente
+ConfiguracionVideo.ancho_analisis = 512
+ConfiguracionVideo.alto_analisis = 384
+ConfiguracionVideo.detectar_cada_n_frames = 1
+ConfiguracionVideo.calidad_jpeg = 86
+ConfiguracionVideo.fps_video_web = 12
+
+ConfiguracionRostro.umbral_similitud = 0.45
+ConfiguracionRostro.segunda_similitud_minima = 0.35
+ConfiguracionRostro.umbral_galeria_una_muestra = 0.55
+ConfiguracionRostro.reconocer_cada_n_detecciones = 6
+ConfiguracionRostro.reconocer_cada_n_detecciones_sin_identidad = 3
+ConfiguracionRostro.tamano_detector = 352
+
+ConfiguracionYolo.habilitado = True
+ConfiguracionYolo.tamano_imagen = 416
+ConfiguracionYolo.confianza = 0.35
+ConfiguracionYolo.detectar_cada_n_ciclos = 3
+
+ConfiguracionTracking.tolerancia_identidad_corporal = 3.0
+ConfiguracionTracking.confirmaciones_identidad_inicial = 2
+ConfiguracionTracking.confirmaciones_cambio_identidad = 3
+ConfiguracionTracking.tolerancia_oclusion = 6.0
+
+ConfiguracionGalerias.max_muestras_por_persona = 6
+ConfiguracionGalerias.similitud_evitar_duplicado = 0.40
+
+ConfiguracionDesconocidos.tiempo_confirmacion = 1.5
+ConfiguracionDesconocidos.muestras_minimas = 3
+ConfiguracionDesconocidos.cooldown_captura = 15.0
 ```
 
-`CAMARA`: indice de webcam, URL RTSP de una camara IP o canal de NVR, o ruta de un video local. Los videos locales se reproducen segun sus FPS originales y vuelven al primer fotograma cada vez que se detiene e inicia el motor. En este modo no se necesitan MediaMTX ni FFmpeg.
+`ConfiguracionVideo.fuente`: indice de webcam, URL RTSP de una camara IP o canal de NVR, o ruta de un video local. Los videos locales se reproducen segun sus FPS originales y vuelven al primer fotograma cada vez que se detiene e inicia el motor. En este modo no se necesitan MediaMTX ni FFmpeg.
 
-`UMBRAL_SIMILITUD`: umbral para considerar una cara como reconocida. Mas alto es mas estricto; mas bajo reconoce mas facil, pero puede equivocarse mas.
+`ConfiguracionRostro.umbral_similitud`: umbral para considerar una cara como reconocida. Mas alto es mas estricto; mas bajo reconoce mas facil, pero puede equivocarse mas.
 
-Una galeria con varias muestras necesita que la mejor coincidencia supere `UMBRAL_SIMILITUD` y que una segunda muestra alcance `MIN_SEGUNDA_SIMILITUD_GALERIA`. Una coincidencia aislada ya no asigna el nombre. Las galerias de una sola foto usan el umbral mas estricto `UMBRAL_GALERIA_UNA_MUESTRA`.
+Una galeria con varias muestras necesita que la mejor coincidencia supere `ConfiguracionRostro.umbral_similitud` y que una segunda muestra alcance `ConfiguracionRostro.segunda_similitud_minima`. Una coincidencia aislada ya no asigna el nombre. Las galerias de una sola foto usan el umbral mas estricto `ConfiguracionRostro.umbral_galeria_una_muestra`.
 
-Si un desconocido se parece parcialmente a una identidad existente por encima de `MIN_SIMILITUD_EVITAR_GALERIA_DUPLICADA`, el motor espera un angulo mejor en vez de crear inmediatamente otra galeria.
+Si un desconocido se parece parcialmente a una identidad existente por encima de `ConfiguracionGalerias.similitud_evitar_duplicado`, el motor espera un angulo mejor en vez de crear inmediatamente otra galeria.
 
-`DETECTAR_CADA_N_FRAMES`: controla cada cuantos frames SCRFD actualiza las cajas y ByteTrack. Un valor bajo mejora el seguimiento de movimiento, pero aumenta el uso de CPU.
+`ConfiguracionVideo.detectar_cada_n_frames`: controla cada cuantos frames SCRFD actualiza las cajas y ByteTrack. Un valor bajo mejora el seguimiento de movimiento, pero aumenta el uso de CPU.
 
-`RECONOCER_CADA_N_DETECCIONES`: controla cada cuantas actualizaciones del tracker InsightFace vuelve a generar embeddings cuando las personas visibles ya tienen identidad. Entre reconocimientos, la identidad confirmada permanece asociada al cuerpo y se muestra como `seguimiento`.
+`ConfiguracionRostro.reconocer_cada_n_detecciones`: controla cada cuantas actualizaciones del tracker InsightFace vuelve a generar embeddings cuando las personas visibles ya tienen identidad. Entre reconocimientos, la identidad confirmada permanece asociada al cuerpo y se muestra como `seguimiento`.
 
-`RECONOCER_CADA_N_DETECCIONES_SIN_IDENTIDAD`: usa una frecuencia temporalmente mas alta cuando YOLO detecta una persona que todavia no tiene identidad. Al confirmarla, el motor vuelve automaticamente al intervalo normal para reducir carga.
+`ConfiguracionRostro.reconocer_cada_n_detecciones_sin_identidad`: usa una frecuencia temporalmente mas alta cuando YOLO detecta una persona que todavia no tiene identidad. Al confirmarla, el motor vuelve automaticamente al intervalo normal para reducir carga.
 
-`ANCHO_ANALISIS`, `ALTO_ANALISIS` y `DET_SIZE`: controlan la carga del modelo. El video conserva su proporcion original dentro de esos limites para no deformar los rostros. Subirlos puede mejorar la deteccion de rostros pequenos, pero aumenta el lag. Los puntos faciales detectados se trasladan al frame original antes de generar el embedding, para aprovechar el detalle disponible en fuentes de alta resolucion.
+`ConfiguracionVideo.ancho_analisis`, `ConfiguracionVideo.alto_analisis` y `ConfiguracionRostro.tamano_detector`: controlan la carga del modelo. El video conserva su proporcion original dentro de esos limites para no deformar los rostros. Subirlos puede mejorar la deteccion de rostros pequenos, pero aumenta el lag. Los puntos faciales detectados se trasladan al frame original antes de generar el embedding, para aprovechar el detalle disponible en fuentes de alta resolucion.
 
-`USAR_YOLO_PERSONAS`: activa YOLO26n para detectar cuerpos aunque SCRFD no encuentre un rostro. YOLO usa un ByteTrack independiente y muestra `Persona ID | sin rostro visible` cuando una persona permanece en escena sin una deteccion facial asociada.
+`ConfiguracionYolo.habilitado`: activa YOLO26n para detectar cuerpos aunque SCRFD no encuentre un rostro. YOLO usa un ByteTrack independiente y muestra `Persona ID | sin rostro visible` cuando una persona permanece en escena sin una deteccion facial asociada.
 
-`YOLO_IMGSZ`, `YOLO_CONFIANZA` y `DETECTAR_PERSONAS_CADA_N_CICLOS`: equilibran alcance, confianza y carga de CPU. YOLO se limita a la clase COCO `person` y se ejecuta con menor frecuencia que SCRFD. El archivo `yolo26n.pt` se descarga automaticamente la primera vez y no se versiona en Git.
+`ConfiguracionYolo.tamano_imagen`, `ConfiguracionYolo.confianza` y `ConfiguracionYolo.detectar_cada_n_ciclos`: equilibran alcance, confianza y carga de CPU. YOLO se limita a la clase COCO `person` y se ejecuta con menor frecuencia que SCRFD. El archivo `yolo26n.pt` contiene los pesos del modelo y no se versiona en Git.
 
-Cuando InsightFace confirma un rostro dentro de una caja corporal, la identidad queda vinculada temporalmente al `Persona ID` de YOLO/ByteTrack. La asignacion inicial exige varias confirmaciones y una similitud minima propia. Mientras ese cuerpo siga activo, un resultado facial diferente aislado no reemplaza el nombre. El cambio requiere `MIN_CONFIRMACIONES_CAMBIO_IDENTIDAD` coincidencias consecutivas con una similitud minima de `MIN_SIMILITUD_CAMBIO_IDENTIDAD`.
+Cuando InsightFace confirma un rostro dentro de una caja corporal, la identidad queda vinculada temporalmente al `Persona ID` de YOLO/ByteTrack. La asignacion inicial exige varias confirmaciones y una similitud minima propia. Mientras ese cuerpo siga activo, un resultado facial diferente aislado no reemplaza el nombre. El cambio requiere `ConfiguracionTracking.confirmaciones_cambio_identidad` coincidencias consecutivas con una similitud minima configurada.
 
-Una misma identidad no puede pertenecer a dos cuerpos activos. La ausencia temporal del rostro no permite transferir el nombre mientras el cuerpo propietario siga visible. Si ambos cuerpos estan activos, la nueva evidencia debe superar la similitud anterior por `MARGEN_SIMILITUD_TRASPASO_IDENTIDAD`, ademas de cumplir las confirmaciones y el minimo de similitud. La vinculacion caduca despues de `TOLERANCIA_IDENTIDAD_CORPORAL_SEGUNDOS` sin observar el cuerpo.
+Una misma identidad no puede pertenecer a dos cuerpos activos. La ausencia temporal del rostro no permite transferir el nombre mientras el cuerpo propietario siga visible. Si ambos cuerpos estan activos, la nueva evidencia debe superar la similitud anterior por el margen de traspaso configurado, ademas de cumplir las confirmaciones y el minimo de similitud. La vinculacion caduca despues de `ConfiguracionTracking.tolerancia_identidad_corporal` sin observar el cuerpo.
 
 La asociacion entre rostro y cuerpo tambien se conserva entre frames. Un rostro debe estar mayormente dentro de la zona superior de la caja corporal, y solo cambia a otro `Persona ID` cuando la nueva asociacion espacial es claramente mejor. Esto reduce los intercambios de identidad cuando dos personas se cruzan o sus cajas se superponen.
 
-Si ByteTrack pierde brevemente un cuerpo y le entrega un nuevo `Persona ID`, el motor busca un track que haya desaparecido recientemente en la misma posicion. Cuando la superposicion supera `MIN_IOU_REASOCIACION_CUERPO`, transfiere la identidad y las asociaciones existentes al nuevo ID en vez de comenzar como una persona desconocida.
+Si ByteTrack pierde brevemente un cuerpo y le entrega un nuevo `Persona ID`, el motor busca un track que haya desaparecido recientemente en la misma posicion. Cuando la superposicion supera `ConfiguracionTracking.iou_reasociacion_cuerpo`, transfiere la identidad y las asociaciones existentes al nuevo ID en vez de comenzar como una persona desconocida.
 
 Cuando una galeria se renombra o se mueve entre pendientes y referencias, el motor reutiliza los embeddings de sus muestras. La identidad correspondiente se actualiza en los tracks activos sin borrar el seguimiento de las demas personas.
 
-Las galerias pendientes admiten hasta `MAX_MUESTRAS_POR_PERSONA` vistas. Cada captura nueva debe mantener al menos `MIN_SIMILITUD_MUESTRA_CON_SEMILLA` con la primera imagen estable de la persona; esto evita contaminar la galeria cuando dos cajas corporales se cruzan. Una muestra demasiado parecida a otra se descarta. Cuando la galeria esta llena, una captura nueva solo reemplaza a la peor si supera su calidad por `MIN_MEJORA_CALIDAD_REEMPLAZO`. Las galerias oficiales no se modifican automaticamente.
+Las galerias pendientes admiten hasta `ConfiguracionGalerias.max_muestras_por_persona` vistas. Cada captura nueva debe mantener la similitud minima configurada con la primera imagen estable de la persona; esto evita contaminar la galeria cuando dos cajas corporales se cruzan. Una muestra demasiado parecida a otra se descarta. Cuando la galeria esta llena, una captura nueva solo reemplaza a la peor si supera la mejora de calidad configurada. Las galerias oficiales no se modifican automaticamente.
 
-`JPEG_QUALITY`: calidad del video enviado al navegador. Subirlo mejora imagen pero puede aumentar carga y lag.
+`ConfiguracionVideo.calidad_jpeg`: calidad del video enviado al navegador. Subirlo mejora imagen pero puede aumentar carga y lag.
 
-`FPS_VIDEO_WEB`, `ANCHO_MAX_VIDEO_WEB` y `ALTO_MAX_VIDEO_WEB`: limitan la copia enviada al navegador para evitar codificar cada frame a 1080p. La IA sigue usando el frame original. La captura RTSP funciona en un hilo independiente y conserva solamente el frame mas reciente, evitando acumular video atrasado mientras trabaja la IA. Si la transmision se corta temporalmente, el capturador intenta reconectarse automaticamente.
+`ConfiguracionVideo.fps_video_web`, `ConfiguracionVideo.ancho_maximo_web` y `ConfiguracionVideo.alto_maximo_web`: limitan la copia enviada al navegador para evitar codificar cada frame a 1080p. La IA sigue usando el frame original. La captura RTSP funciona en un hilo independiente y conserva solamente el frame mas reciente, evitando acumular video atrasado mientras trabaja la IA. Si la transmision se corta temporalmente, el capturador intenta reconectarse automaticamente.
 
-`TIEMPO_CONFIRMACION_DESCONOCIDO`: segundos minimos antes de guardar un desconocido. El tiempo acumulado se conserva durante frames intermedios y perdidas breves de calidad facial para no reiniciar el proceso mientras la persona camina.
+`ConfiguracionDesconocidos.tiempo_confirmacion`: segundos minimos antes de guardar un desconocido. El tiempo acumulado se conserva durante frames intermedios y perdidas breves de calidad facial para no reiniciar el proceso mientras la persona camina.
 
-`MIN_MUESTRAS_DESCONOCIDO`: cantidad minima de lecturas antes de guardar un desconocido.
+`ConfiguracionDesconocidos.muestras_minimas`: cantidad minima de lecturas antes de guardar un desconocido.
 
-`COOLDOWN_CAPTURA`: segundos minimos antes de volver a guardar una captura del mismo desconocido.
+`ConfiguracionDesconocidos.cooldown_captura`: segundos minimos antes de volver a guardar una captura del mismo desconocido.
 
 ## Colores en pantalla
 
