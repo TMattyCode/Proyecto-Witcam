@@ -127,7 +127,8 @@ h2 {
 
 .camera-frame {
   position: relative;
-  min-height: 520px;
+  width: 100%;
+  aspect-ratio: 16 / 9;
   overflow: hidden;
   border-radius: 8px;
   border: 1px solid #1e2d27;
@@ -141,7 +142,7 @@ h2 {
   inset: 0;
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
   opacity: 1;
 }
 
@@ -273,7 +274,7 @@ h2 {
 
 .name-group {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr);
   align-items: stretch;
   min-width: 0;
 }
@@ -282,24 +283,16 @@ h2 {
   width: 100%;
   min-width: 0;
   border: 1px solid var(--line);
-  border-radius: 6px 0 0 6px;
+  border-radius: 6px;
   background: #fffaf0;
   color: var(--ink);
   padding: 0.5rem 0.55rem;
   font-weight: 700;
 }
 
-.file-extension {
-  display: inline-flex;
-  align-items: center;
-  border: 1px solid var(--line);
-  border-left: 0;
-  border-radius: 0 6px 6px 0;
-  background: #ece5d8;
+.sample-count {
   color: var(--muted);
-  padding: 0.5rem 0.55rem;
-  font-weight: 700;
-  white-space: nowrap;
+  font-size: 0.78rem;
 }
 
 .name-input:focus {
@@ -349,10 +342,6 @@ h2 {
 @media (max-width: 900px) {
   .dashboard {
     grid-template-columns: 1fr;
-  }
-
-  .camera-frame {
-    min-height: 380px;
   }
 
 }

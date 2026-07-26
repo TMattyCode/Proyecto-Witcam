@@ -5,7 +5,7 @@ const state = {
   pending: [],
   lastEvent: "Detenido",
   threshold: null,
-  imageCountSignature: "",
+  gallerySignature: "",
   imageRefreshInProgress: false
 };
 
@@ -20,27 +20,6 @@ const pendingCount = document.querySelector("#pendingCount");
 const thresholdValue = document.querySelector("#thresholdValue");
 const referencesList = document.querySelector("#referencesList");
 const pendingList = document.querySelector("#pendingList");
-
-function splitFileName(fileName) {
-  const lastDot = fileName.lastIndexOf(".");
-
-  if (lastDot <= 0) {
-    return { base: fileName, extension: "" };
-  }
-
-  return {
-    base: fileName.slice(0, lastDot),
-    extension: fileName.slice(lastDot)
-  };
-}
-
-function imageCountSignatureFromLists(references, pending) {
-  return `${references.length}:${pending.length}`;
-}
-
-function imageCountSignatureFromStatus(status) {
-  return `${status.references_files ?? 0}:${status.pending_files ?? 0}`;
-}
 
 function isEditingImageName() {
   return document.activeElement?.classList.contains("name-input");
@@ -86,8 +65,8 @@ function createImageRow(item, type) {
   const info = document.createElement("div");
   const nameGroup = document.createElement("div");
   const nameInput = document.createElement("input");
-  const extension = document.createElement("span");
   const tag = document.createElement("span");
+  const sampleCount = document.createElement("span");
   const actions = document.createElement("div");
   const rename = document.createElement("button");
   const move = document.createElement("button");
@@ -101,13 +80,14 @@ function createImageRow(item, type) {
   info.className = "image-info";
   nameGroup.className = "name-group";
   nameInput.className = "name-input";
-  const fileParts = splitFileName(item.name);
-  nameInput.value = fileParts.base;
+  nameInput.value = item.name;
   nameInput.title = item.name;
-  extension.className = "file-extension";
-  extension.textContent = fileParts.extension || ".jpg";
   tag.textContent = type === "pending" ? "pendiente" : "oficial";
   tag.className = `tag ${type === "pending" ? "pending" : ""}`;
+  sampleCount.className = "sample-count";
+  sampleCount.textContent = `${item.sampleCount} ${
+    item.sampleCount === 1 ? "muestra" : "muestras"
+  }`;
   actions.className = "row-actions";
   rename.textContent = "Renombrar";
   move.textContent = type === "pending" ? "A referencia" : "A pendiente";
@@ -126,8 +106,8 @@ function createImageRow(item, type) {
     actions.append(rename, move);
   }
 
-  nameGroup.append(nameInput, extension);
-  info.append(nameGroup, tag);
+  nameGroup.append(nameInput);
+  info.append(nameGroup, tag, sampleCount);
   row.append(selector, preview, info, actions);
 
   return row;
@@ -187,7 +167,7 @@ async function loadImages() {
     const data = await api("/api/list");
     state.references = data.references;
     state.pending = data.pending;
-    state.imageCountSignature = imageCountSignatureFromLists(state.references, state.pending);
+    state.gallerySignature = data.gallery_signature || "";
     renderImages();
   } finally {
     state.imageRefreshInProgress = false;
@@ -197,7 +177,6 @@ async function loadImages() {
 async function loadStatus() {
   try {
     const status = await api("/api/status");
-    const statusImageSignature = imageCountSignatureFromStatus(status);
     state.running = status.running;
     state.streaming = status.streaming;
     state.lastEvent = status.last_error || status.last_event || "Detenido";
@@ -205,8 +184,8 @@ async function loadStatus() {
     renderStatus();
 
     if (
-      state.imageCountSignature
-      && statusImageSignature !== state.imageCountSignature
+      state.gallerySignature
+      && status.gallery_signature !== state.gallerySignature
       && !isEditingImageName()
     ) {
       await loadImages();
@@ -249,7 +228,7 @@ async function unapproveReference(fileName) {
 }
 
 async function renameImage(fileName, newName, type) {
-  const safeBaseName = splitFileName(newName.trim()).base;
+  const safeBaseName = newName.trim();
 
   await api("/api/rename", {
     file: fileName,

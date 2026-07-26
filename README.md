@@ -1,6 +1,6 @@
 # Witcam - Reconocimiento facial y monitoreo de camaras
 
-Witcam es una aplicacion de reconocimiento facial en tiempo real. Actualmente puede analizar una webcam o fuente RTSP, detectar personas con YOLO26n, detectar y reconocer rostros con InsightFace/SCRFD, mantener IDs de seguimiento con ByteTrack y guardar capturas de personas desconocidas para revisarlas despues.
+Witcam es una aplicacion de reconocimiento facial en tiempo real. Actualmente puede analizar una webcam, una fuente RTSP o un archivo de video local, detectar personas con YOLO26n, detectar y reconocer rostros con InsightFace/SCRFD, mantener IDs de seguimiento con ByteTrack y guardar capturas de personas desconocidas para revisarlas despues.
 
 El repositorio tambien contiene la interfaz definitiva desarrollada con React y Vite, ademas del script inicial para la base de datos SQL Server. La integracion entre estos componentes sigue en desarrollo.
 
@@ -10,7 +10,7 @@ El repositorio tambien contiene la interfaz definitiva desarrollada con React y 
 - La interfaz de prueba formada por `index.html`, `app.js` y `styles.css` esta conectada al backend Python.
 - La interfaz React se encuentra en `witcam/` y contiene las pantallas de la aplicacion final, pero todavia no consume la API de `app.py`.
 - El script `database/Tablas.sql` crea la base de datos inicial en SQL Server, pero todavia no esta conectado al backend.
-- Actualmente el backend procesa una fuente configurable mediante `CAMARA`, que puede ser el indice de una webcam o una URL RTSP. La version final debera registrar una cantidad variable de camaras y canales de NVR.
+- Actualmente el backend procesa una fuente configurable mediante `CAMARA`, que puede ser el indice de una webcam, una URL RTSP o la ruta de un video local. La version final debera registrar una cantidad variable de camaras y canales de NVR.
 
 ## Arquitectura prevista
 
@@ -67,15 +67,27 @@ referencias_reconocimiento/
 referencias_pendientes/
 ```
 
-`referencias_reconocimiento/` contiene las imagenes oficiales que la app debe reconocer. Puedes poner ahi fotos tuyas o de otras personas autorizadas. El nombre del archivo se usa como nombre en pantalla, por ejemplo `matias.jpg` se mostrara como `matias`.
+Cada persona se representa mediante una subcarpeta y puede contener varias muestras:
 
-`referencias_pendientes/` contiene capturas generadas automaticamente cuando aparece una persona desconocida durante algunos segundos. Luego puedes revisar esas imagenes desde la interfaz y mover las que quieras aprobar a `referencias_reconocimiento/`.
+```text
+referencias_reconocimiento/
+  Matias/
+    frontal.jpg
+    perfil.jpg
+referencias_pendientes/
+  desconocido_track_8_20260724_192239/
+    muestra_01.jpg
+```
+
+El nombre de la subcarpeta es la identidad mostrada en pantalla. InsightFace compara el rostro contra todas sus muestras. Las imagenes sueltas del formato anterior se migran automaticamente a galerias de una muestra al iniciar la app.
 
 ## Primer uso
 
 La primera vez puedes ejecutar la app aunque no exista ninguna imagen de referencia. Si `referencias_reconocimiento/` esta vacia, el programa avisa por consola y sigue funcionando.
 
-Cuando detecte un rostro desconocido valido por varios segundos, guardara una captura en `referencias_pendientes/`. Despues puedes revisar esa captura en la pagina y pasarla a `referencias_reconocimiento/` si quieres que esa persona quede como reconocida.
+Cuando detecte un rostro desconocido valido, creara una galeria en `referencias_pendientes/`. Mientras siga observando esa identidad pendiente, puede agregar vistas diferentes hasta completar la galeria.
+
+Antes de crear la galeria, el recorte se procesa una segunda vez con SCRFD. Si el propio modelo no puede volver a detectar ese rostro guardado, la captura se descarta y el motor espera un angulo reutilizable.
 
 ## Requisitos
 
@@ -172,32 +184,32 @@ La pagina permite:
 
 - Iniciar y detener la webcam.
 - Ver el video procesado por Python.
-- Ver la cantidad de referencias y capturas pendientes.
+- Ver la cantidad de personas reconocidas y pendientes.
 - Ver el umbral real cargado desde `app.py`.
 - Recargar referencias manualmente con el boton `Recargar referencias`.
 - Actualizar automaticamente la lista cuando aparecen nuevas capturas pendientes, sin interrumpir si estas renombrando una imagen.
-- Renombrar imagenes manteniendo fija la extension (`.jpg`, `.png`, `.webp`, etc.).
-- Mover imagenes desde pendientes a referencias.
-- Mover imagenes desde referencias a pendientes.
-- Eliminar imagenes pendientes.
+- Ver la mejor muestra disponible como portada y la cantidad de muestras.
+- Renombrar personas cambiando el nombre de su galeria.
+- Mover galerias completas desde pendientes a referencias o viceversa.
+- Eliminar galerias pendientes completas.
 
 Para borrar una referencia oficial, primero debes moverla a pendientes y luego eliminarla desde ahi.
 
-La app soporta nombres con mayusculas, minusculas y acentos en los archivos de referencia. En Windows tambien maneja correctamente cambios solo de mayusculas/minusculas, por ejemplo pasar de `matias.jpg` a `MATIAS.jpg`.
+La app soporta mayusculas, minusculas y acentos en los nombres de persona. En Windows tambien maneja correctamente cambios solo de mayusculas/minusculas.
 
 Las vistas previas incluyen una version basada en la fecha de modificacion y se sirven sin cache. Si una imagen se elimina y posteriormente otra reutiliza el mismo nombre, la interfaz muestra el archivo nuevo en lugar de una copia antigua guardada por el navegador.
 
 ## Flujo de reconocimiento
 
 1. La interfaz web llama al servidor local de Python.
-2. Python abre la webcam o URL RTSP configurada cuando presionas `Iniciar`.
+2. Python abre la webcam, URL RTSP o archivo de video configurado cuando presionas `Iniciar`.
 3. YOLO26n detecta personas y un ByteTrack corporal mantiene sus IDs.
 4. Si una persona no contiene una deteccion facial, se muestra como `sin rostro visible`.
 5. SCRFD detecta los rostros y un segundo ByteTrack mantiene sus IDs.
 6. InsightFace genera embeddings solamente cuando corresponde ejecutar reconocimiento.
-7. Cada embedding se compara con las referencias cargadas.
+7. Cada embedding se compara con todas las muestras de las galerias cargadas.
 8. Si supera el umbral de similitud, se muestra como persona reconocida.
-9. Si no se reconoce y permanece visible, se guarda una captura en `referencias_pendientes/`.
+9. Si no se reconoce y permanece visible, se crea una galeria pendiente.
 10. La interfaz recibe el video procesado desde `/video_feed`.
 11. Si cambian las carpetas de referencias o pendientes, Python recarga las referencias automaticamente.
 
@@ -228,12 +240,18 @@ Antes de generar o comparar un embedding, Witcam comprueba que el rostro tenga t
 Estos valores estan al inicio de `app.py`.
 
 ```python
-CAMARA = 0  # O una URL como "rtsp://IP:8554/camara1"
+CAMARA = 0  # Webcam
+# CAMARA = "rtsp://IP:8554/camara1"
+# CAMARA = r"C:\Videos\prueba.mp4"
 UMBRAL_SIMILITUD = 0.45
+MIN_SEGUNDA_SIMILITUD_GALERIA = 0.35
+UMBRAL_GALERIA_UNA_MUESTRA = 0.55
+MIN_SIMILITUD_EVITAR_GALERIA_DUPLICADA = 0.40
 ANCHO_ANALISIS = 512
 ALTO_ANALISIS = 384
 DETECTAR_CADA_N_FRAMES = 1
 RECONOCER_CADA_N_DETECCIONES = 6
+RECONOCER_CADA_N_DETECCIONES_SIN_IDENTIDAD = 3
 DET_SIZE = 352
 USAR_YOLO_PERSONAS = True
 YOLO_IMGSZ = 416
@@ -241,12 +259,21 @@ YOLO_CONFIANZA = 0.35
 DETECTAR_PERSONAS_CADA_N_CICLOS = 3
 TOLERANCIA_IDENTIDAD_CORPORAL_SEGUNDOS = 3.0
 MIN_CONFIRMACIONES_IDENTIDAD_INICIAL = 2
-MIN_SIMILITUD_IDENTIDAD_INICIAL = 0.50
-MIN_CONFIRMACIONES_CAMBIO_IDENTIDAD = 2
+MIN_SIMILITUD_IDENTIDAD_INICIAL = 0.55
+MIN_CONFIRMACIONES_CAMBIO_IDENTIDAD = 3
 MIN_SIMILITUD_CAMBIO_IDENTIDAD = 0.60
 MIN_SIMILITUD_TRASPASO_IDENTIDAD = 0.60
-MARGEN_SIMILITUD_TRASPASO_IDENTIDAD = 0.05
-MAX_SEGUNDOS_EVIDENCIA_FACIAL_ANTIGUA = 1.5
+MARGEN_SIMILITUD_TRASPASO_IDENTIDAD = 0.10
+LIMITE_VERTICAL_CABEZA_EN_CUERPO = 0.55
+MIN_PROPORCION_ROSTRO_DENTRO_CUERPO = 0.65
+MARGEN_CAMBIO_ASOCIACION_ROSTRO_CUERPO = 0.18
+MIN_SIMILITUD_MAPEO_REFERENCIA_RENOMBRADA = 0.95
+MIN_IOU_REASOCIACION_CUERPO = 0.30
+MAX_MUESTRAS_POR_PERSONA = 6
+MAX_SIMILITUD_MUESTRA_REDUNDANTE = 0.92
+MIN_SIMILITUD_MUESTRA_CON_SEMILLA = 0.25
+INTERVALO_NUEVA_MUESTRA_SEGUNDOS = 1.0
+MIN_MEJORA_CALIDAD_REEMPLAZO = 0.05
 JPEG_QUALITY = 86
 FPS_VIDEO_WEB = 12
 ANCHO_MAX_VIDEO_WEB = 1280
@@ -256,13 +283,19 @@ MIN_MUESTRAS_DESCONOCIDO = 3
 COOLDOWN_CAPTURA = 15
 ```
 
-`CAMARA`: indice de webcam o URL RTSP de una camara IP o canal de NVR.
+`CAMARA`: indice de webcam, URL RTSP de una camara IP o canal de NVR, o ruta de un video local. Los videos locales se reproducen segun sus FPS originales y vuelven al primer fotograma cada vez que se detiene e inicia el motor. En este modo no se necesitan MediaMTX ni FFmpeg.
 
 `UMBRAL_SIMILITUD`: umbral para considerar una cara como reconocida. Mas alto es mas estricto; mas bajo reconoce mas facil, pero puede equivocarse mas.
 
+Una galeria con varias muestras necesita que la mejor coincidencia supere `UMBRAL_SIMILITUD` y que una segunda muestra alcance `MIN_SEGUNDA_SIMILITUD_GALERIA`. Una coincidencia aislada ya no asigna el nombre. Las galerias de una sola foto usan el umbral mas estricto `UMBRAL_GALERIA_UNA_MUESTRA`.
+
+Si un desconocido se parece parcialmente a una identidad existente por encima de `MIN_SIMILITUD_EVITAR_GALERIA_DUPLICADA`, el motor espera un angulo mejor en vez de crear inmediatamente otra galeria.
+
 `DETECTAR_CADA_N_FRAMES`: controla cada cuantos frames SCRFD actualiza las cajas y ByteTrack. Un valor bajo mejora el seguimiento de movimiento, pero aumenta el uso de CPU.
 
-`RECONOCER_CADA_N_DETECCIONES`: controla cada cuantas actualizaciones del tracker InsightFace vuelve a generar embeddings. Entre reconocimientos, la identidad confirmada permanece asociada al track y se muestra como `seguimiento`.
+`RECONOCER_CADA_N_DETECCIONES`: controla cada cuantas actualizaciones del tracker InsightFace vuelve a generar embeddings cuando las personas visibles ya tienen identidad. Entre reconocimientos, la identidad confirmada permanece asociada al cuerpo y se muestra como `seguimiento`.
+
+`RECONOCER_CADA_N_DETECCIONES_SIN_IDENTIDAD`: usa una frecuencia temporalmente mas alta cuando YOLO detecta una persona que todavia no tiene identidad. Al confirmarla, el motor vuelve automaticamente al intervalo normal para reducir carga.
 
 `ANCHO_ANALISIS`, `ALTO_ANALISIS` y `DET_SIZE`: controlan la carga del modelo. El video conserva su proporcion original dentro de esos limites para no deformar los rostros. Subirlos puede mejorar la deteccion de rostros pequenos, pero aumenta el lag. Los puntos faciales detectados se trasladan al frame original antes de generar el embedding, para aprovechar el detalle disponible en fuentes de alta resolucion.
 
@@ -272,7 +305,15 @@ COOLDOWN_CAPTURA = 15
 
 Cuando InsightFace confirma un rostro dentro de una caja corporal, la identidad queda vinculada temporalmente al `Persona ID` de YOLO/ByteTrack. La asignacion inicial exige varias confirmaciones y una similitud minima propia. Mientras ese cuerpo siga activo, un resultado facial diferente aislado no reemplaza el nombre. El cambio requiere `MIN_CONFIRMACIONES_CAMBIO_IDENTIDAD` coincidencias consecutivas con una similitud minima de `MIN_SIMILITUD_CAMBIO_IDENTIDAD`.
 
-Una misma identidad no puede pertenecer a dos cuerpos activos. Si otro cuerpo obtiene evidencia facial mas reciente o claramente mas fuerte para el mismo nombre, la identidad se transfiere y se elimina del cuerpo anterior. La vinculacion caduca despues de `TOLERANCIA_IDENTIDAD_CORPORAL_SEGUNDOS` sin observar el cuerpo.
+Una misma identidad no puede pertenecer a dos cuerpos activos. La ausencia temporal del rostro no permite transferir el nombre mientras el cuerpo propietario siga visible. Si ambos cuerpos estan activos, la nueva evidencia debe superar la similitud anterior por `MARGEN_SIMILITUD_TRASPASO_IDENTIDAD`, ademas de cumplir las confirmaciones y el minimo de similitud. La vinculacion caduca despues de `TOLERANCIA_IDENTIDAD_CORPORAL_SEGUNDOS` sin observar el cuerpo.
+
+La asociacion entre rostro y cuerpo tambien se conserva entre frames. Un rostro debe estar mayormente dentro de la zona superior de la caja corporal, y solo cambia a otro `Persona ID` cuando la nueva asociacion espacial es claramente mejor. Esto reduce los intercambios de identidad cuando dos personas se cruzan o sus cajas se superponen.
+
+Si ByteTrack pierde brevemente un cuerpo y le entrega un nuevo `Persona ID`, el motor busca un track que haya desaparecido recientemente en la misma posicion. Cuando la superposicion supera `MIN_IOU_REASOCIACION_CUERPO`, transfiere la identidad y las asociaciones existentes al nuevo ID en vez de comenzar como una persona desconocida.
+
+Cuando una galeria se renombra o se mueve entre pendientes y referencias, el motor reutiliza los embeddings de sus muestras. La identidad correspondiente se actualiza en los tracks activos sin borrar el seguimiento de las demas personas.
+
+Las galerias pendientes admiten hasta `MAX_MUESTRAS_POR_PERSONA` vistas. Cada captura nueva debe mantener al menos `MIN_SIMILITUD_MUESTRA_CON_SEMILLA` con la primera imagen estable de la persona; esto evita contaminar la galeria cuando dos cajas corporales se cruzan. Una muestra demasiado parecida a otra se descarta. Cuando la galeria esta llena, una captura nueva solo reemplaza a la peor si supera su calidad por `MIN_MEJORA_CALIDAD_REEMPLAZO`. Las galerias oficiales no se modifican automaticamente.
 
 `JPEG_QUALITY`: calidad del video enviado al navegador. Subirlo mejora imagen pero puede aumentar carga y lag.
 
