@@ -16,13 +16,19 @@ export default function InterfazCamaras() {
           </button>
 
           <div className="camaras-controles">
-            <button className="control-camaras-boton">
+            <button className="control-camaras-boton" type="button">
               <span className="control-camaras-icono">?</span>
               <span>Cuadrícula</span>
               <span className="control-flecha">?</span>
             </button>
 
-            <button className="control-camaras-boton">
+            <button className="control-camaras-boton" type="button">
+              <span className="control-camaras-icono">?</span>
+              <span>Grupo cámaras</span>
+              <span className="control-flecha">?</span>
+            </button>
+
+            <button className="control-camaras-boton" type="button">
               <span className="control-camaras-icono">?</span>
               <span>Filtrar cámaras</span>
               <span className="control-flecha">?</span>
@@ -51,8 +57,15 @@ export default function InterfazCamaras() {
         </div>
 
         <div className="camaras-estado">
-          <div className="camaras-estado-icono">?</div>
-          <strong>0 cámaras conectadas</strong>
+          <div className="camaras-estado-informacion">
+            <div className="camaras-estado-icono">?</div>
+            <strong>0 cámaras conectadas</strong>
+          </div>
+
+          <button className="boton-anadir-camara" type="button">
+            <span className="boton-anadir-camara-icono">+</span>
+            Añadir cámara
+          </button>
         </div>
       </section>
     </Layout>

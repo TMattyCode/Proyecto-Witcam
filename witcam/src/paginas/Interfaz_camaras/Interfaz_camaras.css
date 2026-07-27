@@ -91,11 +91,12 @@
 }
 
 .control-camaras-boton {
-  min-width: 210px;
-  padding: 0 16px;
+  min-width: 175px;
+  padding: 0 14px;
+
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
 }
 
 .control-camaras-boton:hover,
@@ -215,16 +216,28 @@
 
 .camaras-estado {
   min-height: 82px;
-  padding: 0 26px;
+  padding: 0 22px;
+
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 20px;
+
   background: #edf3ff;
   border: 1px solid #ccdafe;
   border-radius: 16px;
+
   color: #07142f;
   font-size: 17px;
   box-sizing: border-box;
+}
+
+.camaras-estado-informacion {
+  min-width: 0;
+
+  display: flex;
+  align-items: center;
+  gap: 20px;
 }
 
 .camaras-estado-icono {
@@ -259,7 +272,9 @@
   }
 
   .camaras-controles {
-    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 10px;
   }
 
   .control-camaras-boton {
@@ -292,4 +307,46 @@
   .camaras-estado {
     min-height: 90px;
   }
+}
+
+.boton-anadir-camara {
+  min-width: 145px;
+  height: 42px;
+  padding: 0 18px;
+  flex-shrink: 0;
+
+  border: none;
+  border-radius: 8px;
+
+  background: #014dfd;
+  color: #ffffff;
+
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+
+  cursor: pointer;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+
+  transition:
+    background 0.2s ease,
+    transform 0.2s ease;
+}
+
+.boton-anadir-camara:hover {
+  background: #003ed1;
+}
+
+.boton-anadir-camara:active {
+  transform: scale(0.98);
+}
+
+.boton-anadir-camara-icono {
+  font-size: 20px;
+  font-weight: 400;
+  line-height: 1;
 }

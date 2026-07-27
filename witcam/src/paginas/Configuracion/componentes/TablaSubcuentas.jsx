@@ -38,11 +38,14 @@ function TablaSubcuentas() {
             <col className="col-usuario" />
             <col className="col-contrasena" />
             <col className="col-correo" />
+            <col className="col-grupos" />
+
             <col className="col-permiso" />
             <col className="col-permiso" />
             <col className="col-permiso" />
             <col className="col-permiso" />
             <col className="col-configuracion" />
+
             <col className="col-acciones" />
           </colgroup>
 
@@ -52,6 +55,7 @@ function TablaSubcuentas() {
               <th rowSpan="2">Usuario</th>
               <th rowSpan="2">Contraseña</th>
               <th rowSpan="2">Correo electrónico</th>
+              <th rowSpan="2">Grupos</th>
 
               <th colSpan="5" className="subcuentas-permisos-titulo">
                 Permisos
@@ -72,7 +76,7 @@ function TablaSubcuentas() {
           <tbody>
             {subcuentas.length === 0 ? (
               <tr>
-                <td colSpan="10" className="subcuentas-vacia">
+                <td colSpan="11" className="subcuentas-vacia">
                   No hay subcuentas registradas.
                 </td>
               </tr>
@@ -113,7 +117,17 @@ function TablaSubcuentas() {
                       {subcuenta.correo}
                     </span>
                   </td>
-
+                  
+                  <td>
+                    <button
+                      className="boton-grupos-subcuenta"
+                      type="button"
+                      aria-label={`Asignar grupos a ${subcuenta.nombre}`}
+                    >
+                      Asignar
+                    </button>
+                  </td>
+                  
                   <td>
                     <Permiso activo={subcuenta.permisos.ver} />
                   </td>
