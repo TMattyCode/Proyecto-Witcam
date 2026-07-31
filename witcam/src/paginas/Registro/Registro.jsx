@@ -1,4 +1,6 @@
-﻿import "./Registro.css";
+﻿import { useState } from "react";
+import "./Registro.css";
+
 import Input from "../../componentes/comunes/Input";
 import Button from "../../componentes/comunes/Button";
 import { useNavegacion } from "../../contextos/NavegacionContext";
@@ -11,12 +13,15 @@ import iconoCandado from "../../assets/iconos/008 icono-candado-sinfondo.png";
 import iconoOjo from "../../assets/iconos/008 icono-ojo-sinrelleno.png";
 import iconoFlecha from "../../assets/iconos/009 icono-flecha.png";
 import iconoUsuarioRegistro from "../../assets/iconos/005 icono-usuario.png";
+import iconoInformacion from "../../assets/iconos/026 icono-informacion.png";
 
 import whatsapp from "../../assets/logos/003 WhatsApp_icon.png";
 import instagram from "../../assets/logos/002 Instagram-Logo.png";
 
 function Registro() {
   const navegacion = useNavegacion();
+
+  const [mostrarContrasena, setMostrarContrasena] = useState(false);
 
   const registrarUsuario = (event) => {
     event.preventDefault();
@@ -26,21 +31,30 @@ function Registro() {
   return (
     <main className="register-page">
       <section className="register-container">
+
         <aside className="left-section">
-          <img src={imagenIzquierda} alt="Witcam" className="left-image" />
+          <img
+            src={imagenIzquierda}
+            alt="Witcam"
+            className="left-image"
+          />
         </aside>
 
         <section className="right-section">
+
           <button
             type="button"
             className="back-link"
-            onClick={() => navegacion?.cambiarPagina("inicioSesion")}
+            onClick={() =>
+              navegacion?.cambiarPagina("inicioSesion")
+            }
           >
             <img src={iconoFlecha} alt="" />
             Volver al inicio de sesión
           </button>
 
           <div className="register-box">
+
             <img
               src={iconoUsuarioRegistro}
               alt="Crear usuario"
@@ -48,10 +62,18 @@ function Registro() {
             />
 
             <h1>Crear una cuenta</h1>
-            <p>Completa la información para registrarte</p>
 
-            <form className="register-form" onSubmit={registrarUsuario}>
+            <p>
+              Completa la información para registrarte
+            </p>
+
+            <form
+              className="register-form"
+              onSubmit={registrarUsuario}
+            >
+
               <div className="register-grid">
+
                 <Input
                   label="Nombre de usuario"
                   placeholder="Ingresa tu nombre de usuario"
@@ -59,11 +81,16 @@ function Registro() {
                 />
 
                 <Input
-                  label="Contraseña ⓘ"
-                  type="password"
+                  label="Contraseña"
+                  labelIcon={iconoInformacion}
+                  labelTooltip="La contraseña debe tener al menos 8 caracteres, incluyendo letras y números."
+                  type={mostrarContrasena ? "text" : "password"}
                   placeholder="Crea una contraseña"
                   icon={iconoCandado}
                   rightIcon={iconoOjo}
+                  onRightIconClick={() =>
+                    setMostrarContrasena(!mostrarContrasena)
+                  }
                 />
 
                 <Input
@@ -91,25 +118,36 @@ function Registro() {
                   placeholder="Ingresa tu apellido"
                   icon={iconoUsuario}
                 />
+
               </div>
 
-              <Button type="submit">Registrarse</Button>
+              <Button type="submit">
+                Registrarse
+              </Button>
+
             </form>
+
           </div>
 
           <div className="contact-area">
+
             <span className="contact-text">
               ¿Necesitas ayuda? Contáctanos
             </span>
 
-            <img src={whatsapp} alt="WhatsApp" />
+            <img
+              src={whatsapp}
+              alt="WhatsApp"
+            />
 
             <img
               src={instagram}
               alt="Instagram"
               className="instagram-icon"
             />
+
           </div>
+
         </section>
       </section>
     </main>
