@@ -4,7 +4,7 @@ from dataclasses import replace
 
 import numpy as np
 
-import app
+from interfaz_prueba import app
 from backend.config import (
     ConfiguracionDesconocidos,
     ConfiguracionGalerias,

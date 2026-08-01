@@ -2,7 +2,7 @@ import unittest
 
 import numpy as np
 
-import app
+from interfaz_prueba import app
 from backend.config import ConfiguracionRostro
 from backend.utilidades.geometria import calcular_iou
 from backend.utilidades.rostros import evaluar_calidad_rostro

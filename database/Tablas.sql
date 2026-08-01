@@ -61,12 +61,13 @@ GO
 
 
 /* =========================================================
-   CUENTA PRINCIPAL O USUARIO_GRUPO
+   CUENTA PRINCIPAL DEL CLIENTE
    ========================================================= */
 
 
-CREATE TABLE Usuario_grupo (
-    id_usuario_grupo INT IDENTITY(1,1) PRIMARY KEY,
+CREATE TABLE Cuenta (
+    id_cuenta INT IDENTITY(1,1) PRIMARY KEY,
+    nombre_cuenta VARCHAR(150) NOT NULL,
     fecha_registro DATETIME NOT NULL DEFAULT GETDATE()
 
 );
@@ -77,7 +78,7 @@ GO
    PLANES Y SUSCRIPCIONES
    ========================================================= */
 
-CREATE TABLE Plan_Suscripcion (
+CREATE TABLE PlanSuscripcion (
     id_plan INT IDENTITY(1,1) PRIMARY KEY,
 
     nombre_plan VARCHAR(100) NOT NULL UNIQUE,
@@ -108,13 +109,13 @@ CREATE TABLE Plan_Suscripcion (
 GO
 
 
-CREATE TABLE Estado_Suscripcion (
+CREATE TABLE EstadoSuscripcion (
     id_estado_suscripcion INT IDENTITY(1,1) PRIMARY KEY,
     nombre_estado VARCHAR(100) NOT NULL UNIQUE
 );
 GO
 
-INSERT INTO Estado_Suscripcion (nombre_estado)
+INSERT INTO EstadoSuscripcion (nombre_estado)
 VALUES
     ('Activa'),
     ('Vencida'),
@@ -126,7 +127,7 @@ GO
 CREATE TABLE Suscripcion (
     id_suscripcion INT IDENTITY(1,1) PRIMARY KEY,
 
-    id_usuario_grupo INT NOT NULL,
+    id_cuenta INT NOT NULL,
     id_plan INT NOT NULL,
     id_estado_suscripcion INT NOT NULL DEFAULT 1,
 
@@ -137,17 +138,17 @@ CREATE TABLE Suscripcion (
 
     fecha_cancelacion DATETIME NULL,
 
-    CONSTRAINT FK_Suscripcion_UsuarioGrupo
-        FOREIGN KEY (id_usuario_grupo)
-        REFERENCES Usuario_grupo(id_usuario_grupo),
+    CONSTRAINT FK_Suscripcion_Cuenta
+        FOREIGN KEY (id_cuenta)
+        REFERENCES Cuenta(id_cuenta),
 
     CONSTRAINT FK_Suscripcion_Plan
         FOREIGN KEY (id_plan)
-        REFERENCES Plan_Suscripcion(id_plan),
+        REFERENCES PlanSuscripcion(id_plan),
 
     CONSTRAINT FK_Suscripcion_Estado
         FOREIGN KEY (id_estado_suscripcion)
-        REFERENCES Estado_Suscripcion(id_estado_suscripcion),
+        REFERENCES EstadoSuscripcion(id_estado_suscripcion),
 
     CONSTRAINT CK_Suscripcion_Fechas
         CHECK (fecha_vencimiento >= fecha_inicio),
@@ -165,13 +166,13 @@ GO
    USUARIOS
    ========================================================= */
 
-CREATE TABLE Estado_Usuario (
+CREATE TABLE EstadoUsuario (
     id_estado_usuario INT IDENTITY(1,1) PRIMARY KEY,
     nombre_estado VARCHAR(100) NOT NULL UNIQUE
 );
 GO
 
-INSERT INTO Estado_Usuario (nombre_estado)
+INSERT INTO EstadoUsuario (nombre_estado)
 VALUES
     ('Activo'),
     ('Inactivo');
@@ -181,7 +182,7 @@ GO
 CREATE TABLE Usuario (
     id_usuario INT IDENTITY(1,1) PRIMARY KEY,
 
-    id_usuario_grupo INT NOT NULL,
+    id_cuenta INT NOT NULL,
     id_rol INT NOT NULL,
 
     nombre VARCHAR(100) NOT NULL,
@@ -194,22 +195,22 @@ CREATE TABLE Usuario (
 
     password_hash VARCHAR(255) NOT NULL,
 
-    estado_usuario INT NOT NULL DEFAULT 1,
+    id_estado_usuario INT NOT NULL DEFAULT 1,
 
     fecha_creacion DATETIME NOT NULL DEFAULT GETDATE(),
     ultimo_acceso DATETIME NULL,
 
-    CONSTRAINT FK_Usuario_UsuarioGrupo
-        FOREIGN KEY (id_usuario_grupo)
-        REFERENCES Usuario_grupo(id_usuario_grupo),
+    CONSTRAINT FK_Usuario_Cuenta
+        FOREIGN KEY (id_cuenta)
+        REFERENCES Cuenta(id_cuenta),
 
     CONSTRAINT FK_Usuario_Rol
         FOREIGN KEY (id_rol)
         REFERENCES Rol(id_rol),
 
     CONSTRAINT FK_Usuario_EstadoUsuario
-        FOREIGN KEY (estado_usuario)
-        REFERENCES Estado_Usuario(id_estado_usuario)
+        FOREIGN KEY (id_estado_usuario)
+        REFERENCES EstadoUsuario(id_estado_usuario)
 );
 GO
 
@@ -246,14 +247,14 @@ GO
 
 /* =========================================================
    GRUPOS DE CÁMARAS
-   Cada grupo pertenece exclusivamente a un Usuario_grupo.
+   Cada grupo pertenece exclusivamente a una cuenta.
    El nombre puede repetirse entre cuentas distintas.
    ========================================================= */
 
-CREATE TABLE Grupo_Camara (
+CREATE TABLE GrupoCamara (
     id_grupo_camara INT IDENTITY(1,1) PRIMARY KEY,
 
-    id_usuario_grupo INT NOT NULL,
+    id_cuenta INT NOT NULL,
 
     nombre_grupo VARCHAR(150) NOT NULL,
     descripcion VARCHAR(250) NULL,
@@ -261,12 +262,12 @@ CREATE TABLE Grupo_Camara (
     activo BIT NOT NULL DEFAULT 1,
     fecha_creacion DATETIME NOT NULL DEFAULT GETDATE(),
 
-    CONSTRAINT FK_GrupoCamara_UsuarioGrupo
-        FOREIGN KEY (id_usuario_grupo)
-        REFERENCES Usuario_grupo(id_usuario_grupo),
+    CONSTRAINT FK_GrupoCamara_Cuenta
+        FOREIGN KEY (id_cuenta)
+        REFERENCES Cuenta(id_cuenta),
 
-    CONSTRAINT UQ_GrupoCamara_UsuarioGrupo_Nombre
-        UNIQUE (id_usuario_grupo, nombre_grupo)
+    CONSTRAINT UQ_GrupoCamara_Cuenta_Nombre
+        UNIQUE (id_cuenta, nombre_grupo)
 );
 GO
 
@@ -275,7 +276,7 @@ GO
    GRUPOS AUTORIZADOS PARA CADA SUBUSUARIO
    ========================================================= */
 
-CREATE TABLE Usuario_Grupo_Camara (
+CREATE TABLE Usuario_GrupoCamara (
     id_usuario_grupo_camara INT IDENTITY(1,1) PRIMARY KEY,
 
     id_usuario INT NOT NULL,
@@ -289,7 +290,7 @@ CREATE TABLE Usuario_Grupo_Camara (
 
     CONSTRAINT FK_UsuarioGrupoCamara_GrupoCamara
         FOREIGN KEY (id_grupo_camara)
-        REFERENCES Grupo_Camara(id_grupo_camara),
+        REFERENCES GrupoCamara(id_grupo_camara),
 
     CONSTRAINT UQ_UsuarioGrupoCamara
         UNIQUE (id_usuario, id_grupo_camara)
@@ -311,54 +312,91 @@ CREATE TABLE Camara (
 
     nombre_camara VARCHAR(150) NOT NULL,
 
-    direccion_ip VARCHAR(45) NOT NULL,
-    puerto INT NOT NULL,
+    /*
+       Fuente completa que utiliza el backend para abrir el video.
+       Ejemplo: rtsp://servidor:8554/camara1
+    */
+    fuente_video VARCHAR(1000) NOT NULL,
 
     usuario_conexion VARCHAR(150) NULL,
-    password_conexion_hash VARCHAR(255) NULL,
-
-    ruta_stream VARCHAR(500) NULL,
-    protocolo VARCHAR(50) NOT NULL DEFAULT 'ONVIF',
+    password_conexion_cifrada VARBINARY(512) NULL,
 
     activa BIT NOT NULL DEFAULT 1,
     fecha_registro DATETIME NOT NULL DEFAULT GETDATE(),
 
     CONSTRAINT FK_Camara_GrupoCamara
         FOREIGN KEY (id_grupo_camara)
-        REFERENCES Grupo_Camara(id_grupo_camara),
+        REFERENCES GrupoCamara(id_grupo_camara),
 
     CONSTRAINT UQ_Camara_Grupo_Nombre
-        UNIQUE (id_grupo_camara, nombre_camara),
-
-    CONSTRAINT CK_Camara_Puerto
-        CHECK (puerto BETWEEN 1 AND 65535)
+        UNIQUE (id_grupo_camara, nombre_camara)
 );
 GO
 
 
 /* =========================================================
-   CLIENTES O PERSONAS IDENTIFICADAS
-   El código se presenta en frontend como ID CLIENTE.
-   Ejemplo: CLI-00001
+   PERSONAS IDENTIFICADAS POR EL SISTEMA
+   El código es el identificador estable de la persona.
+   Ejemplo: PER-00001
    ========================================================= */
 
-CREATE TABLE Cliente (
-    id_cliente INT IDENTITY(1,1) PRIMARY KEY,
+CREATE TABLE Persona (
+    id_persona INT IDENTITY(1,1) PRIMARY KEY,
 
-    id_usuario_grupo INT NOT NULL,
+    id_cuenta INT NOT NULL,
 
-    codigo_cliente VARCHAR(50) NOT NULL,
-
-    imagen_referencia VARCHAR(500) NULL,
+    codigo_persona VARCHAR(50) NOT NULL,
+    nombre_persona VARCHAR(150) NOT NULL,
+    tipo_galeria VARCHAR(20) NOT NULL DEFAULT 'Pendiente',
 
     fecha_registro DATETIME NOT NULL DEFAULT GETDATE(),
 
-    CONSTRAINT FK_Cliente_UsuarioGrupo
-        FOREIGN KEY (id_usuario_grupo)
-        REFERENCES Usuario_grupo(id_usuario_grupo),
+    CONSTRAINT FK_Persona_Cuenta
+        FOREIGN KEY (id_cuenta)
+        REFERENCES Cuenta(id_cuenta),
 
-    CONSTRAINT UQ_Cliente_UsuarioGrupo_Codigo
-        UNIQUE (id_usuario_grupo, codigo_cliente)
+    CONSTRAINT UQ_Persona_Cuenta_Codigo
+        UNIQUE (id_cuenta, codigo_persona),
+
+    CONSTRAINT CK_Persona_TipoGaleria
+        CHECK (tipo_galeria IN ('Pendiente', 'Referencia'))
+);
+GO
+
+
+/* =========================================================
+   MUESTRAS FACIALES DE PERSONAS
+   Los archivos se almacenan en un servicio externo.
+   La base de datos conserva la clave permanente del archivo.
+   Cada persona puede tener varias muestras faciales.
+   ========================================================= */
+
+CREATE TABLE MuestraFacial (
+    id_muestra_facial INT IDENTITY(1,1) PRIMARY KEY,
+
+    id_persona INT NOT NULL,
+
+    /*
+       Ejemplo:
+       personas/PER-00015/rostro_003.jpg
+    */
+    clave_archivo VARCHAR(500) NOT NULL,
+
+    calidad DECIMAL(5,4) NULL,
+    fecha_registro DATETIME NOT NULL DEFAULT GETDATE(),
+
+    CONSTRAINT FK_MuestraFacial_Persona
+        FOREIGN KEY (id_persona)
+        REFERENCES Persona(id_persona),
+
+    CONSTRAINT UQ_MuestraFacial_ClaveArchivo
+        UNIQUE (clave_archivo),
+
+    CONSTRAINT CK_MuestraFacial_Calidad
+        CHECK (
+            calidad IS NULL
+            OR calidad BETWEEN 0 AND 1
+        )
 );
 GO
 
@@ -375,28 +413,32 @@ CREATE TABLE Deteccion (
     id_deteccion INT IDENTITY(1,1) PRIMARY KEY,
 
     id_camara INT NOT NULL,
-    id_cliente INT NULL,
+    id_persona INT NULL,
 
     fecha_hora DATETIME NOT NULL DEFAULT GETDATE(),
 
-    imagen_detectada VARCHAR(500) NULL,
+    clave_imagen_detectada VARCHAR(500) NULL,
 
     resultado VARCHAR(100) NOT NULL,
 
-    porcentaje_coincidencia DECIMAL(5,2) NULL,
+    /*
+       Similitud facial en la escala nativa de la IA: 0 a 1.
+       El frontend puede multiplicarla por 100 para mostrar porcentaje.
+    */
+    similitud DECIMAL(6,5) NULL,
 
     CONSTRAINT FK_Deteccion_Camara
         FOREIGN KEY (id_camara)
         REFERENCES Camara(id_camara),
 
-    CONSTRAINT FK_Deteccion_Cliente
-        FOREIGN KEY (id_cliente)
-        REFERENCES Cliente(id_cliente),
+    CONSTRAINT FK_Deteccion_Persona
+        FOREIGN KEY (id_persona)
+        REFERENCES Persona(id_persona),
 
-    CONSTRAINT CK_Deteccion_Coincidencia
+    CONSTRAINT CK_Deteccion_Similitud
         CHECK (
-            porcentaje_coincidencia IS NULL
-            OR porcentaje_coincidencia BETWEEN 0 AND 100
+            similitud IS NULL
+            OR similitud BETWEEN 0 AND 1
         )
 );
 GO
@@ -406,41 +448,40 @@ GO
    LISTA DE OBSERVACIÓN
    ========================================================= */
 
-CREATE TABLE Lista_Observacion (
+CREATE TABLE ListaObservacion (
     id_lista_observacion INT IDENTITY(1,1) PRIMARY KEY,
 
-    id_cliente INT NOT NULL,
+    id_persona INT NOT NULL,
 
     /*
-       Usuario administrador o subusuario que agregó al cliente.
+       Usuario administrador o subusuario que agregó a la persona.
     */
     id_usuario_registro INT NOT NULL,
 
     motivo VARCHAR(500) NOT NULL,
 
-    fecha_incidente DATETIME NOT NULL,
-    fecha_registro DATETIME NOT NULL DEFAULT GETDATE(),
+    fecha_ingreso_lista DATETIME NOT NULL DEFAULT GETDATE(),
 
     activa BIT NOT NULL DEFAULT 1,
 
-    CONSTRAINT FK_ListaObservacion_Cliente
-        FOREIGN KEY (id_cliente)
-        REFERENCES Cliente(id_cliente),
+    CONSTRAINT FK_ListaObservacion_Persona
+        FOREIGN KEY (id_persona)
+        REFERENCES Persona(id_persona),
 
     CONSTRAINT FK_ListaObservacion_Usuario
         FOREIGN KEY (id_usuario_registro)
         REFERENCES Usuario(id_usuario),
 
-    CONSTRAINT UQ_ListaObservacion_Cliente
-        UNIQUE (id_cliente)
+    CONSTRAINT UQ_ListaObservacion_Persona
+        UNIQUE (id_persona)
 );
 GO
 
 
 /* =========================================================
    ALERTAS
-   Se genera cuando una detección coincide con un cliente
-   activo en la lista de observación.
+   Se genera cuando una detección coincide con una persona
+   activa en la lista de observación.
    ========================================================= */
 
 CREATE TABLE Alerta (
@@ -460,7 +501,7 @@ CREATE TABLE Alerta (
 
     CONSTRAINT FK_Alerta_ListaObservacion
         FOREIGN KEY (id_lista_observacion)
-        REFERENCES Lista_Observacion(id_lista_observacion),
+        REFERENCES ListaObservacion(id_lista_observacion),
 
     CONSTRAINT UQ_Alerta_Deteccion
         UNIQUE (id_deteccion)
@@ -472,32 +513,36 @@ GO
    ÍNDICES PARA CONSULTAS FRECUENTES
    ========================================================= */
 
-CREATE INDEX IX_GrupoCamara_UsuarioGrupo
-ON Grupo_Camara(id_usuario_grupo);
+CREATE INDEX IX_GrupoCamara_Cuenta
+ON GrupoCamara(id_cuenta);
 GO
 
 CREATE INDEX IX_UsuarioGrupoCamara_Usuario
-ON Usuario_Grupo_Camara(id_usuario);
+ON Usuario_GrupoCamara(id_usuario);
 GO
 
 CREATE INDEX IX_Camara_GrupoCamara
 ON Camara(id_grupo_camara);
 GO
 
-CREATE INDEX IX_Cliente_UsuarioGrupo
-ON Cliente(id_usuario_grupo);
+CREATE INDEX IX_Persona_Cuenta_TipoGaleria
+ON Persona(id_cuenta, tipo_galeria);
+GO
+
+CREATE INDEX IX_MuestraFacial_Persona_Calidad
+ON MuestraFacial(id_persona, calidad DESC);
 GO
 
 CREATE INDEX IX_Deteccion_Camara_Fecha
 ON Deteccion(id_camara, fecha_hora DESC);
 GO
 
-CREATE INDEX IX_Deteccion_Cliente
-ON Deteccion(id_cliente);
+CREATE INDEX IX_Deteccion_Persona
+ON Deteccion(id_persona);
 GO
 
-CREATE INDEX IX_ListaObservacion_Cliente
-ON Lista_Observacion(id_cliente);
+CREATE INDEX IX_ListaObservacion_Persona
+ON ListaObservacion(id_persona);
 GO
 
 CREATE INDEX IX_Alerta_Fecha

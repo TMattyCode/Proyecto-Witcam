@@ -9,8 +9,14 @@ from backend.aplicacion.servicios import (
     ServicioGalerias,
     ServicioMonitoreo,
 )
+from backend.aplicacion.autenticacion import ServicioAutenticacion
 from backend.api.serializacion import codificar_json
 from backend.config import ConfiguracionVideo
+from backend.exceptions import (
+    CredencialesInvalidas,
+    ErrorAutenticacion,
+    RegistroDuplicado,
+)
 from backend.video.renderizado import crear_frame_mensaje
 
 
@@ -19,6 +25,7 @@ def crear_handler(
     monitoreo: ServicioMonitoreo,
     galerias: ServicioGalerias,
     config_video: ConfiguracionVideo,
+    autenticacion: ServicioAutenticacion | None = None,
 ) -> type[BaseHTTPRequestHandler]:
     class WitcamHandler(BaseHTTPRequestHandler):
         def log_message(self, formato, *args):
@@ -46,12 +53,42 @@ def crear_handler(
             if ruta == "/api/list":
                 self._json(galerias.listar())
                 return
+            if ruta == "/api/auth/session":
+                try:
+                    self._exigir_autenticacion()
+                    self._json(
+                        autenticacion.obtener_sesion(self._token_sesion())
+                    )
+                except CredencialesInvalidas as error:
+                    self._json(
+                        {"ok": False, "error": str(error)},
+                        estado=401,
+                    )
+                except ErrorAutenticacion as error:
+                    self._json(
+                        {"ok": False, "error": str(error)},
+                        estado=503,
+                    )
+                return
             self._servir_archivo(ruta.lstrip("/"))
 
         def do_POST(self):
             ruta = urlparse(self.path).path
             datos = self._leer_json()
             try:
+                if ruta == "/api/auth/register":
+                    self._exigir_autenticacion()
+                    self._json(autenticacion.registrar(datos), estado=201)
+                    return
+                if ruta == "/api/auth/login":
+                    self._exigir_autenticacion()
+                    self._json(autenticacion.iniciar_sesion(datos))
+                    return
+                if ruta == "/api/auth/logout":
+                    self._exigir_autenticacion()
+                    autenticacion.cerrar_sesion(self._token_sesion())
+                    self._json({"ok": True})
+                    return
                 if ruta == "/api/start":
                     monitoreo.iniciar()
                     self._json({"ok": True})
@@ -81,11 +118,34 @@ def crear_handler(
                     self._json({"ok": True})
                     return
                 self.send_error(404)
+            except CredencialesInvalidas as error:
+                self._json(
+                    {"ok": False, "error": str(error)},
+                    estado=401,
+                )
+            except (ErrorAutenticacion, RegistroDuplicado) as error:
+                self._json(
+                    {"ok": False, "error": str(error)},
+                    estado=400,
+                )
             except Exception as error:
                 self._json(
                     {"ok": False, "error": str(error)},
                     estado=400,
                 )
+
+        def _exigir_autenticacion(self) -> None:
+            if autenticacion is None:
+                raise ErrorAutenticacion(
+                    "El servicio de autenticacion no esta disponible"
+                )
+
+        def _token_sesion(self) -> str:
+            autorizacion = self.headers.get("Authorization", "")
+            prefijo = "Bearer "
+            if not autorizacion.startswith(prefijo):
+                raise CredencialesInvalidas("Falta el token de sesion")
+            return autorizacion[len(prefijo):].strip()
 
         def _leer_json(self) -> dict:
             longitud = int(self.headers.get("Content-Length", "0"))

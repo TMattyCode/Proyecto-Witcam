@@ -12,6 +12,29 @@ class ConfiguracionServidor:
 
 
 @dataclass(frozen=True)
+class ConfiguracionBaseDatos:
+    controlador: str = "ODBC Driver 17 for SQL Server"
+    servidor: str = "lpc:localhost"
+    nombre_base: str = "WitcamBD"
+    conexion_confiable: bool = True
+    cifrar: bool = True
+    confiar_certificado_servidor: bool = True
+
+    def cadena_conexion(self) -> str:
+        partes = [
+            f"DRIVER={{{self.controlador}}}",
+            f"SERVER={self.servidor}",
+            f"DATABASE={self.nombre_base}",
+            f"Encrypt={'yes' if self.cifrar else 'no'}",
+            "TrustServerCertificate="
+            f"{'yes' if self.confiar_certificado_servidor else 'no'}",
+        ]
+        if self.conexion_confiable:
+            partes.append("Trusted_Connection=yes")
+        return ";".join(partes) + ";"
+
+
+@dataclass(frozen=True)
 class ConfiguracionVideo:
     fuente: int | str = "MediaMTX/prueba2_10m.mp4"
     ancho_camara: int = 640
@@ -116,6 +139,9 @@ class ConfiguracionGalerias:
 @dataclass(frozen=True)
 class ConfiguracionApp:
     servidor: ConfiguracionServidor = field(default_factory=ConfiguracionServidor)
+    base_datos: ConfiguracionBaseDatos = field(
+        default_factory=ConfiguracionBaseDatos
+    )
     video: ConfiguracionVideo = field(default_factory=ConfiguracionVideo)
     rostro: ConfiguracionRostro = field(default_factory=ConfiguracionRostro)
     yolo: ConfiguracionYolo = field(default_factory=ConfiguracionYolo)

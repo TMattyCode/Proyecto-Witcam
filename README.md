@@ -7,10 +7,11 @@ El repositorio tambien contiene la interfaz definitiva desarrollada con React y 
 ## Estado actual
 
 - El backend modular v2 se inicia con `main.py`, procesa una fuente de video y expone una API HTTP local.
-- `app.py` permanece congelado como version estable de respaldo mientras se valida y extiende la v2.
-- La interfaz de prueba formada por `index.html`, `app.js` y `styles.css` esta conectada al backend Python.
-- La interfaz React se encuentra en `witcam/` y contiene las pantallas de la aplicacion final, pero todavia no consume la API modular.
-- El script `database/Tablas.sql` crea la base de datos inicial en SQL Server, pero todavia no esta conectado al backend.
+- La version estable anterior y su interfaz se conservan dentro de `interfaz_prueba/` como respaldo independiente.
+- La interfaz final se encuentra en `frontend/` y usa React, Vite, React Router, rutas protegidas y restauracion de sesion.
+- Registro, inicio, consulta y cierre de sesion ya consumen la API modular de Python. Las demas pantallas siguen pendientes de integracion.
+- El backend usa SQL Server para registrar cuentas y usuarios, validar credenciales y actualizar el ultimo acceso.
+- En desarrollo local, SQL Server se conecta mediante memoria compartida (`lpc:localhost`) y autenticacion de Windows, sin exponer un puerto TCP.
 - Actualmente el backend procesa una fuente configurable en `backend/config.py`, que puede ser el indice de una webcam, una URL RTSP o la ruta de un video local. La version final debera registrar una cantidad variable de camaras y canales de NVR.
 
 ## Arquitectura prevista
@@ -37,7 +38,7 @@ Solo los adaptadores de `backend/ia/adaptadores/` importan directamente InsightF
 
 `RepositorioGalerias` comparte un `threading.RLock` entre la API y el motor. El bloqueo cubre listados, firmas, carga completa, escritura, movimiento, renombrado, rechazo y reconciliacion. De esta forma la IA no puede leer una galeria a medio modificar mientras la interfaz realiza una operacion.
 
-SQL Server y `database/Tablas.sql` se mantienen fuera del backend v2 por ahora. Su integracion se realizara en una etapa posterior.
+La capa `backend/database/` encapsula la conexion local a SQL Server y el repositorio de usuarios. El script `database/Tablas.sql` sigue siendo la fuente para crear `WitcamBD`, sus catalogos, relaciones y tablas iniciales.
 
 ## Que usa
 
@@ -51,7 +52,7 @@ SQL Server y `database/Tablas.sql` se mantienen fuera del backend v2 por ahora. 
 - `ThreadingHTTPServer`: servidor web local integrado en Python.
 - `React`: interfaz de usuario final.
 - `Vite`: servidor de desarrollo y compilacion del frontend React.
-- `SQL Server`: base de datos prevista para usuarios, roles, permisos, empresas, locales y suscripciones.
+- `SQL Server`: persistencia local de cuentas, usuarios, roles, permisos, grupos de camaras, detecciones y alertas.
 
 ## Estructura del repositorio
 
@@ -65,19 +66,17 @@ backend/video/                 Captura, motor, renderizado y publicacion
 backend/galerias/              Referencias, muestras y repositorio bloqueado
 backend/aplicacion/            Servicios y ciclo de vida
 backend/api/                   API HTTP, JSON, archivos y MJPEG
+backend/database/              Conexion SQL Server y repositorios
 tests/                         Pruebas automaticas con unittest
-app.py                         Version estable anterior conservada
 requirements.txt              Dependencias de Python
-index.html                    Interfaz de prueba conectada a Python
-app.js
-styles.css
-witcam/                       Interfaz final React/Vite
+frontend/                      Interfaz final React/Vite
+interfaz_prueba/               Version anterior autocontenida de respaldo
 database/Tablas.sql           Creacion inicial de la base de datos SQL Server
 referencias_reconocimiento/   Rostros aprobados (se crea automaticamente)
 referencias_pendientes/       Capturas por revisar (se crea automaticamente)
 ```
 
-Dentro de `witcam/src/` se encuentran las paginas de inicio de sesion, registro, resumen del sistema, camaras, ingresos identificados, lista de observacion y configuracion. Los componentes compartidos, contextos, estilos e imagenes tambien se mantienen dentro de esa carpeta.
+Dentro de `frontend/src/` se encuentran las paginas de inicio de sesion, registro, resumen del sistema, camaras, ingresos identificados, lista de observacion y configuracion. React Router administra las rutas internas con `HashRouter`, adecuado para la futura ventana de escritorio.
 
 ## Carpetas de reconocimiento
 
@@ -143,10 +142,10 @@ Si la instalacion de `insightface` falla con errores de compilacion, casi siempr
 
 ### Frontend React
 
-Las dependencias de Node no se guardan en Git. Despues de descargar el proyecto, instalalas desde la carpeta `witcam`:
+Las dependencias de Node no se guardan en Git. Despues de descargar el proyecto, instalalas desde `frontend/`:
 
 ```powershell
-cd witcam
+cd frontend
 npm install
 ```
 
@@ -156,38 +155,20 @@ El archivo `database/Tablas.sql` esta escrito para SQL Server. En su estado actu
 
 Si `WitcamBD` ya existe, volver a ejecutar el script completo producira errores porque todavia no es un script idempotente.
 
-## Ejecucion del backend
+La configuracion local predeterminada usa `ODBC Driver 17 for SQL Server`, autenticacion de Windows y `lpc:localhost`. De esta manera Python y SQL Server se comunican mediante memoria compartida sin habilitar TCP/IP ni abrir el puerto `1433`.
 
-Desde la raiz del repositorio, con el entorno virtual activado:
+## Ejecucion durante el desarrollo
+
+Inicia el backend desde la raiz, con el entorno virtual activado:
 
 ```powershell
 python main.py
 ```
 
-Luego abre en Chrome:
-
-```text
-http://localhost:8000/
-```
-
-Desde la interfaz web puedes iniciar o detener la fuente configurada. El video mostrado en la pagina viene desde Python, ya procesado por Witcam.
-
-No es necesario ejecutar `php -S`. Si ya hay un servidor PHP usando el puerto `8000`, cierralo con `Ctrl+C` antes de iniciar `main.py`.
-
-Para cerrar el servidor, vuelve a la terminal y presiona `Ctrl+C`.
-
-La version estable anterior sigue disponible como respaldo:
+En otra terminal, inicia React:
 
 ```powershell
-python app.py
-```
-
-## Ejecucion de React
-
-En otra terminal:
-
-```powershell
-cd witcam
+cd frontend
 npm run dev
 ```
 
@@ -197,7 +178,16 @@ Vite mostrara la direccion local, normalmente:
 http://localhost:5173/
 ```
 
-El backend Python usa `http://localhost:8000/` y React usa normalmente `http://localhost:5173/`. Por ahora son aplicaciones separadas. Para completar la integracion se debera configurar el proxy de Vite o CORS y hacer que React consuma los endpoints del backend modular.
+Durante el desarrollo, Python usa `http://localhost:8000/` y React usa normalmente `http://localhost:5173/`. El proxy de Vite dirige `/api` y `/video_feed` al backend. Registro, inicio, consulta y cierre de sesion ya estan conectados; las pantallas operativas restantes aun usan datos vacios o controles demostrativos.
+
+La version final se empaquetara como aplicacion de escritorio: React se compilara, Python servira sus archivos y una ventana nativa iniciara ambos componentes desde un unico ejecutable. El cliente no necesitara ejecutar Vite ni abrir el navegador manualmente.
+
+La version anterior sigue disponible como respaldo independiente:
+
+```powershell
+cd interfaz_prueba
+python app.py
+```
 
 Comandos adicionales del frontend:
 
@@ -247,27 +237,23 @@ Las vistas previas incluyen una version basada en la fecha de modificacion y se 
 La v2 conserva las mismas rutas, respuestas JSON y transmision MJPEG de la version estable:
 
 - `GET /`, `/video_feed`, `/placeholder`, `/api/status` y `/api/list`.
+- `GET /api/auth/session` consulta la sesion activa.
+- `POST /api/auth/register`, `/api/auth/login` y `/api/auth/logout` administran el acceso.
 - `POST /api/start`, `/api/stop`, `/api/approve`, `/api/unapprove`, `/api/rename` y `/api/reject`.
 - Los POST mantienen los campos `file`, `newName` y `type`, junto con las respuestas `ok/error`.
 
-La interfaz de prueba existente funciona sin modificar `index.html`, `app.js` ni `styles.css`.
+La interfaz anterior conserva sus archivos dentro de `interfaz_prueba/` y usa sus propias carpetas de galerias para no interferir con el backend modular.
 
 ## Pruebas del backend
 
-La suite usa `unittest`, modelos falsos, galerias temporales y un servidor HTTP con puerto efimero. Cubre geometria, calidad facial, comparacion, reconciliacion, concurrencia, identidad, candidatos, pipeline y contratos HTTP/MJPEG.
+La suite usa `unittest`, modelos falsos, galerias temporales y un servidor HTTP con puerto efimero. Cubre geometria, calidad facial, comparacion, reconciliacion, concurrencia, identidad, candidatos, pipeline, autenticacion y contratos HTTP/MJPEG.
 
 ```powershell
 python -m compileall -q backend tests main.py
 python -m unittest discover -s tests -v
 ```
 
-Actualmente existen 16 pruebas automaticas. Tambien se completo una reproduccion real de diez minutos, 1920x1080 a 30 FPS, con InsightFace/SCRFD, YOLO y ByteTrack usando galerias temporales. El pipeline llego al final del video sin cortes y la firma de galerias permanecio valida. Webcam y RTSP quedan como pruebas manuales dependientes de tener esas fuentes disponibles.
-
-El archivo estable `app.py` se conserva con el siguiente SHA-256:
-
-```text
-75810EC27092342559267D7AF41B5043232D32A4942692B2BE5210B3EF9B69D3
-```
+Actualmente existen 20 pruebas automaticas. Tambien se completo una reproduccion real de diez minutos, 1920x1080 a 30 FPS, con InsightFace/SCRFD, YOLO y ByteTrack usando galerias temporales. El pipeline llego al final del video sin cortes y la firma de galerias permanecio valida. Webcam y RTSP quedan como pruebas manuales dependientes de tener esas fuentes disponibles.
 
 ## Oclusion
 

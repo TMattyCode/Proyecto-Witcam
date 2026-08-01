@@ -52,6 +52,30 @@ class MonitoreoFalso:
         return JPEG_MINIMO
 
 
+class AutenticacionFalsa:
+    def __init__(self):
+        self.usuario = {
+            "id": 1,
+            "nombreUsuario": "matias",
+            "rol": "Administrador",
+        }
+        self.token = "token-prueba"
+
+    def registrar(self, datos):
+        return {"ok": True, "user": self.usuario}
+
+    def iniciar_sesion(self, datos):
+        return {"ok": True, "token": self.token, "user": self.usuario}
+
+    def obtener_sesion(self, token):
+        if token != self.token:
+            raise RuntimeError("Token incorrecto")
+        return {"ok": True, "user": self.usuario}
+
+    def cerrar_sesion(self, token):
+        return None
+
+
 class PruebasApi(unittest.TestCase):
     def setUp(self):
         self.temporal = tempfile.TemporaryDirectory()
@@ -75,6 +99,7 @@ class PruebasApi(unittest.TestCase):
                 ancho_maximo_web=64,
                 alto_maximo_web=48,
             ),
+            AutenticacionFalsa(),
         )
         self.servidor = ThreadingHTTPServer(("127.0.0.1", 0), handler)
         self.hilo = threading.Thread(
@@ -199,6 +224,40 @@ class PruebasApi(unittest.TestCase):
         )
         self.assertEqual(estado, 400)
         self.assertEqual(json.loads(cuerpo)["ok"], False)
+
+    def test_contratos_autenticacion(self):
+        estado, _, cuerpo = self._solicitar(
+            "POST",
+            "/api/auth/register",
+            {"nombreUsuario": "matias"},
+        )
+        self.assertEqual(estado, 201)
+        self.assertTrue(json.loads(cuerpo)["ok"])
+
+        estado, _, cuerpo = self._solicitar(
+            "POST",
+            "/api/auth/login",
+            {"nombreUsuario": "matias", "contrasena": "segura123"},
+        )
+        login = json.loads(cuerpo)
+        self.assertEqual(estado, 200)
+        self.assertEqual(login["token"], "token-prueba")
+
+        conexion = http.client.HTTPConnection(
+            "127.0.0.1",
+            self.puerto,
+            timeout=3,
+        )
+        conexion.request(
+            "GET",
+            "/api/auth/session",
+            headers={"Authorization": "Bearer token-prueba"},
+        )
+        respuesta = conexion.getresponse()
+        sesion = json.loads(respuesta.read())
+        conexion.close()
+        self.assertEqual(respuesta.status, 200)
+        self.assertEqual(sesion["user"]["nombreUsuario"], "matias")
 
 
 if __name__ == "__main__":
