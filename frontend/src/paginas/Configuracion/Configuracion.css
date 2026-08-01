@@ -1,6 +1,7 @@
 ﻿.configuracion-contenido {
   width: 100%;
-  height: calc(100vh - 110px);
+  min-height: calc(100vh - 110px);
+  height: auto;
   padding: 8px 35px 18px;
   box-sizing: border-box;
 
@@ -8,7 +9,7 @@
   flex-direction: column;
   gap: 14px;
 
-  overflow: hidden;
+  overflow: visible;
 }
 
 .configuracion-paneles-superiores {

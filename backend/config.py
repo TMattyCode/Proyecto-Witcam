@@ -36,7 +36,7 @@ class ConfiguracionBaseDatos:
 
 @dataclass(frozen=True)
 class ConfiguracionVideo:
-    fuente: int | str = "MediaMTX/prueba2_10m.mp4"
+    fuente: int | str = 0
     ancho_camara: int = 640
     alto_camara: int = 480
     ancho_analisis: int = 512
