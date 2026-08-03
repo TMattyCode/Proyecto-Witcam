@@ -6,7 +6,11 @@ from backend.aplicacion.autenticacion import (
     crear_hash_password,
     verificar_password,
 )
-from backend.exceptions import CredencialesInvalidas
+from backend.exceptions import (
+    CredencialesInvalidas,
+    ErrorAutenticacion,
+    RegistroDuplicado,
+)
 
 
 class RepositorioUsuariosFalso:
@@ -14,8 +18,16 @@ class RepositorioUsuariosFalso:
         self.registrado = None
         self.hash_guardado = None
         self.ultimo_acceso = None
+        self.cantidad_registros = 0
 
     def registrar_administrador(self, datos, password_hash):
+        if self.registrado is not None and (
+            datos["nombre_usuario"].casefold()
+            == self.registrado["nombre_usuario"].casefold()
+            or datos["correo"].casefold() == self.registrado["correo"].casefold()
+        ):
+            raise RegistroDuplicado("Registro duplicado")
+        self.cantidad_registros += 1
         self.registrado = datos
         self.hash_guardado = password_hash
         return {
@@ -52,6 +64,7 @@ class PruebasAutenticacion(unittest.TestCase):
             "nombreCuenta": "Cuenta Prueba",
             "nombreUsuario": "matias",
             "contrasena": "segura123",
+            "confirmarContrasena": "segura123",
             "correo": "MATIAS@example.com",
             "telefono": "",
             "nombre": "Matias",
@@ -85,6 +98,56 @@ class PruebasAutenticacion(unittest.TestCase):
         with self.assertRaises(CredencialesInvalidas):
             self.servicio.iniciar_sesion(
                 {"nombreUsuario": "matias", "contrasena": "incorrecta"}
+            )
+
+    def test_registro_rechaza_datos_invalidos_sin_llamar_repositorio(self):
+        casos = (
+            ("valor nulo", {"nombre": None}),
+            ("password distinta", {"confirmarContrasena": "otra1234"}),
+            ("correo invalido", {"correo": "correo-sin-dominio"}),
+            ("usuario con espacios", {"nombreUsuario": "matias prueba"}),
+            ("telefono invalido", {"telefono": "llamame pronto"}),
+            ("campo demasiado largo", {"nombre": "a" * 101}),
+        )
+        for nombre_caso, cambio in casos:
+            with self.subTest(nombre_caso):
+                datos = {**self.datos, **cambio}
+                with self.assertRaises(ErrorAutenticacion):
+                    self.servicio.registrar(datos)
+                self.assertEqual(self.repositorio.cantidad_registros, 0)
+
+    def test_registro_duplicado_no_crea_un_segundo_usuario(self):
+        self.servicio.registrar(self.datos)
+        duplicado_usuario = {
+            **self.datos,
+            "nombreUsuario": "MATIAS",
+            "correo": "otro@example.com",
+        }
+        with self.assertRaises(RegistroDuplicado):
+            self.servicio.registrar(duplicado_usuario)
+        self.assertEqual(self.repositorio.cantidad_registros, 1)
+
+        duplicado_correo = {
+            **self.datos,
+            "nombreUsuario": "otro",
+            "correo": "MATIAS@EXAMPLE.COM",
+        }
+        with self.assertRaises(RegistroDuplicado):
+            self.servicio.registrar(duplicado_correo)
+        self.assertEqual(self.repositorio.cantidad_registros, 1)
+
+    def test_login_inexistente_no_crea_usuario_ni_sesion(self):
+        with self.assertRaises(CredencialesInvalidas):
+            self.servicio.iniciar_sesion(
+                {"nombreUsuario": "no-existe", "contrasena": "segura123"}
+            )
+        self.assertEqual(self.repositorio.cantidad_registros, 0)
+        self.assertEqual(self.servicio._sesiones, {})
+
+    def test_login_rechaza_valores_nulos(self):
+        with self.assertRaises(CredencialesInvalidas):
+            self.servicio.iniciar_sesion(
+                {"nombreUsuario": None, "contrasena": None}
             )
 
 

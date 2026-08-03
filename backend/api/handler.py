@@ -74,8 +74,8 @@ def crear_handler(
 
         def do_POST(self):
             ruta = urlparse(self.path).path
-            datos = self._leer_json()
             try:
+                datos = self._leer_json()
                 if ruta == "/api/auth/register":
                     self._exigir_autenticacion()
                     self._json(autenticacion.registrar(datos), estado=201)
@@ -90,7 +90,16 @@ def crear_handler(
                     self._json({"ok": True})
                     return
                 if ruta == "/api/start":
-                    monitoreo.iniciar()
+                    fuente = datos.get("source")
+                    analizar = datos.get("analysis", True)
+                    if isinstance(fuente, bool) or (
+                        fuente is not None
+                        and not isinstance(fuente, (int, str))
+                    ):
+                        raise ValueError("La fuente de video no es valida")
+                    if not isinstance(analizar, bool):
+                        raise ValueError("El modo de analisis no es valido")
+                    monitoreo.iniciar(fuente, analizar)
                     self._json({"ok": True})
                     return
                 if ruta == "/api/stop":
@@ -123,7 +132,12 @@ def crear_handler(
                     {"ok": False, "error": str(error)},
                     estado=401,
                 )
-            except (ErrorAutenticacion, RegistroDuplicado) as error:
+            except RegistroDuplicado as error:
+                self._json(
+                    {"ok": False, "error": str(error)},
+                    estado=409,
+                )
+            except ErrorAutenticacion as error:
                 self._json(
                     {"ok": False, "error": str(error)},
                     estado=400,
@@ -151,8 +165,13 @@ def crear_handler(
             longitud = int(self.headers.get("Content-Length", "0"))
             if longitud == 0:
                 return {}
+            if longitud > 65_536:
+                raise ValueError("La solicitud supera el tamano permitido")
             contenido = self.rfile.read(longitud).decode("utf-8")
-            return json.loads(contenido)
+            datos = json.loads(contenido)
+            if not isinstance(datos, dict):
+                raise ValueError("El cuerpo JSON debe ser un objeto")
+            return datos
 
         def _json(self, datos: object, estado: int = 200) -> None:
             cuerpo = codificar_json(datos)

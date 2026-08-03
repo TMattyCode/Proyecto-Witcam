@@ -4,6 +4,11 @@ from backend.database.conexion import FabricaConexionesSqlServer
 from backend.exceptions import RegistroDuplicado
 
 
+def _es_error_duplicado(error: pyodbc.IntegrityError) -> bool:
+    detalle = " ".join(str(argumento) for argumento in error.args)
+    return "2601" in detalle or "2627" in detalle
+
+
 class RepositorioUsuarios:
     def __init__(self, conexiones: FabricaConexionesSqlServer):
         self.conexiones = conexiones
@@ -64,6 +69,8 @@ class RepositorioUsuarios:
                     "rol": "Administrador",
                 }
         except pyodbc.IntegrityError as error:
+            if not _es_error_duplicado(error):
+                raise
             raise RegistroDuplicado(
                 "El nombre de usuario o correo ya esta registrado"
             ) from error

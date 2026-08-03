@@ -24,3 +24,27 @@
   scrollbar-gutter: stable;
   box-sizing: border-box;
 }
+
+.layout-main.compacto .layout-contenido {
+  padding: 8px 24px 16px;
+  overflow: hidden;
+  scrollbar-gutter: auto;
+}
+
+@media (max-width: 760px), (max-height: 620px) {
+  .layout-main.compacto .layout-contenido {
+    overflow: auto;
+  }
+}
+
+@media (max-width: 760px) {
+  .layout-main.compacto .layout-contenido {
+    padding-right: 12px;
+    padding-left: 12px;
+  }
+}
+
+/* La cuadrícula puede crecer en filas sin crear un segundo scroll interno. */
+.layout-main.compacto .layout-contenido {
+  overflow: auto;
+}

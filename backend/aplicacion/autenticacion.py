@@ -1,6 +1,7 @@
 import base64
 import hashlib
 import hmac
+import re
 import secrets
 import threading
 
@@ -9,6 +10,9 @@ from backend.exceptions import CredencialesInvalidas, ErrorAutenticacion
 
 
 ITERACIONES_PBKDF2 = 310_000
+PATRON_CORREO = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
+PATRON_USUARIO = re.compile(r"^[\w.-]+$", re.UNICODE)
+PATRON_TELEFONO = re.compile(r"^[+\d\s().-]+$")
 
 
 def crear_hash_password(password: str) -> str:
@@ -62,9 +66,14 @@ class ServicioAutenticacion:
         return {"ok": True, "user": usuario}
 
     def iniciar_sesion(self, datos: dict) -> dict:
-        nombre_usuario = str(datos.get("nombreUsuario", "")).strip()
-        password = str(datos.get("contrasena", ""))
-        if not nombre_usuario or not password:
+        nombre_usuario = self._leer_texto(datos, "nombreUsuario", 100)
+        password = self._leer_texto(
+            datos,
+            "contrasena",
+            128,
+            recortar=False,
+        )
+        if not nombre_usuario or not password or len(password) < 8:
             raise CredencialesInvalidas("Ingresa usuario y contrasena")
         fila = self.usuarios.buscar_para_login(nombre_usuario)
         if (
@@ -83,10 +92,10 @@ class ServicioAutenticacion:
             "correo": fila.correo,
             "rol": fila.nombre_rol,
         }
+        self.usuarios.registrar_acceso(fila.id_usuario)
         token = secrets.token_urlsafe(32)
         with self._bloqueo:
             self._sesiones[token] = usuario
-        self.usuarios.registrar_acceso(fila.id_usuario)
         return {"ok": True, "token": token, "user": usuario}
 
     def obtener_sesion(self, token: str) -> dict:
@@ -102,15 +111,35 @@ class ServicioAutenticacion:
 
     @staticmethod
     def _validar_registro(datos: dict) -> dict:
+        if not isinstance(datos, dict):
+            raise ErrorAutenticacion("Los datos de registro no son validos")
         campos = {
-            "nombre_cuenta": str(datos.get("nombreCuenta", "")).strip(),
-            "nombre_usuario": str(datos.get("nombreUsuario", "")).strip(),
-            "contrasena": str(datos.get("contrasena", "")),
-            "correo": str(datos.get("correo", "")).strip().lower(),
-            "telefono": str(datos.get("telefono", "")).strip() or None,
-            "nombre": str(datos.get("nombre", "")).strip(),
-            "apellido": str(datos.get("apellido", "")).strip(),
+            "nombre_cuenta": ServicioAutenticacion._leer_texto(
+                datos, "nombreCuenta", 150
+            ),
+            "nombre_usuario": ServicioAutenticacion._leer_texto(
+                datos, "nombreUsuario", 100
+            ),
+            "contrasena": ServicioAutenticacion._leer_texto(
+                datos, "contrasena", 128, recortar=False
+            ),
+            "correo": ServicioAutenticacion._leer_texto(
+                datos, "correo", 250
+            ).lower(),
+            "telefono": ServicioAutenticacion._leer_texto(
+                datos, "telefono", 20
+            ) or None,
+            "nombre": ServicioAutenticacion._leer_texto(datos, "nombre", 100),
+            "apellido": ServicioAutenticacion._leer_texto(
+                datos, "apellido", 100
+            ),
         }
+        confirmacion = ServicioAutenticacion._leer_texto(
+            datos,
+            "confirmarContrasena",
+            128,
+            recortar=False,
+        )
         obligatorios = (
             "nombre_cuenta",
             "nombre_usuario",
@@ -125,6 +154,36 @@ class ServicioAutenticacion:
             raise ErrorAutenticacion(
                 "La contrasena debe tener al menos 8 caracteres"
             )
-        if "@" not in campos["correo"]:
+        if not confirmacion or confirmacion != campos["contrasena"]:
+            raise ErrorAutenticacion("Las contrasenas no coinciden")
+        if not PATRON_USUARIO.fullmatch(campos["nombre_usuario"]):
+            raise ErrorAutenticacion(
+                "El usuario solo puede contener letras, numeros, punto, guion y guion bajo"
+            )
+        if not PATRON_CORREO.fullmatch(campos["correo"]):
             raise ErrorAutenticacion("El correo electronico no es valido")
+        if campos["telefono"] and not PATRON_TELEFONO.fullmatch(
+            campos["telefono"]
+        ):
+            raise ErrorAutenticacion("El telefono no es valido")
         return campos
+
+    @staticmethod
+    def _leer_texto(
+        datos: dict,
+        clave: str,
+        largo_maximo: int,
+        *,
+        recortar: bool = True,
+    ) -> str:
+        if not isinstance(datos, dict):
+            return ""
+        valor = datos.get(clave, "")
+        if not isinstance(valor, str):
+            return ""
+        texto = valor.strip() if recortar else valor
+        if len(texto) > largo_maximo:
+            raise ErrorAutenticacion(
+                f"El campo {clave} supera el largo permitido"
+            )
+        return texto

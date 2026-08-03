@@ -6,8 +6,12 @@ class ServicioMonitoreo:
     def __init__(self, motor: MotorReconocimiento):
         self.motor = motor
 
-    def iniciar(self) -> None:
-        self.motor.iniciar()
+    def iniciar(
+        self,
+        fuente: int | str | None = None,
+        analizar: bool = True,
+    ) -> None:
+        self.motor.iniciar(fuente, analizar)
 
     def detener(self) -> None:
         self.motor.detener()

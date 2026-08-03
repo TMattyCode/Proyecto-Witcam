@@ -1,72 +1,334 @@
-﻿import "./Interfaz_camaras.css";
+import { useEffect, useState } from "react";
+import "./Interfaz_camaras.css";
 import Layout from "../../componentes/layout/Layout";
+import TarjetaCamara from "./componentes/TarjetaCamara";
+import imagenSimulacion from "../../assets/images/001 witcam inicio imagen.png";
+import {
+  detenerTransmision,
+  iniciarTransmision,
+  obtenerEstadoMonitoreo,
+} from "../../servicios/api";
+
+const CLAVE_CAMARAS = "witcam_camaras_prueba";
+const CLAVE_CAMARA_ANTIGUA = "witcam_camara_prueba";
+const LIMITE_CAMARAS = 9;
+const ESCENAS_SIMULADAS = [
+  { valor: "entrada", nombre: "Entrada principal" },
+  { valor: "pasillo", nombre: "Pasillo interior" },
+  { valor: "caja", nombre: "Sector de cajas" },
+  { valor: "bodega", nombre: "Bodega" },
+];
+const ESTADO_DETENIDO = {
+  running: false,
+  streaming: false,
+  last_error: null,
+  last_event: "Detenido",
+};
+
+function leerCamarasGuardadas() {
+  try {
+    const coleccion = JSON.parse(localStorage.getItem(CLAVE_CAMARAS));
+    if (Array.isArray(coleccion)) return coleccion;
+
+    const anterior = JSON.parse(localStorage.getItem(CLAVE_CAMARA_ANTIGUA));
+    if (anterior && typeof anterior === "object") {
+      const migradas = [anterior];
+      localStorage.setItem(CLAVE_CAMARAS, JSON.stringify(migradas));
+      localStorage.removeItem(CLAVE_CAMARA_ANTIGUA);
+      return migradas;
+    }
+  } catch {
+    localStorage.removeItem(CLAVE_CAMARAS);
+  }
+  return [];
+}
+
+function IconoVista() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <rect x="3" y="5" width="18" height="14" rx="2" />
+      <path d="M8 19v2m8-2v2M8 9h8m-8 4h5" />
+    </svg>
+  );
+}
+
+function IconoCamaraVacia() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M4 6.5h10a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2Z" />
+      <path d="m16 10 5-2.5v9L16 14Z" />
+    </svg>
+  );
+}
 
 export default function InterfazCamaras() {
+  const [camaras, setCamaras] = useState(leerCamarasGuardadas);
+  const [estado, setEstado] = useState(ESTADO_DETENIDO);
+  const [modalAbierto, setModalAbierto] = useState(false);
+  const [tipoCamara, setTipoCamara] = useState("webcam");
+  const [nombreCamara, setNombreCamara] = useState("Webcam integrada");
+  const [escena, setEscena] = useState(ESCENAS_SIMULADAS[0].valor);
+  const [operandoId, setOperandoId] = useState(null);
+  const [errorInterfaz, setErrorInterfaz] = useState("");
+  const [versionStream, setVersionStream] = useState(1);
+  const tieneWebcam = camaras.some((camara) => camara.tipo === "webcam");
+
+  useEffect(() => {
+    let activo = true;
+
+    async function actualizar() {
+      try {
+        let siguienteEstado = await obtenerEstadoMonitoreo();
+        if (!tieneWebcam && siguienteEstado.running) {
+          await detenerTransmision();
+          siguienteEstado = ESTADO_DETENIDO;
+        }
+        if (activo) {
+          setEstado(siguienteEstado);
+          setErrorInterfaz("");
+        }
+      } catch (error) {
+        if (activo && tieneWebcam) setErrorInterfaz(error.message);
+      }
+    }
+
+    actualizar();
+    if (!tieneWebcam) {
+      return () => {
+        activo = false;
+      };
+    }
+    const intervalo = window.setInterval(actualizar, 1000);
+    return () => {
+      activo = false;
+      window.clearInterval(intervalo);
+    };
+  }, [tieneWebcam]);
+
+  const guardarColeccion = (siguientes) => {
+    localStorage.setItem(CLAVE_CAMARAS, JSON.stringify(siguientes));
+    setCamaras(siguientes);
+  };
+
+  const abrirFormulario = () => {
+    const tipoInicial = tieneWebcam ? "simulada" : "webcam";
+    setTipoCamara(tipoInicial);
+    setNombreCamara(
+      tipoInicial === "webcam"
+        ? "Webcam integrada"
+        : `Cámara simulada ${camaras.length + 1}`,
+    );
+    setEscena(ESCENAS_SIMULADAS[camaras.length % ESCENAS_SIMULADAS.length].valor);
+    setModalAbierto(true);
+  };
+
+  const cambiarTipo = (evento) => {
+    const tipo = evento.target.value;
+    setTipoCamara(tipo);
+    setNombreCamara(
+      tipo === "webcam"
+        ? "Webcam integrada"
+        : `Cámara simulada ${camaras.length + 1}`,
+    );
+  };
+
+  const guardarCamara = (evento) => {
+    evento.preventDefault();
+    const nombre = nombreCamara.trim();
+    if (!nombre || camaras.length >= LIMITE_CAMARAS) return;
+    if (tipoCamara === "webcam" && tieneWebcam) return;
+
+    const nuevaCamara = {
+      id: `${tipoCamara}-${Date.now()}`,
+      nombre,
+      tipo: tipoCamara,
+      fuente: tipoCamara === "webcam" ? 0 : null,
+      escena: tipoCamara === "simulada" ? escena : null,
+    };
+    guardarColeccion([...camaras, nuevaCamara]);
+    setModalAbierto(false);
+    setErrorInterfaz("");
+  };
+
+  const iniciar = async (camara) => {
+    setOperandoId(camara.id);
+    setErrorInterfaz("");
+    try {
+      await iniciarTransmision(camara.fuente);
+      setEstado((actual) => ({
+        ...actual,
+        running: true,
+        streaming: false,
+        last_error: null,
+        last_event: "Iniciando camara",
+      }));
+      setVersionStream((version) => version + 1);
+    } catch (error) {
+      setErrorInterfaz(error.message);
+    } finally {
+      setOperandoId(null);
+    }
+  };
+
+  const detener = async (camara) => {
+    setOperandoId(camara.id);
+    setErrorInterfaz("");
+    try {
+      await detenerTransmision();
+      setEstado(ESTADO_DETENIDO);
+      setVersionStream((version) => version + 1);
+    } catch (error) {
+      setErrorInterfaz(error.message);
+    } finally {
+      setOperandoId(null);
+    }
+  };
+
+  const eliminar = async (camara) => {
+    if (camara.tipo === "webcam" && estado.running) {
+      await detener(camara);
+    }
+    guardarColeccion(camaras.filter((actual) => actual.id !== camara.id));
+    setErrorInterfaz("");
+  };
+
+  const claseCantidad = ` cantidad-${Math.min(camaras.length, 5)}`;
+
   return (
     <Layout
       titulo="Interfaz de cámaras"
       subtitulo="Visualiza en tiempo real las cámaras conectadas a tu sistema."
+      compacto
     >
       <section className="camaras-panel">
         <div className="camaras-barra-superior">
-          <button className="camaras-tab activo">
-            <span className="camaras-tab-icono">?</span>
-            Vista en vivo
-          </button>
+          <div className="camaras-barra-resumen">
+            <div className="camaras-tab activo">
+              <span className="camaras-tab-icono"><IconoVista /></span>
+              Vista en vivo
+            </div>
+            <span className="camaras-contador">
+              {camaras.length} {camaras.length === 1 ? "cámara" : "cámaras"}
+            </span>
+          </div>
 
           <div className="camaras-controles">
-            <button className="control-camaras-boton" type="button">
-              <span className="control-camaras-icono">?</span>
-              <span>Cuadrícula</span>
-              <span className="control-flecha">?</span>
+            <button className="control-camaras-boton" type="button" disabled>
+              Cuadrícula automática
             </button>
-
-            <button className="control-camaras-boton" type="button">
-              <span className="control-camaras-icono">?</span>
-              <span>Grupo cámaras</span>
-              <span className="control-flecha">?</span>
+            <button className="control-camaras-boton" type="button" disabled>
+              Grupo cámaras
             </button>
-
-            <button className="control-camaras-boton" type="button">
-              <span className="control-camaras-icono">?</span>
-              <span>Filtrar cámaras</span>
-              <span className="control-flecha">?</span>
+            <button className="control-camaras-boton" type="button" disabled>
+              Filtrar cámaras
             </button>
-
             <button
-              className="control-pantalla-completa"
-              aria-label="Pantalla completa"
+              className="boton-anadir-camara"
+              type="button"
+              disabled={camaras.length >= LIMITE_CAMARAS}
+              title={camaras.length >= LIMITE_CAMARAS ? "Máximo de nueve cámaras" : undefined}
+              onClick={abrirFormulario}
             >
-              ?
+              <span className="boton-anadir-camara-icono">+</span>
+              Añadir cámara
             </button>
           </div>
         </div>
 
-        <div className="camaras-area">
-          <div className="camaras-vista-vacia">
-            <div className="camaras-vista-icono">?</div>
-
-            <h2>No hay cámaras conectadas</h2>
-
-            <p>
-              Cuando una cámara se conecte al sistema, aparecerá en esta
-              sección.
-            </p>
-          </div>
-        </div>
-
-        <div className="camaras-estado">
-          <div className="camaras-estado-informacion">
-            <div className="camaras-estado-icono">?</div>
-            <strong>0 cámaras conectadas</strong>
-          </div>
-
-          <button className="boton-anadir-camara" type="button">
-            <span className="boton-anadir-camara-icono">+</span>
-            Añadir cámara
-          </button>
+        <div className={`camaras-area${camaras.length ? " con-camaras" : ""}${claseCantidad}`}>
+          {camaras.length ? (
+            camaras.map((camara) => (
+              <TarjetaCamara
+                key={camara.id}
+                camara={camara}
+                estado={camara.tipo === "webcam" ? estado : ESTADO_DETENIDO}
+                errorInterfaz={camara.tipo === "webcam" ? errorInterfaz : ""}
+                operando={operandoId === camara.id}
+                versionStream={versionStream}
+                imagenSimulacion={imagenSimulacion}
+                onIniciar={() => iniciar(camara)}
+                onDetener={() => detener(camara)}
+                onEliminar={() => eliminar(camara)}
+              />
+            ))
+          ) : (
+            <div className="camaras-vista-vacia">
+              <div className="camaras-vista-icono"><IconoCamaraVacia /></div>
+              <h2>No hay cámaras añadidas</h2>
+              <p>
+                Añade una webcam o cámaras simuladas para comprobar cómo se
+                adapta la cuadrícula antes de conectar múltiples streams reales.
+              </p>
+            </div>
+          )}
         </div>
       </section>
+
+      {modalAbierto && (
+        <div className="modal-camara-fondo" role="presentation">
+          <form
+            className="modal-camara"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="titulo-anadir-camara"
+            onSubmit={guardarCamara}
+          >
+            <div className="modal-camara-cabecera">
+              <div>
+                <span>Configuración de prueba</span>
+                <h2 id="titulo-anadir-camara">Añadir cámara</h2>
+              </div>
+              <button type="button" aria-label="Cerrar" onClick={() => setModalAbierto(false)}>
+                ×
+              </button>
+            </div>
+
+            <label htmlFor="tipo-camara">Tipo de fuente</label>
+            <select id="tipo-camara" value={tipoCamara} onChange={cambiarTipo}>
+              <option value="webcam" disabled={tieneWebcam}>Webcam local</option>
+              <option value="simulada">Cámara simulada con imagen</option>
+            </select>
+
+            <label htmlFor="nombre-camara">Nombre de la cámara</label>
+            <input
+              id="nombre-camara"
+              value={nombreCamara}
+              maxLength={80}
+              autoFocus
+              onChange={(evento) => setNombreCamara(evento.target.value)}
+            />
+
+            {tipoCamara === "webcam" ? (
+              <>
+                <label htmlFor="dispositivo-camara">Dispositivo</label>
+                <select id="dispositivo-camara" value="0" disabled>
+                  <option value="0">Webcam 0</option>
+                </select>
+              </>
+            ) : (
+              <>
+                <label htmlFor="escena-camara">Imagen de prueba</label>
+                <select id="escena-camara" value={escena} onChange={(evento) => setEscena(evento.target.value)}>
+                  {ESCENAS_SIMULADAS.map((opcion) => (
+                    <option key={opcion.valor} value={opcion.valor}>{opcion.nombre}</option>
+                  ))}
+                </select>
+              </>
+            )}
+
+            <p>
+              {tipoCamara === "webcam"
+                ? "La webcam transmitirá sin activar todavía el análisis de IA."
+                : "La cámara simulada no abre dispositivos ni consume el backend de video."}
+            </p>
+
+            <div className="modal-camara-acciones">
+              <button type="button" onClick={() => setModalAbierto(false)}>Cancelar</button>
+              <button type="submit" disabled={!nombreCamara.trim()}>Guardar cámara</button>
+            </div>
+          </form>
+        </div>
+      )}
     </Layout>
   );
 }

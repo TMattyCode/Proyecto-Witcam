@@ -55,12 +55,22 @@ class MotorReconocimiento:
         self.hilo: threading.Thread | None = None
         self.estado = EstadoMotor()
         self.resultados_dibujo: list[ResultadoVisual] = []
+        self.fuente_actual: int | str = self.config.video.fuente
+        self.analisis_habilitado = True
 
-    def iniciar(self) -> None:
+    def iniciar(
+        self,
+        fuente: int | str | None = None,
+        analizar: bool = True,
+    ) -> None:
         if self.hilo and self.hilo.is_alive():
             return
         self.evento_detencion.clear()
         with self.bloqueo:
+            self.fuente_actual = (
+                self.config.video.fuente if fuente is None else fuente
+            )
+            self.analisis_habilitado = analizar
             self.estado.ejecutando = True
             self.estado.transmitiendo = False
             self.estado.ultimo_error = None
@@ -139,16 +149,16 @@ class MotorReconocimiento:
         try:
             self.registrar_evento("Abriendo fuente de video")
             es_archivo = CapturadorFrames._es_archivo_local(
-                self.config.video.fuente
+                self.fuente_actual
             )
-            if es_archivo:
+            if self.analisis_habilitado and es_archivo:
                 self.registrar_evento("Cargando modelos antes del video")
                 cargador = self.fabrica_pipeline.preparar_modelos()
                 referencias = cargador.cargar()
                 reconciliar(self.repositorio, referencias)
 
             capturador = CapturadorFrames(
-                self.config.video.fuente,
+                self.fuente_actual,
                 self.evento_detencion,
                 self.config.video,
             )
@@ -160,6 +170,10 @@ class MotorReconocimiento:
             )
             hilo_video.start()
             self._esperar_primer_frame(capturador)
+
+            if not self.analisis_habilitado:
+                self._mantener_transmision(capturador)
+                return
 
             if pipeline is None:
                 if cargador is None:
@@ -191,6 +205,18 @@ class MotorReconocimiento:
                 hilo_video.join(timeout=1.0)
             with self.bloqueo:
                 self._restablecer_estado()
+
+    def _mantener_transmision(
+        self,
+        capturador: CapturadorFrames,
+    ) -> None:
+        with self.bloqueo:
+            self.estado.ultimo_evento = "Transmision activa sin analisis"
+        while not self.evento_detencion.is_set():
+            _, _, error = capturador.obtener()
+            if error:
+                raise RuntimeError(error)
+            self.evento_detencion.wait(0.1)
 
     def _esperar_primer_frame(self, capturador: CapturadorFrames) -> None:
         limite = time.time() + 30.0

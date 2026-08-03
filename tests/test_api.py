@@ -17,6 +17,7 @@ from backend.config import (
     ConfiguracionVideo,
 )
 from backend.galerias.repositorio import RepositorioGalerias
+from backend.exceptions import CredencialesInvalidas, RegistroDuplicado
 
 
 JPEG_MINIMO = b"\xff\xd8\xff\xd9"
@@ -26,9 +27,13 @@ class MonitoreoFalso:
     def __init__(self):
         self.iniciado = False
         self.detenido = False
+        self.fuente = None
+        self.analizar = True
 
-    def iniciar(self):
+    def iniciar(self, fuente=None, analizar=True):
         self.iniciado = True
+        self.fuente = fuente
+        self.analizar = analizar
 
     def detener(self):
         self.detenido = True
@@ -62,9 +67,13 @@ class AutenticacionFalsa:
         self.token = "token-prueba"
 
     def registrar(self, datos):
+        if datos.get("nombreUsuario") == "duplicado":
+            raise RegistroDuplicado("El usuario ya existe")
         return {"ok": True, "user": self.usuario}
 
     def iniciar_sesion(self, datos):
+        if datos.get("nombreUsuario") == "no-existe":
+            raise CredencialesInvalidas("Usuario o contrasena incorrectos")
         return {"ok": True, "token": self.token, "user": self.usuario}
 
     def obtener_sesion(self, token):
@@ -196,10 +205,19 @@ class PruebasApi(unittest.TestCase):
         conexion.close()
 
     def test_contratos_post_y_operaciones(self):
-        for ruta in ("/api/start", "/api/stop"):
-            estado, _, cuerpo = self._solicitar("POST", ruta, {})
-            self.assertEqual(estado, 200)
-            self.assertEqual(json.loads(cuerpo), {"ok": True})
+        estado, _, cuerpo = self._solicitar(
+            "POST",
+            "/api/start",
+            {"source": 0, "analysis": False},
+        )
+        self.assertEqual(estado, 200)
+        self.assertEqual(json.loads(cuerpo), {"ok": True})
+        self.assertEqual(self.monitoreo.fuente, 0)
+        self.assertFalse(self.monitoreo.analizar)
+
+        estado, _, cuerpo = self._solicitar("POST", "/api/stop", {})
+        self.assertEqual(estado, 200)
+        self.assertEqual(json.loads(cuerpo), {"ok": True})
         operaciones = [
             ("/api/approve", {"file": "Alice"}),
             ("/api/unapprove", {"file": "Alice"}),
@@ -258,6 +276,27 @@ class PruebasApi(unittest.TestCase):
         conexion.close()
         self.assertEqual(respuesta.status, 200)
         self.assertEqual(sesion["user"]["nombreUsuario"], "matias")
+
+    def test_registro_duplicado_responde_conflicto(self):
+        estado, _, cuerpo = self._solicitar(
+            "POST",
+            "/api/auth/register",
+            {"nombreUsuario": "duplicado"},
+        )
+        respuesta = json.loads(cuerpo)
+        self.assertEqual(estado, 409)
+        self.assertFalse(respuesta["ok"])
+
+    def test_login_inexistente_no_entrega_token(self):
+        estado, _, cuerpo = self._solicitar(
+            "POST",
+            "/api/auth/login",
+            {"nombreUsuario": "no-existe", "contrasena": "segura123"},
+        )
+        respuesta = json.loads(cuerpo)
+        self.assertEqual(estado, 401)
+        self.assertFalse(respuesta["ok"])
+        self.assertNotIn("token", respuesta)
 
 
 if __name__ == "__main__":

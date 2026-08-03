@@ -38,3 +38,18 @@ export function obtenerSesion() {
 export function cerrarSesion() {
   return solicitar("/api/auth/logout", { method: "POST" });
 }
+
+export function obtenerEstadoMonitoreo() {
+  return solicitar("/api/status");
+}
+
+export function iniciarTransmision(fuente) {
+  return solicitar("/api/start", {
+    method: "POST",
+    body: JSON.stringify({ source: fuente, analysis: false }),
+  });
+}
+
+export function detenerTransmision() {
+  return solicitar("/api/stop", { method: "POST" });
+}

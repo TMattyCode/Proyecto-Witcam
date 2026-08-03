@@ -274,7 +274,8 @@ body {
   margin-bottom: 0;
 }
 
-.register-grid .campo-cuenta {
+.register-grid .campo-cuenta,
+.register-grid .campo-telefono {
   grid-column: 1 / -1;
 }
 
@@ -345,7 +346,8 @@ body {
     grid-template-columns: 1fr;
   }
 
-  .register-grid .campo-cuenta {
+  .register-grid .campo-cuenta,
+  .register-grid .campo-telefono {
     grid-column: auto;
   }
 

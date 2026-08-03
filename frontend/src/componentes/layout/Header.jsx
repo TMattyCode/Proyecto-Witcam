@@ -9,6 +9,7 @@ import iconoFlecha from "../../assets/iconos/024 icono-flecha-desplegable.png";
 function Header({
   titulo = "Resumen del sistema",
   subtitulo = "Bienvenido, Administrador",
+  compacto = false,
 }) {
   const [fechaHora, setFechaHora] = useState(new Date());
 
@@ -35,7 +36,7 @@ function Header({
   });
 
   return (
-    <header className="header">
+    <header className={`header${compacto ? " header-compacto" : ""}`}>
       <div className="header-title">
         <h1>{titulo}</h1>
         <p>{subtitulo}</p>

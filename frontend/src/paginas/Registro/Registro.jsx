@@ -1,9 +1,10 @@
 ﻿import "./Registro.css";
 import Input from "../../componentes/comunes/Input";
 import Button from "../../componentes/comunes/Button";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { registrarCuenta } from "../../servicios/api";
+import { validarRegistro } from "../../utilidades/validacionAutenticacion";
 
 import imagenIzquierda from "../../assets/images/001 witcam inicio imagen.png";
 
@@ -23,6 +24,7 @@ function Registro() {
     nombreCuenta: "",
     nombreUsuario: "",
     contrasena: "",
+    confirmarContrasena: "",
     correo: "",
     telefono: "",
     nombre: "",
@@ -30,6 +32,7 @@ function Registro() {
   });
   const [error, setError] = useState("");
   const [enviando, setEnviando] = useState(false);
+  const envioEnCurso = useRef(false);
 
   const actualizarCampo = (event) => {
     const { name, value } = event.target;
@@ -38,10 +41,12 @@ function Registro() {
 
   const registrarUsuario = async (event) => {
     event.preventDefault();
+    if (envioEnCurso.current) return;
     setError("");
+    envioEnCurso.current = true;
     setEnviando(true);
     try {
-      await registrarCuenta(formulario);
+      await registrarCuenta(validarRegistro(formulario));
       sessionStorage.setItem(
         "witcam_mensaje_registro",
         "Cuenta creada correctamente. Ya puedes iniciar sesión.",
@@ -50,6 +55,7 @@ function Registro() {
     } catch (errorSolicitud) {
       setError(errorSolicitud.message);
     } finally {
+      envioEnCurso.current = false;
       setEnviando(false);
     }
   };
@@ -92,6 +98,7 @@ function Registro() {
                   placeholder="Ejemplo: Local Centro"
                   icon={iconoUsuario}
                   autoComplete="organization"
+                  maxLength={150}
                   required
                 />
 
@@ -103,6 +110,7 @@ function Registro() {
                   placeholder="Ingresa tu nombre de usuario"
                   icon={iconoUsuario}
                   autoComplete="username"
+                  maxLength={100}
                   required
                 />
 
@@ -117,6 +125,22 @@ function Registro() {
                   rightIcon={iconoOjo}
                   autoComplete="new-password"
                   minLength={8}
+                  maxLength={128}
+                  required
+                />
+
+                <Input
+                  label="Confirmar contraseña"
+                  type="password"
+                  name="confirmarContrasena"
+                  value={formulario.confirmarContrasena}
+                  onChange={actualizarCampo}
+                  placeholder="Repite la contraseña"
+                  icon={iconoCandado}
+                  rightIcon={iconoOjo}
+                  autoComplete="new-password"
+                  minLength={8}
+                  maxLength={128}
                   required
                 />
 
@@ -129,10 +153,12 @@ function Registro() {
                   placeholder="Ingresa tu correo electrónico"
                   icon={iconoCorreo}
                   autoComplete="email"
+                  maxLength={250}
                   required
                 />
 
                 <Input
+                  className="campo-telefono"
                   label="Teléfono"
                   type="tel"
                   name="telefono"
@@ -141,6 +167,7 @@ function Registro() {
                   placeholder="Ingresa tu teléfono"
                   icon={iconoUsuario}
                   autoComplete="tel"
+                  maxLength={20}
                 />
 
                 <Input
@@ -151,6 +178,7 @@ function Registro() {
                   placeholder="Ingresa tu nombre"
                   icon={iconoUsuario}
                   autoComplete="given-name"
+                  maxLength={100}
                   required
                 />
 
@@ -162,11 +190,16 @@ function Registro() {
                   placeholder="Ingresa tu apellido"
                   icon={iconoUsuario}
                   autoComplete="family-name"
+                  maxLength={100}
                   required
                 />
               </div>
 
-              {error && <div className="mensaje-formulario error">{error}</div>}
+              {error && (
+                <div className="mensaje-formulario error" role="alert">
+                  {error}
+                </div>
+              )}
 
               <Button type="submit" disabled={enviando}>
                 {enviando ? "Creando cuenta..." : "Registrarse"}

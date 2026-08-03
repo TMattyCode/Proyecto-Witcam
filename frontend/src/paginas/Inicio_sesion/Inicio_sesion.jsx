@@ -3,7 +3,8 @@ import Input from "../../componentes/comunes/Input";
 import Button from "../../componentes/comunes/Button";
 import { useNavigate } from "react-router-dom";
 import { useAutenticacion } from "../../contextos/AutenticacionContext";
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { validarInicioSesion } from "../../utilidades/validacionAutenticacion";
 
 import imagenIzquierda from "../../assets/images/001 witcam inicio imagen.png";
 
@@ -24,6 +25,7 @@ function InicioSesion() {
   const [recordarme, setRecordarme] = useState(false);
   const [error, setError] = useState("");
   const [enviando, setEnviando] = useState(false);
+  const envioEnCurso = useRef(false);
   const [mensajeRegistro] = useState(() => {
     const mensaje = sessionStorage.getItem("witcam_mensaje_registro") || "";
     sessionStorage.removeItem("witcam_mensaje_registro");
@@ -37,14 +39,20 @@ function InicioSesion() {
 
   const iniciarSesion = async (event) => {
     event.preventDefault();
+    if (envioEnCurso.current) return;
     setError("");
+    envioEnCurso.current = true;
     setEnviando(true);
     try {
-      await autenticacion.iniciarSesion(formulario, recordarme);
+      await autenticacion.iniciarSesion(
+        validarInicioSesion(formulario),
+        recordarme,
+      );
       navigate("/resumen", { replace: true });
     } catch (errorSolicitud) {
       setError(errorSolicitud.message);
     } finally {
+      envioEnCurso.current = false;
       setEnviando(false);
     }
   };
@@ -70,6 +78,7 @@ function InicioSesion() {
                 placeholder="Ingresa tu usuario"
                 icon={iconoUsuario}
                 autoComplete="username"
+                maxLength={100}
                 required
               />
 
@@ -83,6 +92,7 @@ function InicioSesion() {
                 icon={iconoCandado}
                 rightIcon={iconoOjo}
                 autoComplete="current-password"
+                maxLength={128}
                 required
               />
 
@@ -102,7 +112,11 @@ function InicioSesion() {
               {mensajeRegistro && (
                 <div className="mensaje-formulario exito">{mensajeRegistro}</div>
               )}
-              {error && <div className="mensaje-formulario error">{error}</div>}
+              {error && (
+                <div className="mensaje-formulario error" role="alert">
+                  {error}
+                </div>
+              )}
 
               <Button type="submit" disabled={enviando}>
                 {enviando ? "Ingresando..." : "Iniciar sesión"}

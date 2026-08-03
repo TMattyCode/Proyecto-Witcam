@@ -350,3 +350,371 @@
   font-weight: 400;
   line-height: 1;
 }
+
+.control-camaras-boton:disabled {
+  color: #8c98aa;
+  background: #f5f7fa;
+  cursor: not-allowed;
+  opacity: 0.72;
+}
+
+.camaras-area.con-camaras {
+  padding: 22px;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  border-style: solid;
+}
+
+.camaras-vista-icono svg,
+.camaras-estado-icono svg {
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.camaras-estado-informacion > div:last-child {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.camaras-estado-informacion span {
+  color: #66758d;
+  font-size: 13px;
+}
+
+.boton-anadir-camara:disabled {
+  color: #75829a;
+  background: #dbe3ef;
+  cursor: not-allowed;
+}
+
+.modal-camara-fondo {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  padding: 24px;
+  display: grid;
+  place-items: center;
+  overflow-y: auto;
+  background: rgba(5, 15, 34, 0.58);
+  backdrop-filter: blur(4px);
+}
+
+.modal-camara {
+  width: min(100%, 470px);
+  padding: 26px;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  color: #0b1c3c;
+  background: #ffffff;
+  border: 1px solid #d9e1ed;
+  border-radius: 18px;
+  box-shadow: 0 26px 70px rgba(5, 20, 50, 0.28);
+}
+
+.modal-camara-cabecera {
+  margin-bottom: 12px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.modal-camara-cabecera span {
+  color: #075cff;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.modal-camara-cabecera h2 {
+  margin: 4px 0 0;
+  font-size: 24px;
+}
+
+.modal-camara-cabecera button {
+  width: 36px;
+  height: 36px;
+  border: none;
+  color: #66758d;
+  background: #eef2f7;
+  border-radius: 50%;
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.modal-camara label {
+  margin-top: 7px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.modal-camara input,
+.modal-camara select {
+  width: 100%;
+  height: 46px;
+  padding: 0 13px;
+  color: #142746;
+  background: #ffffff;
+  border: 1px solid #cbd6e5;
+  border-radius: 9px;
+  font: inherit;
+}
+
+.modal-camara select:disabled {
+  color: #596981;
+  background: #f3f6fa;
+  opacity: 1;
+}
+
+.modal-camara > p {
+  margin: 13px 0 4px;
+  padding: 12px;
+  color: #53647d;
+  background: #edf4ff;
+  border-radius: 9px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.modal-camara-acciones {
+  margin-top: 12px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.modal-camara-acciones button {
+  min-height: 42px;
+  padding: 0 17px;
+  border: 1px solid #cbd6e5;
+  border-radius: 9px;
+  background: #ffffff;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.modal-camara-acciones button[type="submit"] {
+  color: #ffffff;
+  background: #075cff;
+  border-color: #075cff;
+}
+
+.modal-camara-acciones button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+@media (max-width: 650px) {
+  .camaras-area.con-camaras {
+    padding: 10px;
+  }
+
+  .camaras-estado {
+    padding: 14px;
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .boton-anadir-camara {
+    width: 100%;
+  }
+
+  .modal-camara {
+    padding: 20px;
+  }
+}
+
+@media (max-height: 900px) and (min-width: 761px) {
+  .camaras-panel {
+    gap: 14px;
+  }
+
+  .camaras-barra-superior {
+    min-height: 62px;
+  }
+
+  .camaras-tab {
+    height: 62px;
+  }
+
+  .control-camaras-boton,
+  .control-pantalla-completa {
+    height: 44px;
+  }
+
+  .camaras-estado {
+    min-height: 68px;
+  }
+
+  .camaras-estado-icono {
+    width: 44px;
+    height: 44px;
+    padding: 11px;
+  }
+
+  .camaras-area.con-camaras {
+    padding: 14px;
+  }
+
+}
+
+/* Layout compacto del monitor: una sola barra y visor sin scroll interno. */
+.camaras-panel {
+  gap: 12px;
+}
+
+.camaras-barra-superior {
+  min-height: 62px;
+  gap: 14px;
+}
+
+.camaras-barra-resumen {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.camaras-tab {
+  height: 62px;
+}
+
+.camaras-contador {
+  padding: 7px 11px;
+  color: #345071;
+  background: #edf3ff;
+  border: 1px solid #d5e1f5;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.camaras-controles {
+  gap: 10px;
+}
+
+.control-camaras-boton,
+.control-pantalla-completa {
+  height: 42px;
+}
+
+.control-camaras-boton {
+  min-width: 132px;
+  padding: 0 12px;
+}
+
+.camaras-area,
+.camaras-area.con-camaras {
+  overflow: hidden;
+}
+
+.camaras-area.con-camaras {
+  padding: 10px;
+}
+
+@media (max-width: 1250px) {
+  .control-camaras-boton {
+    display: none;
+  }
+}
+
+@media (min-width: 761px) and (max-width: 1100px) {
+  .camaras-barra-superior {
+    padding: 0 14px 0 10px;
+    align-items: center;
+    flex-direction: row;
+  }
+
+  .camaras-tab {
+    width: auto;
+  }
+
+  .camaras-controles {
+    width: auto;
+  }
+}
+
+@media (max-height: 620px) {
+  .camaras-panel {
+    min-height: 620px;
+  }
+}
+
+@media (max-width: 760px) {
+  .camaras-barra-superior {
+    padding: 10px;
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .camaras-barra-resumen,
+  .camaras-controles {
+    width: 100%;
+  }
+
+  .camaras-controles .boton-anadir-camara {
+    width: min(100%, 220px);
+    align-self: flex-end;
+  }
+}
+
+/* Cuadrícula de cámaras con visores 16:9 estables. */
+.camaras-panel {
+  height: auto;
+  min-height: 100%;
+}
+
+.camaras-area.con-camaras {
+  min-height: 0;
+  flex: 0 0 auto;
+  overflow: visible;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: start;
+  align-content: start;
+  justify-content: stretch;
+  gap: 12px;
+}
+
+.camaras-area.cantidad-1 {
+  grid-template-columns: minmax(0, 980px);
+  justify-content: center;
+}
+
+.camaras-area.cantidad-2,
+.camaras-area.cantidad-3,
+.camaras-area.cantidad-4 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+@media (max-width: 1050px) {
+  .camaras-area.con-camaras {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .camaras-area.cantidad-1 {
+    grid-template-columns: minmax(0, 860px);
+  }
+}
+
+@media (max-width: 720px) {
+  .camaras-area.con-camaras,
+  .camaras-area.cantidad-1,
+  .camaras-area.cantidad-2,
+  .camaras-area.cantidad-3,
+  .camaras-area.cantidad-4 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
