@@ -81,6 +81,70 @@ class AutenticacionFalsa:
             raise RuntimeError("Token incorrecto")
         return {"ok": True, "user": self.usuario}
 
+    def obtener_resumen_cuenta(self, token):
+        if token != self.token:
+            raise CredencialesInvalidas("La sesion no es valida")
+        return {
+            "ok": True,
+            "nombreCuenta": "Cuenta Prueba",
+            "subusuariosActivos": 2,
+        }
+
+    def listar_subusuarios(self, token, filtros=None):
+        if token != self.token:
+            raise CredencialesInvalidas("La sesion no es valida")
+        filtros = filtros or {}
+        estado = filtros.get("estado", "activo")
+        if estado not in {"activo", "inactivo"}:
+            raise ValueError("El estado debe ser activo o inactivo")
+        return {
+            "ok": True,
+            "filtroEstado": estado,
+            "total": 0,
+            "pagina": int(filtros.get("pagina", 1)),
+            "limite": int(filtros.get("limite", 25)),
+            "permisos": [{"id": 1, "codigo": "ver", "nombre": "Ver"}],
+            "subusuarios": [],
+        }
+
+    def registrar_subusuario(self, token, datos):
+        if token != self.token:
+            raise CredencialesInvalidas("La sesion no es valida")
+        return {
+            "ok": True,
+            "subusuario": {
+                "id": 2,
+                "nombreUsuario": datos["nombreUsuario"],
+                "estado": "Activo",
+                "fechaCreacion": "2026-08-04T12:30:00",
+                "ultimoAcceso": None,
+                "permisos": datos.get("permisos", []),
+            },
+        }
+
+    def actualizar_estado_subusuario(self, token, datos):
+        if token != self.token:
+            raise CredencialesInvalidas("La sesion no es valida")
+        return {
+            "ok": True,
+            "id": datos["id"],
+            "estado": "Inactivo" if datos["estado"] == "inactivo" else "Activo",
+        }
+
+    def editar_subusuario(self, token, datos):
+        if token != self.token:
+            raise CredencialesInvalidas("La sesion no es valida")
+        return {
+            "ok": True,
+            "subusuario": {
+                "id": datos["id"],
+                "nombreUsuario": datos["nombreUsuario"],
+                "correo": datos["correo"],
+                "estado": "Activo",
+                "permisos": datos.get("permisos", []),
+            },
+        }
+
     def cerrar_sesion(self, token):
         return None
 
@@ -297,6 +361,134 @@ class PruebasApi(unittest.TestCase):
         self.assertEqual(estado, 401)
         self.assertFalse(respuesta["ok"])
         self.assertNotIn("token", respuesta)
+
+    def test_resumen_cuenta_exige_sesion_y_devuelve_datos_reales(self):
+        estado, _, cuerpo = self._solicitar("GET", "/api/cuenta/resumen")
+        self.assertEqual(estado, 401)
+        self.assertFalse(json.loads(cuerpo)["ok"])
+
+        conexion = http.client.HTTPConnection(
+            "127.0.0.1",
+            self.puerto,
+            timeout=3,
+        )
+        conexion.request(
+            "GET",
+            "/api/cuenta/resumen",
+            headers={"Authorization": "Bearer token-prueba"},
+        )
+        respuesta = conexion.getresponse()
+        resumen = json.loads(respuesta.read())
+        conexion.close()
+        self.assertEqual(respuesta.status, 200)
+        self.assertEqual(resumen["nombreCuenta"], "Cuenta Prueba")
+        self.assertEqual(resumen["subusuariosActivos"], 2)
+
+    def test_subusuarios_exigen_sesion_y_conservan_contrato(self):
+        estado, _, _ = self._solicitar("GET", "/api/subusuarios")
+        self.assertEqual(estado, 401)
+
+        conexion = http.client.HTTPConnection("127.0.0.1", self.puerto, timeout=3)
+        conexion.request(
+            "GET",
+            "/api/subusuarios",
+            headers={"Authorization": "Bearer token-prueba"},
+        )
+        respuesta = conexion.getresponse()
+        listado = json.loads(respuesta.read())
+        conexion.close()
+        self.assertEqual(respuesta.status, 200)
+        self.assertEqual(listado["permisos"][0]["codigo"], "ver")
+        self.assertEqual(listado["filtroEstado"], "activo")
+
+        conexion = http.client.HTTPConnection("127.0.0.1", self.puerto, timeout=3)
+        conexion.request(
+            "GET",
+            "/api/subusuarios?estado=inactivo",
+            headers={"Authorization": "Bearer token-prueba"},
+        )
+        respuesta = conexion.getresponse()
+        listado = json.loads(respuesta.read())
+        conexion.close()
+        self.assertEqual(respuesta.status, 200)
+        self.assertEqual(listado["filtroEstado"], "inactivo")
+
+        conexion = http.client.HTTPConnection("127.0.0.1", self.puerto, timeout=3)
+        conexion.request(
+            "GET",
+            "/api/subusuarios?estado=activo&usuario=ana&permiso=ver&pagina=2",
+            headers={"Authorization": "Bearer token-prueba"},
+        )
+        respuesta = conexion.getresponse()
+        listado = json.loads(respuesta.read())
+        conexion.close()
+        self.assertEqual(respuesta.status, 200)
+        self.assertEqual(listado["pagina"], 2)
+
+        conexion = http.client.HTTPConnection("127.0.0.1", self.puerto, timeout=3)
+        conexion.request(
+            "GET",
+            "/api/subusuarios?estado=todos",
+            headers={"Authorization": "Bearer token-prueba"},
+        )
+        respuesta = conexion.getresponse()
+        error = json.loads(respuesta.read())
+        conexion.close()
+        self.assertEqual(respuesta.status, 400)
+        self.assertFalse(error["ok"])
+
+        conexion = http.client.HTTPConnection("127.0.0.1", self.puerto, timeout=3)
+        conexion.request(
+            "POST",
+            "/api/subusuarios",
+            json.dumps({"nombreUsuario": "ana", "permisos": ["ver"]}),
+            {
+                "Authorization": "Bearer token-prueba",
+                "Content-Type": "application/json",
+            },
+        )
+        respuesta = conexion.getresponse()
+        creado = json.loads(respuesta.read())
+        conexion.close()
+        self.assertEqual(respuesta.status, 201)
+        self.assertEqual(creado["subusuario"]["nombreUsuario"], "ana")
+
+        conexion = http.client.HTTPConnection("127.0.0.1", self.puerto, timeout=3)
+        conexion.request(
+            "POST",
+            "/api/subusuarios/estado",
+            json.dumps({"id": 2, "estado": "inactivo"}),
+            {
+                "Authorization": "Bearer token-prueba",
+                "Content-Type": "application/json",
+            },
+        )
+        respuesta = conexion.getresponse()
+        actualizado = json.loads(respuesta.read())
+        conexion.close()
+        self.assertEqual(respuesta.status, 200)
+        self.assertEqual(actualizado["estado"], "Inactivo")
+
+        conexion = http.client.HTTPConnection("127.0.0.1", self.puerto, timeout=3)
+        conexion.request(
+            "POST",
+            "/api/subusuarios/editar",
+            json.dumps({
+                "id": 2,
+                "nombreUsuario": "ana.editada",
+                "correo": "ana@example.com",
+                "permisos": ["ver"],
+            }),
+            {
+                "Authorization": "Bearer token-prueba",
+                "Content-Type": "application/json",
+            },
+        )
+        respuesta = conexion.getresponse()
+        editado = json.loads(respuesta.read())
+        conexion.close()
+        self.assertEqual(respuesta.status, 200)
+        self.assertEqual(editado["subusuario"]["nombreUsuario"], "ana.editada")
 
 
 if __name__ == "__main__":

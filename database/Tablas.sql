@@ -548,3 +548,18 @@ GO
 CREATE INDEX IX_Alerta_Fecha
 ON Alerta(fecha_hora DESC);
 GO
+
+CREATE INDEX IX_Usuario_Cuenta_Estado_Fecha
+ON Usuario(id_cuenta, id_estado_usuario, fecha_creacion DESC)
+INCLUDE (id_rol, nombre_usuario, correo, ultimo_acceso);
+GO
+
+CREATE INDEX IX_Usuario_Cuenta_UltimoAcceso
+ON Usuario(id_cuenta, ultimo_acceso)
+INCLUDE (id_estado_usuario, id_rol, nombre_usuario);
+GO
+
+CREATE INDEX IX_UsuarioPermiso_Permiso_Usuario
+ON Usuario_Permiso(id_permiso, id_usuario)
+INCLUDE (permitido);
+GO

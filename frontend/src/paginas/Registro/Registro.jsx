@@ -91,11 +91,11 @@ function Registro() {
               <div className="register-grid">
                 <Input
                   className="campo-cuenta"
-                  label="Nombre de la cuenta"
+                  label="Nombre del negocio o empresa"
                   name="nombreCuenta"
                   value={formulario.nombreCuenta}
                   onChange={actualizarCampo}
-                  placeholder="Ejemplo: Local Centro"
+                  placeholder="Ejemplo: Minimarket Central"
                   icon={iconoUsuario}
                   autoComplete="organization"
                   maxLength={150}

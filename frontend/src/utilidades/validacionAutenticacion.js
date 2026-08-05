@@ -68,3 +68,50 @@ export function validarInicioSesion(datos) {
   }
   return { nombreUsuario, contrasena };
 }
+
+export function validarSubusuario(datos) {
+  const registro = validarRegistro({
+    ...datos,
+    nombreCuenta: "cuenta-existente",
+  });
+  if (!Array.isArray(datos.permisos)) {
+    throw new Error("La lista de permisos no es válida");
+  }
+  const permisos = [...new Set(datos.permisos)];
+  if (permisos.some((codigo) => typeof codigo !== "string" || !codigo)) {
+    throw new Error("La lista de permisos no es válida");
+  }
+  const subusuario = { ...registro };
+  delete subusuario.nombreCuenta;
+  return { ...subusuario, permisos };
+}
+
+export function validarEdicionSubusuario(datos) {
+  const contrasena = texto(datos.contrasena, "contraseña", 128, false);
+  const confirmarContrasena = texto(
+    datos.confirmarContrasena,
+    "confirmación de contraseña",
+    128,
+    false,
+  );
+  const base = validarSubusuario({
+    ...datos,
+    contrasena: contrasena || "password-temporal",
+    confirmarContrasena: contrasena ? confirmarContrasena : "password-temporal",
+  });
+  if (contrasena && contrasena !== confirmarContrasena) {
+    throw new Error("Las contraseñas no coinciden");
+  }
+  if (!contrasena && confirmarContrasena) {
+    throw new Error("Escribe la nueva contraseña antes de confirmarla");
+  }
+  if (!Number.isInteger(datos.id) || datos.id <= 0) {
+    throw new Error("El subusuario no es válido");
+  }
+  return {
+    ...base,
+    id: datos.id,
+    contrasena,
+    confirmarContrasena,
+  };
+}

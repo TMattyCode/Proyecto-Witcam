@@ -3,7 +3,7 @@ import mimetypes
 import time
 from http.server import BaseHTTPRequestHandler
 from pathlib import Path
-from urllib.parse import unquote, urlparse
+from urllib.parse import parse_qs, unquote, urlparse
 
 from backend.aplicacion.servicios import (
     ServicioGalerias,
@@ -32,7 +32,8 @@ def crear_handler(
             return
 
         def do_GET(self):
-            ruta = unquote(urlparse(self.path).path)
+            url = urlparse(self.path)
+            ruta = unquote(url.path)
             if ruta == "/":
                 self._servir_archivo("index.html")
                 return
@@ -70,6 +71,57 @@ def crear_handler(
                         estado=503,
                     )
                 return
+            if ruta == "/api/cuenta/resumen":
+                try:
+                    self._exigir_autenticacion()
+                    self._json(
+                        autenticacion.obtener_resumen_cuenta(
+                            self._token_sesion()
+                        )
+                    )
+                except CredencialesInvalidas as error:
+                    self._json(
+                        {"ok": False, "error": str(error)},
+                        estado=401,
+                    )
+                except ErrorAutenticacion as error:
+                    self._json(
+                        {"ok": False, "error": str(error)},
+                        estado=400,
+                    )
+                return
+            if ruta == "/api/subusuarios":
+                try:
+                    self._exigir_autenticacion()
+                    filtros = {
+                        clave: valores[0]
+                        for clave, valores in parse_qs(
+                            url.query,
+                            keep_blank_values=True,
+                        ).items()
+                    }
+                    self._json(
+                        autenticacion.listar_subusuarios(
+                            self._token_sesion(),
+                            filtros,
+                        )
+                    )
+                except CredencialesInvalidas as error:
+                    self._json(
+                        {"ok": False, "error": str(error)},
+                        estado=401,
+                    )
+                except ErrorAutenticacion as error:
+                    self._json(
+                        {"ok": False, "error": str(error)},
+                        estado=403,
+                    )
+                except ValueError as error:
+                    self._json(
+                        {"ok": False, "error": str(error)},
+                        estado=400,
+                    )
+                return
             self._servir_archivo(ruta.lstrip("/"))
 
         def do_POST(self):
@@ -88,6 +140,34 @@ def crear_handler(
                     self._exigir_autenticacion()
                     autenticacion.cerrar_sesion(self._token_sesion())
                     self._json({"ok": True})
+                    return
+                if ruta == "/api/subusuarios":
+                    self._exigir_autenticacion()
+                    self._json(
+                        autenticacion.registrar_subusuario(
+                            self._token_sesion(),
+                            datos,
+                        ),
+                        estado=201,
+                    )
+                    return
+                if ruta == "/api/subusuarios/estado":
+                    self._exigir_autenticacion()
+                    self._json(
+                        autenticacion.actualizar_estado_subusuario(
+                            self._token_sesion(),
+                            datos,
+                        )
+                    )
+                    return
+                if ruta == "/api/subusuarios/editar":
+                    self._exigir_autenticacion()
+                    self._json(
+                        autenticacion.editar_subusuario(
+                            self._token_sesion(),
+                            datos,
+                        )
+                    )
                     return
                 if ruta == "/api/start":
                     fuente = datos.get("source")

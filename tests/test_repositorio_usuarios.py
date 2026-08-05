@@ -11,12 +11,17 @@ from backend.exceptions import RegistroDuplicado
 
 
 class CursorFalso:
-    def __init__(self, error_usuario=None):
+    def __init__(self, error_usuario=None, filas_afectadas=1):
         self.error_usuario = error_usuario
         self.consulta = ""
+        self.parametros = ()
+        self.rowcount = filas_afectadas
+        self.consultas = []
 
     def execute(self, consulta, *parametros):
         self.consulta = consulta
+        self.parametros = parametros
+        self.consultas.append((consulta, parametros))
         if "INSERT INTO Usuario" in consulta and self.error_usuario:
             raise self.error_usuario
         return self
@@ -33,8 +38,8 @@ class CursorFalso:
 
 
 class ConexionFalsa:
-    def __init__(self, error_usuario=None):
-        self._cursor = CursorFalso(error_usuario)
+    def __init__(self, error_usuario=None, filas_afectadas=1):
+        self._cursor = CursorFalso(error_usuario, filas_afectadas)
         self.confirmada = False
         self.revertida = False
         self.cerrada = False
@@ -107,6 +112,53 @@ class PruebasRepositorioUsuarios(unittest.TestCase):
                 )
         self.assertTrue(conexion.revertida)
         self.assertFalse(conexion.confirmada)
+
+    def test_estado_solo_se_actualiza_para_subusuario_de_la_cuenta(self):
+        conexion = ConexionFalsa()
+        with patch("backend.database.conexion.pyodbc.connect", return_value=conexion):
+            actualizado = self.repositorio.actualizar_estado_subusuario(
+                10,
+                20,
+                "Inactivo",
+            )
+        self.assertTrue(actualizado)
+        self.assertEqual(conexion._cursor.parametros, (20, 10, "Inactivo"))
+        self.assertIn("r.nombre_rol = 'Subusuario'", conexion._cursor.consulta)
+        self.assertTrue(conexion.confirmada)
+
+    def test_estado_no_confirma_si_el_subusuario_no_pertenece_a_la_cuenta(self):
+        conexion = ConexionFalsa(filas_afectadas=0)
+        with patch("backend.database.conexion.pyodbc.connect", return_value=conexion):
+            actualizado = self.repositorio.actualizar_estado_subusuario(
+                10,
+                999,
+                "Activo",
+            )
+        self.assertFalse(actualizado)
+        self.assertFalse(conexion.confirmada)
+
+    def test_edicion_actualiza_datos_y_reemplaza_permisos_en_una_transaccion(self):
+        conexion = ConexionFalsa()
+        datos = {
+            "nombre": "Ana",
+            "apellido": "Editada",
+            "nombre_usuario": "ana.editada",
+            "correo": "ana@example.com",
+            "telefono": None,
+        }
+        with patch("backend.database.conexion.pyodbc.connect", return_value=conexion):
+            actualizado = self.repositorio.editar_subusuario(
+                10,
+                20,
+                datos,
+                None,
+                [],
+            )
+        consultas = "\n".join(consulta for consulta, _ in conexion._cursor.consultas)
+        self.assertTrue(actualizado)
+        self.assertIn("eu.nombre_estado = 'Activo'", consultas)
+        self.assertIn("DELETE FROM Usuario_Permiso", consultas)
+        self.assertTrue(conexion.confirmada)
 
 
 if __name__ == "__main__":

@@ -10,6 +10,12 @@ async function solicitar(ruta, opciones = {}) {
       ...opciones.headers,
     },
   });
+  const tipoContenido = respuesta.headers.get("content-type") || "";
+  if (!tipoContenido.includes("application/json")) {
+    throw new Error(
+      "El backend no devolvió una respuesta válida. Reinicia el servidor de Python.",
+    );
+  }
   const datos = await respuesta.json();
   if (!respuesta.ok) {
     throw new Error(datos.error || "No se pudo completar la solicitud");
@@ -33,6 +39,41 @@ export function iniciarSesion(datos) {
 
 export function obtenerSesion() {
   return solicitar("/api/auth/session");
+}
+
+export function obtenerResumenCuenta() {
+  return solicitar("/api/cuenta/resumen");
+}
+
+export function obtenerSubusuarios(filtros = {}) {
+  const parametros = new URLSearchParams();
+  Object.entries(filtros).forEach(([clave, valor]) => {
+    if (valor !== "" && valor !== null && valor !== undefined) {
+      parametros.set(clave, String(valor));
+    }
+  });
+  return solicitar(`/api/subusuarios?${parametros.toString()}`);
+}
+
+export function crearSubusuario(datos) {
+  return solicitar("/api/subusuarios", {
+    method: "POST",
+    body: JSON.stringify(datos),
+  });
+}
+
+export function actualizarEstadoSubusuario(id, estado) {
+  return solicitar("/api/subusuarios/estado", {
+    method: "POST",
+    body: JSON.stringify({ id, estado }),
+  });
+}
+
+export function editarSubusuario(datos) {
+  return solicitar("/api/subusuarios/editar", {
+    method: "POST",
+    body: JSON.stringify(datos),
+  });
 }
 
 export function cerrarSesion() {

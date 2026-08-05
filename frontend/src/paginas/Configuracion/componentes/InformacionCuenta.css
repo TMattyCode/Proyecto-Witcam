@@ -37,3 +37,9 @@
 .cuenta-fila strong {
   font-weight: 500;
 }
+
+.cuenta-error {
+  margin: 8px 0 0;
+  color: #a51616;
+  font-size: 12px;
+}

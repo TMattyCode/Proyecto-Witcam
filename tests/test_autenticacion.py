@@ -19,6 +19,13 @@ class RepositorioUsuariosFalso:
         self.hash_guardado = None
         self.ultimo_acceso = None
         self.cantidad_registros = 0
+        self.cuenta_resumen_solicitada = None
+        self.subusuario_registrado = None
+        self.subusuarios_cuenta_solicitada = None
+        self.subusuarios_estado_solicitado = None
+        self.filtros_subusuarios = None
+        self.cambio_estado_solicitado = None
+        self.edicion_solicitada = None
 
     def registrar_administrador(self, datos, password_hash):
         if self.registrado is not None and (
@@ -54,6 +61,74 @@ class RepositorioUsuariosFalso:
 
     def registrar_acceso(self, id_usuario):
         self.ultimo_acceso = id_usuario
+
+    def obtener_resumen_cuenta(self, id_cuenta):
+        self.cuenta_resumen_solicitada = id_cuenta
+        return {
+            "nombreCuenta": "Cuenta Prueba",
+            "subusuariosActivos": 2,
+        }
+
+    def listar_subusuarios(self, id_cuenta, filtros):
+        self.subusuarios_cuenta_solicitada = id_cuenta
+        self.subusuarios_estado_solicitado = filtros["estado"]
+        self.filtros_subusuarios = filtros
+        return {
+            "total": 0,
+            "pagina": filtros["pagina"],
+            "limite": filtros["limite"],
+            "permisos": [
+                {"id": 1, "codigo": "ver", "nombre": "Ver", "descripcion": None}
+            ],
+            "subusuarios": [],
+        }
+
+    def registrar_subusuario(
+        self,
+        id_cuenta,
+        datos,
+        password_hash,
+        codigos_permisos,
+    ):
+        self.subusuario_registrado = {
+            "idCuenta": id_cuenta,
+            "datos": datos,
+            "password_hash": password_hash,
+            "permisos": codigos_permisos,
+        }
+        return {
+            "id": 2,
+            "nombre": datos["nombre"],
+            "apellido": datos["apellido"],
+            "nombreUsuario": datos["nombre_usuario"],
+            "correo": datos["correo"],
+            "telefono": datos["telefono"],
+            "estado": "Activo",
+            "fechaCreacion": "2026-08-04T12:30:00",
+            "ultimoAcceso": None,
+            "permisos": codigos_permisos,
+        }
+
+    def actualizar_estado_subusuario(self, id_cuenta, id_usuario, estado):
+        self.cambio_estado_solicitado = (id_cuenta, id_usuario, estado)
+        return id_usuario == 2
+
+    def editar_subusuario(
+        self,
+        id_cuenta,
+        id_usuario,
+        datos,
+        password_hash,
+        permisos,
+    ):
+        self.edicion_solicitada = {
+            "idCuenta": id_cuenta,
+            "idUsuario": id_usuario,
+            "datos": datos,
+            "passwordHash": password_hash,
+            "permisos": permisos,
+        }
+        return id_usuario == 2
 
 
 class PruebasAutenticacion(unittest.TestCase):
@@ -149,6 +224,175 @@ class PruebasAutenticacion(unittest.TestCase):
             self.servicio.iniciar_sesion(
                 {"nombreUsuario": None, "contrasena": None}
             )
+
+    def test_resumen_usa_la_cuenta_de_la_sesion(self):
+        self.servicio.registrar(self.datos)
+        login = self.servicio.iniciar_sesion(
+            {"nombreUsuario": "matias", "contrasena": "segura123"}
+        )
+        resumen = self.servicio.obtener_resumen_cuenta(login["token"])
+        self.assertEqual(self.repositorio.cuenta_resumen_solicitada, 1)
+        self.assertEqual(resumen["nombreCuenta"], "Cuenta Prueba")
+        self.assertEqual(resumen["subusuariosActivos"], 2)
+
+    def test_administrador_lista_y_crea_subusuario_en_su_cuenta(self):
+        self.servicio.registrar(self.datos)
+        login = self.servicio.iniciar_sesion(
+            {"nombreUsuario": "matias", "contrasena": "segura123"}
+        )
+        listado = self.servicio.listar_subusuarios(login["token"])
+        self.assertEqual(self.repositorio.subusuarios_cuenta_solicitada, 1)
+        self.assertEqual(self.repositorio.subusuarios_estado_solicitado, "Activo")
+        self.assertEqual(listado["permisos"][0]["codigo"], "ver")
+
+        listado = self.servicio.listar_subusuarios(login["token"], "inactivo")
+        self.assertEqual(self.repositorio.subusuarios_estado_solicitado, "Inactivo")
+        self.assertEqual(listado["filtroEstado"], "inactivo")
+
+        self.servicio.listar_subusuarios(
+            login["token"],
+            {
+                "estado": "activo",
+                "usuario": "ana",
+                "permiso": "ver",
+                "registroDesde": "2026-08-01",
+                "sinAcceso": "true",
+                "pagina": "2",
+                "limite": "25",
+            },
+        )
+        filtros = self.repositorio.filtros_subusuarios
+        self.assertEqual(filtros["usuario"], "ana")
+        self.assertEqual(filtros["permiso"], "ver")
+        self.assertTrue(filtros["sin_acceso"])
+        self.assertEqual(filtros["pagina"], 2)
+
+        datos_subusuario = {
+            "nombre": "Ana",
+            "apellido": "Prueba",
+            "nombreUsuario": "ana",
+            "correo": "ANA@example.com",
+            "telefono": "",
+            "contrasena": "segura123",
+            "confirmarContrasena": "segura123",
+            "permisos": ["ver", "ver"],
+            "idCuenta": 999,
+            "rol": "Administrador",
+        }
+        resultado = self.servicio.registrar_subusuario(
+            login["token"],
+            datos_subusuario,
+        )
+        guardado = self.repositorio.subusuario_registrado
+        self.assertEqual(guardado["idCuenta"], 1)
+        self.assertEqual(guardado["permisos"], ["ver"])
+        self.assertEqual(guardado["datos"]["correo"], "ana@example.com")
+        self.assertNotIn("segura123", guardado["password_hash"])
+        self.assertEqual(resultado["subusuario"]["estado"], "Activo")
+
+    def test_subusuario_no_puede_gestionar_otros_subusuarios(self):
+        self.servicio.registrar(self.datos)
+        login = self.servicio.iniciar_sesion(
+            {"nombreUsuario": "matias", "contrasena": "segura123"}
+        )
+        self.servicio._sesiones[login["token"]]["rol"] = "Subusuario"
+        with self.assertRaises(ErrorAutenticacion):
+            self.servicio.listar_subusuarios(login["token"])
+
+    def test_rechaza_filtro_de_subusuarios_desconocido(self):
+        self.servicio.registrar(self.datos)
+        login = self.servicio.iniciar_sesion(
+            {"nombreUsuario": "matias", "contrasena": "segura123"}
+        )
+        with self.assertRaisesRegex(ValueError, "activo o inactivo"):
+            self.servicio.listar_subusuarios(login["token"], "todos")
+
+        with self.assertRaisesRegex(ValueError, "rango de fecha de registro"):
+            self.servicio.listar_subusuarios(
+                login["token"],
+                {
+                    "registroDesde": "2026-08-10",
+                    "registroHasta": "2026-08-01",
+                },
+            )
+        with self.assertRaisesRegex(ValueError, "Nunca se ha conectado"):
+            self.servicio.listar_subusuarios(
+                login["token"],
+                {"sinAcceso": "true", "accesoDesde": "2026-08-01"},
+            )
+        with self.assertRaisesRegex(ValueError, "limite"):
+            self.servicio.listar_subusuarios(
+                login["token"],
+                {"limite": "101"},
+            )
+
+    def test_desactiva_subusuario_de_la_cuenta_y_cierra_sus_sesiones(self):
+        self.servicio.registrar(self.datos)
+        login = self.servicio.iniciar_sesion(
+            {"nombreUsuario": "matias", "contrasena": "segura123"}
+        )
+        self.servicio._sesiones["token-subusuario"] = {
+            "id": 2,
+            "idCuenta": 1,
+            "rol": "Subusuario",
+        }
+
+        resultado = self.servicio.actualizar_estado_subusuario(
+            login["token"],
+            {"id": 2, "estado": "inactivo"},
+        )
+
+        self.assertEqual(self.repositorio.cambio_estado_solicitado, (1, 2, "Inactivo"))
+        self.assertEqual(resultado["estado"], "Inactivo")
+        with self.assertRaises(CredencialesInvalidas):
+            self.servicio.obtener_sesion("token-subusuario")
+
+    def test_reactivar_no_crea_usuario_y_valida_identificador(self):
+        self.servicio.registrar(self.datos)
+        login = self.servicio.iniciar_sesion(
+            {"nombreUsuario": "matias", "contrasena": "segura123"}
+        )
+        resultado = self.servicio.actualizar_estado_subusuario(
+            login["token"],
+            {"id": 2, "estado": "activo"},
+        )
+        self.assertEqual(resultado["estado"], "Activo")
+
+        for id_invalido in (None, True, 0, "2"):
+            with self.subTest(id=id_invalido):
+                with self.assertRaises(ErrorAutenticacion):
+                    self.servicio.actualizar_estado_subusuario(
+                        login["token"],
+                        {"id": id_invalido, "estado": "activo"},
+                    )
+
+    def test_edita_subusuario_activo_y_password_es_opcional(self):
+        self.servicio.registrar(self.datos)
+        login = self.servicio.iniciar_sesion(
+            {"nombreUsuario": "matias", "contrasena": "segura123"}
+        )
+        datos = {
+            "id": 2,
+            "nombre": "Ana",
+            "apellido": "Editada",
+            "nombreUsuario": "ana.editada",
+            "correo": "ANA.EDITADA@example.com",
+            "telefono": "",
+            "contrasena": "",
+            "confirmarContrasena": "",
+            "permisos": ["ver"],
+        }
+        resultado = self.servicio.editar_subusuario(login["token"], datos)
+        guardado = self.repositorio.edicion_solicitada
+        self.assertEqual(guardado["idCuenta"], 1)
+        self.assertIsNone(guardado["passwordHash"])
+        self.assertEqual(guardado["datos"]["correo"], "ana.editada@example.com")
+        self.assertEqual(resultado["subusuario"]["nombreUsuario"], "ana.editada")
+
+        datos["contrasena"] = "nueva1234"
+        datos["confirmarContrasena"] = "nueva1234"
+        self.servicio.editar_subusuario(login["token"], datos)
+        self.assertNotIn("nueva1234", self.repositorio.edicion_solicitada["passwordHash"])
 
 
 if __name__ == "__main__":
