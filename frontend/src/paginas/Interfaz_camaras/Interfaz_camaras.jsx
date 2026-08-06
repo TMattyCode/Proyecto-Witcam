@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import "./Interfaz_camaras.css";
 import Layout from "../../componentes/layout/Layout";
 import TarjetaCamara from "./componentes/TarjetaCamara";
+import EditorGruposCamara from "./componentes/EditorGruposCamara";
 import imagenSimulacion from "../../assets/images/001 witcam inicio imagen.png";
 import {
   detenerTransmision,
@@ -12,6 +13,7 @@ import {
 const CLAVE_CAMARAS = "witcam_camaras_prueba";
 const CLAVE_CAMARA_ANTIGUA = "witcam_camara_prueba";
 const CLAVE_GRUPOS_CAMARAS = "witcam_grupos_camaras_prueba";
+const GRUPO_INICIAL = { id: 1, nombre: "Grupo 1" };
 const LIMITE_CAMARAS = 9;
 const ESCENAS_SIMULADAS = [
   { valor: "entrada", nombre: "Entrada principal" },
@@ -44,13 +46,26 @@ function leerCamarasGuardadas() {
   return [];
 }
 
+function normalizarNombreGrupoInicial(grupo) {
+  return grupo.nombre?.trim().toLocaleLowerCase() === "grupo 1"
+    ? { ...grupo, nombre: "Grupo 1" }
+    : grupo;
+}
+
 function leerGruposGuardados() {
   try {
     const grupos = JSON.parse(localStorage.getItem(CLAVE_GRUPOS_CAMARAS));
-    return Array.isArray(grupos) ? grupos : [];
+    if (Array.isArray(grupos) && grupos.length) {
+      const gruposNormalizados = grupos.map(normalizarNombreGrupoInicial);
+      localStorage.setItem(CLAVE_GRUPOS_CAMARAS, JSON.stringify(gruposNormalizados));
+      return gruposNormalizados;
+    }
   } catch {
-    return [];
+    // Si el contenido no es válido se reemplaza por el grupo inicial.
   }
+  const gruposIniciales = [GRUPO_INICIAL];
+  localStorage.setItem(CLAVE_GRUPOS_CAMARAS, JSON.stringify(gruposIniciales));
+  return gruposIniciales;
 }
 
 function IconoVista() {
@@ -75,6 +90,7 @@ export default function InterfazCamaras() {
   const [camaras, setCamaras] = useState(leerCamarasGuardadas);
   const [estado, setEstado] = useState(ESTADO_DETENIDO);
   const [modalAbierto, setModalAbierto] = useState(false);
+  const [editorGruposAbierto, setEditorGruposAbierto] = useState(false);
   const [tipoCamara, setTipoCamara] = useState("webcam");
   const [nombreCamara, setNombreCamara] = useState("Webcam integrada");
   const [escena, setEscena] = useState(ESCENAS_SIMULADAS[0].valor);
@@ -83,7 +99,7 @@ export default function InterfazCamaras() {
   const [usuarioConexion, setUsuarioConexion] = useState("");
   const [passwordConexion, setPasswordConexion] = useState("");
   const [grupoCamaraId, setGrupoCamaraId] = useState("");
-  const [gruposCamaras] = useState(leerGruposGuardados);
+  const [gruposCamaras, setGruposCamaras] = useState(leerGruposGuardados);
   const [operandoId, setOperandoId] = useState(null);
   const [errorInterfaz, setErrorInterfaz] = useState("");
   const [versionStream, setVersionStream] = useState(1);
@@ -153,6 +169,19 @@ export default function InterfazCamaras() {
           ? `Cámara ONVIF ${camaras.length + 1}`
           : `Cámara simulada ${camaras.length + 1}`,
     );
+  };
+
+  const abrirEditorGrupos = () => {
+    if (!gruposCamaras.length) {
+      const gruposIniciales = [GRUPO_INICIAL];
+      localStorage.setItem(CLAVE_GRUPOS_CAMARAS, JSON.stringify(gruposIniciales));
+      setGruposCamaras(gruposIniciales);
+    } else {
+      const gruposNormalizados = gruposCamaras.map(normalizarNombreGrupoInicial);
+      localStorage.setItem(CLAVE_GRUPOS_CAMARAS, JSON.stringify(gruposNormalizados));
+      setGruposCamaras(gruposNormalizados);
+    }
+    setEditorGruposAbierto(true);
   };
 
   const guardarCamara = (evento) => {
@@ -257,6 +286,13 @@ export default function InterfazCamaras() {
             </button>
             <button className="control-camaras-boton" type="button" disabled>
               Filtrar cámaras
+            </button>
+            <button
+              className="control-camaras-boton"
+              type="button"
+              onClick={abrirEditorGrupos}
+            >
+              Editor de grupos
             </button>
             <button
               className="boton-anadir-camara"
@@ -432,6 +468,16 @@ export default function InterfazCamaras() {
             </div>
           </form>
         </div>
+      )}
+
+      {editorGruposAbierto && (
+        <EditorGruposCamara
+          grupos={gruposCamaras}
+          camaras={camaras}
+          claveAlmacenamiento={CLAVE_GRUPOS_CAMARAS}
+          onCambiar={setGruposCamaras}
+          onCerrar={() => setEditorGruposAbierto(false)}
+        />
       )}
     </Layout>
   );

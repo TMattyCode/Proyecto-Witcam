@@ -1,0 +1,150 @@
+.editor-grupos {
+  width: min(100%, 560px);
+}
+
+.editor-grupos-cabecera-acciones {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.modal-camara-cabecera .editor-grupos-guardar {
+  width: auto;
+  min-width: 130px;
+  padding: 0 14px;
+  color: #ffffff;
+  background: #075cff;
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.editor-grupos-formulario label {
+  display: block;
+  margin-bottom: 7px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.editor-grupos-nuevo {
+  display: flex;
+  gap: 10px;
+}
+
+.editor-grupos-nuevo input {
+  flex: 1;
+  min-width: 0;
+}
+
+.editor-grupos-nuevo button,
+.editor-grupos-listado button {
+  min-height: 42px;
+  padding: 0 15px;
+  border: 1px solid #075cff;
+  border-radius: 9px;
+  color: #ffffff;
+  background: #075cff;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.editor-grupos-nuevo button:disabled,
+.editor-grupos-listado button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.editor-grupos-listado {
+  margin-top: 15px;
+}
+
+.editor-grupos-listado h3 {
+  margin: 0 0 9px;
+  font-size: 15px;
+}
+
+.editor-grupos-listado ul {
+  max-height: 290px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+  border: 1px solid #d9e1ed;
+  border-radius: 10px;
+}
+
+.editor-grupos-listado li {
+  min-height: 64px;
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+  border-bottom: 1px solid #e4e9f1;
+}
+
+.editor-grupos-listado li:last-child {
+  border-bottom: 0;
+}
+
+.editor-grupos-listado li div {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.editor-grupos-listado li input {
+  width: 100%;
+  height: 36px;
+  padding: 0 9px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  border: 1px solid #d9e1ed;
+  border-radius: 7px;
+  font-weight: 700;
+}
+
+.editor-grupos-listado li span {
+  color: #69758c;
+  font-size: 12px;
+}
+
+.editor-grupos-listado button {
+  min-height: 36px;
+  color: #b42318;
+  background: #ffffff;
+  border-color: #f1b5b0;
+}
+
+.editor-grupos-vacio,
+.editor-grupos-error {
+  margin: 0;
+  padding: 14px;
+  color: #69758c;
+  background: #f5f7fb;
+  border-radius: 10px;
+  text-align: center;
+}
+
+.editor-grupos-error {
+  margin-top: 10px;
+  color: #b42318;
+  background: #fff1f0;
+}
+
+@media (max-width: 560px) {
+  .modal-camara-cabecera {
+    flex-direction: column;
+  }
+
+  .editor-grupos-cabecera-acciones {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .editor-grupos-nuevo {
+    flex-direction: column;
+  }
+}
