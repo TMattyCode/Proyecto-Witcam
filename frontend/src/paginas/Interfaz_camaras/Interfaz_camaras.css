@@ -75,6 +75,87 @@
   gap: 14px;
 }
 
+.filtro-camaras-contenedor {
+  position: relative;
+}
+
+.control-camaras-boton.filtro-activo {
+  color: #014dfd;
+  background: #edf3ff;
+  border-color: #7ea5ff;
+}
+
+.selector-cuadricula {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 50;
+  width: 245px;
+  padding: 13px;
+  color: #182943;
+  background: #ffffff;
+  border: 1px solid #d5ddea;
+  border-radius: 12px;
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.18);
+}
+
+.selector-cuadricula > strong {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 14px;
+}
+
+.selector-cuadricula label {
+  min-height: 40px;
+  padding: 6px 7px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  border-radius: 7px;
+  cursor: pointer;
+}
+
+.selector-cuadricula label:hover {
+  background: #f2f6ff;
+}
+
+.selector-cuadricula input {
+  accent-color: #075cff;
+}
+
+.vista-columnas {
+  width: 35px;
+  height: 23px;
+  padding: 3px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2px;
+  background: #e8eef8;
+  border-radius: 4px;
+}
+
+.vista-columnas i {
+  display: block;
+  background: #7892ba;
+  border-radius: 2px;
+}
+
+.vista-columnas.columnas-1 {
+  grid-template-columns: 1fr;
+}
+
+.vista-columnas.columnas-2 {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.vista-columnas.columnas-auto {
+  grid-template-columns: 1fr 1fr;
+}
+
+.vista-columnas.columnas-auto i:first-child {
+  grid-column: 1 / -1;
+}
+
 .control-camaras-boton,
 .control-pantalla-completa {
   height: 54px;
@@ -701,12 +782,29 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.camaras-area.cuadricula-columnas-1 {
+  grid-template-columns: minmax(0, 1100px);
+  justify-content: center;
+}
+
+.camaras-area.cuadricula-columnas-2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.camaras-area.cuadricula-columnas-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 @media (max-width: 1050px) {
   .camaras-area.con-camaras {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .camaras-area.cantidad-1 {
+    grid-template-columns: minmax(0, 860px);
+  }
+
+  .camaras-area.cuadricula-columnas-1 {
     grid-template-columns: minmax(0, 860px);
   }
 }
@@ -717,6 +815,12 @@
   .camaras-area.cantidad-2,
   .camaras-area.cantidad-3,
   .camaras-area.cantidad-4 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .camaras-area.cuadricula-columnas-1,
+  .camaras-area.cuadricula-columnas-2,
+  .camaras-area.cuadricula-columnas-3 {
     grid-template-columns: minmax(0, 1fr);
   }
 }

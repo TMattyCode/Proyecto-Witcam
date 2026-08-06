@@ -1,0 +1,110 @@
+.filtro-multiple {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 50;
+  width: 290px;
+  padding: 14px;
+  color: #182943;
+  background: #ffffff;
+  border: 1px solid #d5ddea;
+  border-radius: 12px;
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.18);
+}
+
+.filtro-multiple-cabecera {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.filtro-multiple-cabecera button {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  color: #66758d;
+  background: #f2f5f9;
+  border: 0;
+  border-radius: 50%;
+  font-size: 20px;
+  cursor: pointer;
+}
+
+.filtro-multiple-buscador {
+  width: 100%;
+  height: 40px;
+  margin-top: 12px;
+  padding: 0 11px;
+  border: 1px solid #ccd6e4;
+  border-radius: 8px;
+  font: inherit;
+}
+
+.filtro-multiple-opciones {
+  max-height: 240px;
+  margin-top: 10px;
+  overflow-y: auto;
+  border: 1px solid #e1e7f0;
+  border-radius: 8px;
+}
+
+.filtro-multiple-opciones label {
+  min-height: 38px;
+  padding: 7px 10px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  border-bottom: 1px solid #edf1f6;
+  cursor: pointer;
+}
+
+.filtro-multiple-opciones label:last-of-type {
+  border-bottom: 0;
+}
+
+.filtro-multiple-opciones input {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  accent-color: #075cff;
+}
+
+.filtro-multiple-opciones span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.filtro-multiple-opciones p {
+  margin: 0;
+  padding: 16px 10px;
+  color: #69758c;
+  text-align: center;
+  font-size: 13px;
+}
+
+.filtro-multiple-acciones {
+  margin-top: 12px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.filtro-multiple-acciones button {
+  min-height: 36px;
+  padding: 0 13px;
+  border: 1px solid #cbd6e5;
+  border-radius: 8px;
+  background: #ffffff;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.filtro-multiple-acciones button:last-child {
+  color: #ffffff;
+  background: #075cff;
+  border-color: #075cff;
+}

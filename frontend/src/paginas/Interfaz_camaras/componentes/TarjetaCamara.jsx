@@ -16,6 +16,7 @@ export default function TarjetaCamara({
   operando,
   versionStream,
   imagenSimulacion,
+  nombreGrupo,
   onIniciar,
   onDetener,
   onEliminar,
@@ -36,11 +37,12 @@ export default function TarjetaCamara({
         : iniciando
           ? "Iniciando"
           : "Detenida";
-  const descripcion = simulada
+  const descripcionFuente = simulada
     ? `Imagen de prueba · ${camara.escena}`
     : onvif
       ? "Cámara de red · ONVIF"
       : `Webcam local · Dispositivo ${camara.fuente}`;
+  const descripcion = `${descripcionFuente} · ${nombreGrupo}`;
 
   return (
     <article className={`tarjeta-camara${simulada ? ` simulada escena-${camara.escena}` : ""}`}>

@@ -3,6 +3,7 @@ import "./Interfaz_camaras.css";
 import Layout from "../../componentes/layout/Layout";
 import TarjetaCamara from "./componentes/TarjetaCamara";
 import EditorGruposCamara from "./componentes/EditorGruposCamara";
+import FiltroSeleccionMultiple from "./componentes/FiltroSeleccionMultiple";
 import imagenSimulacion from "../../assets/images/001 witcam inicio imagen.png";
 import {
   detenerTransmision,
@@ -100,6 +101,10 @@ export default function InterfazCamaras() {
   const [passwordConexion, setPasswordConexion] = useState("");
   const [grupoCamaraId, setGrupoCamaraId] = useState("");
   const [gruposCamaras, setGruposCamaras] = useState(leerGruposGuardados);
+  const [filtroAbierto, setFiltroAbierto] = useState(null);
+  const [camarasSeleccionadas, setCamarasSeleccionadas] = useState(null);
+  const [gruposSeleccionados, setGruposSeleccionados] = useState(null);
+  const [columnasCuadricula, setColumnasCuadricula] = useState("auto");
   const [operandoId, setOperandoId] = useState(null);
   const [errorInterfaz, setErrorInterfaz] = useState("");
   const [versionStream, setVersionStream] = useState(1);
@@ -189,10 +194,11 @@ export default function InterfazCamaras() {
     const nombre = nombreCamara.trim();
     if (!nombre || camaras.length >= LIMITE_CAMARAS) return;
     if (tipoCamara === "webcam" && tieneWebcam) return;
+    if (!grupoCamaraId) return;
     if (
       tipoCamara === "onvif" &&
       (!direccionIp.trim() || !puertoOnvif || !usuarioConexion.trim() ||
-        !passwordConexion || !grupoCamaraId)
+        !passwordConexion)
     ) return;
 
     const nuevaCamara = {
@@ -201,12 +207,12 @@ export default function InterfazCamaras() {
       tipo: tipoCamara,
       fuente: tipoCamara === "webcam" ? 0 : null,
       escena: tipoCamara === "simulada" ? escena : null,
+      grupoCamaraId: Number(grupoCamaraId),
       ...(tipoCamara === "onvif"
         ? {
             direccionIp: direccionIp.trim(),
             puertoOnvif: Number(puertoOnvif),
             usuarioConexion: usuarioConexion.trim(),
-            grupoCamaraId: Number(grupoCamaraId),
           }
         : {}),
     };
@@ -257,7 +263,30 @@ export default function InterfazCamaras() {
     setErrorInterfaz("");
   };
 
-  const claseCantidad = ` cantidad-${Math.min(camaras.length, 5)}`;
+  const camarasFiltradas = camaras.filter((camara) => {
+    const incluidaPorNombre = camarasSeleccionadas === null ||
+      camarasSeleccionadas.includes(String(camara.id));
+    const incluidaPorGrupo = gruposSeleccionados === null ||
+      gruposSeleccionados.includes(String(camara.grupoCamaraId));
+    return incluidaPorNombre && incluidaPorGrupo;
+  });
+  const claseCantidad = ` cantidad-${Math.min(camarasFiltradas.length, 5)}`;
+  const opcionesCamaras = camaras
+    .filter((camara) =>
+      gruposSeleccionados === null ||
+      gruposSeleccionados.includes(String(camara.grupoCamaraId)),
+    )
+    .map((camara) => ({
+      id: String(camara.id),
+      nombre: camara.nombre,
+    }));
+  const opcionesGrupos = gruposCamaras.map((grupo) => ({
+    id: String(grupo.id),
+    nombre: grupo.nombre,
+  }));
+  const claseCuadricula = columnasCuadricula === "auto"
+    ? claseCantidad
+    : ` cuadricula-columnas-${columnasCuadricula}`;
 
   return (
     <Layout
@@ -273,20 +302,99 @@ export default function InterfazCamaras() {
               Vista en vivo
             </div>
             <span className="camaras-contador">
-              {camaras.length} {camaras.length === 1 ? "cámara" : "cámaras"}
+              {camarasFiltradas.length === camaras.length
+                ? `${camaras.length} ${camaras.length === 1 ? "cámara" : "cámaras"}`
+                : `${camarasFiltradas.length} de ${camaras.length} cámaras`}
             </span>
           </div>
 
           <div className="camaras-controles">
-            <button className="control-camaras-boton" type="button" disabled>
-              Cuadrícula automática
-            </button>
-            <button className="control-camaras-boton" type="button" disabled>
-              Grupo cámaras
-            </button>
-            <button className="control-camaras-boton" type="button" disabled>
-              Filtrar cámaras
-            </button>
+            <div className="filtro-camaras-contenedor">
+              <button
+                className={`control-camaras-boton${columnasCuadricula !== "auto" ? " filtro-activo" : ""}`}
+                type="button"
+                onClick={() => setFiltroAbierto(
+                  filtroAbierto === "cuadricula" ? null : "cuadricula",
+                )}
+              >
+                {columnasCuadricula === "auto"
+                  ? "Cuadrícula automática"
+                  : `${columnasCuadricula} por fila`}
+                <span className="control-flecha">⌄</span>
+              </button>
+              {filtroAbierto === "cuadricula" && (
+                <section className="selector-cuadricula" aria-label="Opciones de cuadrícula">
+                  <strong>Cámaras por fila</strong>
+                  {[
+                    { valor: "auto", etiqueta: "Automática" },
+                    { valor: "1", etiqueta: "1 cámara por fila" },
+                    { valor: "2", etiqueta: "2 cámaras por fila" },
+                    { valor: "3", etiqueta: "3 cámaras por fila" },
+                  ].map((opcion) => (
+                    <label key={opcion.valor}>
+                      <input
+                        type="radio"
+                        name="columnas-cuadricula"
+                        value={opcion.valor}
+                        checked={columnasCuadricula === opcion.valor}
+                        onChange={() => {
+                          setColumnasCuadricula(opcion.valor);
+                          setFiltroAbierto(null);
+                        }}
+                      />
+                      <span className={`vista-columnas columnas-${opcion.valor}`} aria-hidden="true">
+                        <i /><i /><i />
+                      </span>
+                      {opcion.etiqueta}
+                    </label>
+                  ))}
+                </section>
+              )}
+            </div>
+            <div className="filtro-camaras-contenedor">
+              <button
+                className={`control-camaras-boton${gruposSeleccionados !== null ? " filtro-activo" : ""}`}
+                type="button"
+                onClick={() => setFiltroAbierto(
+                  filtroAbierto === "grupos" ? null : "grupos",
+                )}
+              >
+                Grupo cámaras
+                <span className="control-flecha">⌄</span>
+              </button>
+              {filtroAbierto === "grupos" && (
+                <FiltroSeleccionMultiple
+                  titulo="Filtrar por grupo"
+                  placeholder="Buscar grupo..."
+                  opciones={opcionesGrupos}
+                  seleccion={gruposSeleccionados}
+                  onAplicar={setGruposSeleccionados}
+                  onCerrar={() => setFiltroAbierto(null)}
+                />
+              )}
+            </div>
+            <div className="filtro-camaras-contenedor">
+              <button
+                className={`control-camaras-boton${camarasSeleccionadas !== null ? " filtro-activo" : ""}`}
+                type="button"
+                onClick={() => setFiltroAbierto(
+                  filtroAbierto === "camaras" ? null : "camaras",
+                )}
+              >
+                Filtrar cámaras
+                <span className="control-flecha">⌄</span>
+              </button>
+              {filtroAbierto === "camaras" && (
+                <FiltroSeleccionMultiple
+                  titulo="Filtrar cámaras"
+                  placeholder="Buscar cámara..."
+                  opciones={opcionesCamaras}
+                  seleccion={camarasSeleccionadas}
+                  onAplicar={setCamarasSeleccionadas}
+                  onCerrar={() => setFiltroAbierto(null)}
+                />
+              )}
+            </div>
             <button
               className="control-camaras-boton"
               type="button"
@@ -307,9 +415,9 @@ export default function InterfazCamaras() {
           </div>
         </div>
 
-        <div className={`camaras-area${camaras.length ? " con-camaras" : ""}${claseCantidad}`}>
-          {camaras.length ? (
-            camaras.map((camara) => (
+        <div className={`camaras-area${camarasFiltradas.length ? " con-camaras" : ""}${claseCuadricula}`}>
+          {camarasFiltradas.length ? (
+            camarasFiltradas.map((camara) => (
               <TarjetaCamara
                 key={camara.id}
                 camara={camara}
@@ -318,11 +426,22 @@ export default function InterfazCamaras() {
                 operando={operandoId === camara.id}
                 versionStream={versionStream}
                 imagenSimulacion={imagenSimulacion}
+                nombreGrupo={
+                  gruposCamaras.find(
+                    (grupo) => Number(grupo.id) === Number(camara.grupoCamaraId),
+                  )?.nombre || "Sin grupo"
+                }
                 onIniciar={() => iniciar(camara)}
                 onDetener={() => detener(camara)}
                 onEliminar={() => eliminar(camara)}
               />
             ))
+          ) : camaras.length ? (
+            <div className="camaras-vista-vacia">
+              <div className="camaras-vista-icono"><IconoCamaraVacia /></div>
+              <h2>No hay cámaras que coincidan</h2>
+              <p>Cambia la selección de los filtros para volver a mostrar cámaras.</p>
+            </div>
           ) : (
             <div className="camaras-vista-vacia">
               <div className="camaras-vista-icono"><IconoCamaraVacia /></div>
@@ -427,21 +546,22 @@ export default function InterfazCamaras() {
                   onChange={(evento) => setPasswordConexion(evento.target.value)}
                 />
 
-                <label htmlFor="grupo-onvif-camara">Grupo</label>
-                <select
-                  id="grupo-onvif-camara"
-                  value={grupoCamaraId}
-                  onChange={(evento) => setGrupoCamaraId(evento.target.value)}
-                >
-                  <option value="" disabled>
-                    {gruposCamaras.length ? "Selecciona un grupo" : "No hay grupos disponibles"}
-                  </option>
-                  {gruposCamaras.map((grupo) => (
-                    <option key={grupo.id} value={grupo.id}>{grupo.nombre}</option>
-                  ))}
-                </select>
               </>
             )}
+
+            <label htmlFor="grupo-camara">Grupo</label>
+            <select
+              id="grupo-camara"
+              value={grupoCamaraId}
+              onChange={(evento) => setGrupoCamaraId(evento.target.value)}
+            >
+              <option value="" disabled>
+                {gruposCamaras.length ? "Selecciona un grupo" : "No hay grupos disponibles"}
+              </option>
+              {gruposCamaras.map((grupo) => (
+                <option key={grupo.id} value={grupo.id}>{grupo.nombre}</option>
+              ))}
+            </select>
 
             <p>
               {tipoCamara === "webcam"
@@ -456,10 +576,10 @@ export default function InterfazCamaras() {
               <button
                 type="submit"
                 disabled={
-                  !nombreCamara.trim() ||
+                  !nombreCamara.trim() || !grupoCamaraId ||
                   (tipoCamara === "onvif" && (
                     !direccionIp.trim() || !puertoOnvif ||
-                    !usuarioConexion.trim() || !passwordConexion || !grupoCamaraId
+                    !usuarioConexion.trim() || !passwordConexion
                   ))
                 }
               >
