@@ -409,10 +409,12 @@
 
 .modal-camara {
   width: min(100%, 470px);
+  max-height: calc(100vh - 48px);
   padding: 26px;
   display: flex;
   flex-direction: column;
   gap: 9px;
+  overflow-y: auto;
   color: #0b1c3c;
   background: #ffffff;
   border: 1px solid #d9e1ed;

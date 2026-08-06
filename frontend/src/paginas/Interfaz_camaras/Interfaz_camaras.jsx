@@ -11,6 +11,7 @@ import {
 
 const CLAVE_CAMARAS = "witcam_camaras_prueba";
 const CLAVE_CAMARA_ANTIGUA = "witcam_camara_prueba";
+const CLAVE_GRUPOS_CAMARAS = "witcam_grupos_camaras_prueba";
 const LIMITE_CAMARAS = 9;
 const ESCENAS_SIMULADAS = [
   { valor: "entrada", nombre: "Entrada principal" },
@@ -43,6 +44,15 @@ function leerCamarasGuardadas() {
   return [];
 }
 
+function leerGruposGuardados() {
+  try {
+    const grupos = JSON.parse(localStorage.getItem(CLAVE_GRUPOS_CAMARAS));
+    return Array.isArray(grupos) ? grupos : [];
+  } catch {
+    return [];
+  }
+}
+
 function IconoVista() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -68,6 +78,12 @@ export default function InterfazCamaras() {
   const [tipoCamara, setTipoCamara] = useState("webcam");
   const [nombreCamara, setNombreCamara] = useState("Webcam integrada");
   const [escena, setEscena] = useState(ESCENAS_SIMULADAS[0].valor);
+  const [direccionIp, setDireccionIp] = useState("");
+  const [puertoOnvif, setPuertoOnvif] = useState("80");
+  const [usuarioConexion, setUsuarioConexion] = useState("");
+  const [passwordConexion, setPasswordConexion] = useState("");
+  const [grupoCamaraId, setGrupoCamaraId] = useState("");
+  const [gruposCamaras] = useState(leerGruposGuardados);
   const [operandoId, setOperandoId] = useState(null);
   const [errorInterfaz, setErrorInterfaz] = useState("");
   const [versionStream, setVersionStream] = useState(1);
@@ -119,6 +135,11 @@ export default function InterfazCamaras() {
         : `Cámara simulada ${camaras.length + 1}`,
     );
     setEscena(ESCENAS_SIMULADAS[camaras.length % ESCENAS_SIMULADAS.length].valor);
+    setDireccionIp("");
+    setPuertoOnvif("80");
+    setUsuarioConexion("");
+    setPasswordConexion("");
+    setGrupoCamaraId("");
     setModalAbierto(true);
   };
 
@@ -128,7 +149,9 @@ export default function InterfazCamaras() {
     setNombreCamara(
       tipo === "webcam"
         ? "Webcam integrada"
-        : `Cámara simulada ${camaras.length + 1}`,
+        : tipo === "onvif"
+          ? `Cámara ONVIF ${camaras.length + 1}`
+          : `Cámara simulada ${camaras.length + 1}`,
     );
   };
 
@@ -137,6 +160,11 @@ export default function InterfazCamaras() {
     const nombre = nombreCamara.trim();
     if (!nombre || camaras.length >= LIMITE_CAMARAS) return;
     if (tipoCamara === "webcam" && tieneWebcam) return;
+    if (
+      tipoCamara === "onvif" &&
+      (!direccionIp.trim() || !puertoOnvif || !usuarioConexion.trim() ||
+        !passwordConexion || !grupoCamaraId)
+    ) return;
 
     const nuevaCamara = {
       id: `${tipoCamara}-${Date.now()}`,
@@ -144,6 +172,14 @@ export default function InterfazCamaras() {
       tipo: tipoCamara,
       fuente: tipoCamara === "webcam" ? 0 : null,
       escena: tipoCamara === "simulada" ? escena : null,
+      ...(tipoCamara === "onvif"
+        ? {
+            direccionIp: direccionIp.trim(),
+            puertoOnvif: Number(puertoOnvif),
+            usuarioConexion: usuarioConexion.trim(),
+            grupoCamaraId: Number(grupoCamaraId),
+          }
+        : {}),
     };
     guardarColeccion([...camaras, nuevaCamara]);
     setModalAbierto(false);
@@ -286,6 +322,7 @@ export default function InterfazCamaras() {
             <label htmlFor="tipo-camara">Tipo de fuente</label>
             <select id="tipo-camara" value={tipoCamara} onChange={cambiarTipo}>
               <option value="webcam" disabled={tieneWebcam}>Webcam local</option>
+              <option value="onvif">Cámara ONVIF</option>
               <option value="simulada">Cámara simulada con imagen</option>
             </select>
 
@@ -305,7 +342,7 @@ export default function InterfazCamaras() {
                   <option value="0">Webcam 0</option>
                 </select>
               </>
-            ) : (
+            ) : tipoCamara === "simulada" ? (
               <>
                 <label htmlFor="escena-camara">Imagen de prueba</label>
                 <select id="escena-camara" value={escena} onChange={(evento) => setEscena(evento.target.value)}>
@@ -314,17 +351,84 @@ export default function InterfazCamaras() {
                   ))}
                 </select>
               </>
+            ) : (
+              <>
+                <label htmlFor="direccion-ip-camara">Dirección IP</label>
+                <input
+                  id="direccion-ip-camara"
+                  type="text"
+                  inputMode="decimal"
+                  placeholder="192.168.1.50"
+                  value={direccionIp}
+                  onChange={(evento) => setDireccionIp(evento.target.value)}
+                />
+
+                <label htmlFor="puerto-onvif-camara">Puerto ONVIF</label>
+                <input
+                  id="puerto-onvif-camara"
+                  type="number"
+                  min="1"
+                  max="65535"
+                  value={puertoOnvif}
+                  onChange={(evento) => setPuertoOnvif(evento.target.value)}
+                />
+
+                <label htmlFor="usuario-onvif-camara">Usuario</label>
+                <input
+                  id="usuario-onvif-camara"
+                  type="text"
+                  autoComplete="username"
+                  value={usuarioConexion}
+                  onChange={(evento) => setUsuarioConexion(evento.target.value)}
+                />
+
+                <label htmlFor="password-onvif-camara">Contraseña</label>
+                <input
+                  id="password-onvif-camara"
+                  type="password"
+                  autoComplete="current-password"
+                  value={passwordConexion}
+                  onChange={(evento) => setPasswordConexion(evento.target.value)}
+                />
+
+                <label htmlFor="grupo-onvif-camara">Grupo</label>
+                <select
+                  id="grupo-onvif-camara"
+                  value={grupoCamaraId}
+                  onChange={(evento) => setGrupoCamaraId(evento.target.value)}
+                >
+                  <option value="" disabled>
+                    {gruposCamaras.length ? "Selecciona un grupo" : "No hay grupos disponibles"}
+                  </option>
+                  {gruposCamaras.map((grupo) => (
+                    <option key={grupo.id} value={grupo.id}>{grupo.nombre}</option>
+                  ))}
+                </select>
+              </>
             )}
 
             <p>
               {tipoCamara === "webcam"
                 ? "La webcam transmitirá sin activar todavía el análisis de IA."
-                : "La cámara simulada no abre dispositivos ni consume el backend de video."}
+                : tipoCamara === "onvif"
+                  ? "La fuente ONVIF quedará registrada, pero no se conectará todavía."
+                  : "La cámara simulada no abre dispositivos ni consume el backend de video."}
             </p>
 
             <div className="modal-camara-acciones">
               <button type="button" onClick={() => setModalAbierto(false)}>Cancelar</button>
-              <button type="submit" disabled={!nombreCamara.trim()}>Guardar cámara</button>
+              <button
+                type="submit"
+                disabled={
+                  !nombreCamara.trim() ||
+                  (tipoCamara === "onvif" && (
+                    !direccionIp.trim() || !puertoOnvif ||
+                    !usuarioConexion.trim() || !passwordConexion || !grupoCamaraId
+                  ))
+                }
+              >
+                Guardar cámara
+              </button>
             </div>
           </form>
         </div>

@@ -21,11 +21,14 @@ export default function TarjetaCamara({
   onEliminar,
 }) {
   const simulada = camara.tipo === "simulada";
-  const enVivo = simulada || (estado.streaming && !estado.last_error);
-  const iniciando = !simulada && estado.running && !enVivo;
-  const error = simulada ? "" : errorInterfaz || estado.last_error;
+  const onvif = camara.tipo === "onvif";
+  const enVivo = simulada || (!onvif && estado.streaming && !estado.last_error);
+  const iniciando = !simulada && !onvif && estado.running && !enVivo;
+  const error = simulada || onvif ? "" : errorInterfaz || estado.last_error;
   const etiquetaEstado = simulada
     ? "Simulada"
+    : onvif
+      ? "Sin configurar"
     : error
       ? "Error de conexión"
       : enVivo
@@ -35,7 +38,9 @@ export default function TarjetaCamara({
           : "Detenida";
   const descripcion = simulada
     ? `Imagen de prueba · ${camara.escena}`
-    : `Webcam local · Dispositivo ${camara.fuente}`;
+    : onvif
+      ? "Cámara de red · ONVIF"
+      : `Webcam local · Dispositivo ${camara.fuente}`;
 
   return (
     <article className={`tarjeta-camara${simulada ? ` simulada escena-${camara.escena}` : ""}`}>
@@ -56,8 +61,8 @@ export default function TarjetaCamara({
 
       <div className="tarjeta-camara-video">
         <img
-          src={simulada ? imagenSimulacion : `/video_feed?v=${versionStream}`}
-          alt={simulada ? `Vista simulada de ${camara.nombre}` : `Transmisión de ${camara.nombre}`}
+          src={simulada ? imagenSimulacion : onvif ? imagenSimulacion : `/video_feed?v=${versionStream}`}
+          alt={simulada ? `Vista simulada de ${camara.nombre}` : onvif ? `Cámara ONVIF ${camara.nombre}` : `Transmisión de ${camara.nombre}`}
         />
 
         {simulada && (
@@ -67,8 +72,8 @@ export default function TarjetaCamara({
         {!simulada && !enVivo && !iniciando && (
           <div className="tarjeta-camara-video-estado">
             <IconoCamara />
-            <strong>Cámara detenida</strong>
-            <span>Inicia la transmisión para ver la webcam.</span>
+            <strong>{onvif ? "Cámara ONVIF sin configurar" : "Cámara detenida"}</strong>
+            <span>{onvif ? "Completa los datos de conexión para utilizarla." : "Inicia la transmisión para ver la webcam."}</span>
           </div>
         )}
       </div>
@@ -76,7 +81,7 @@ export default function TarjetaCamara({
       {error && <p className="tarjeta-camara-error">{error}</p>}
 
       <footer className="tarjeta-camara-acciones">
-        {!simulada && (
+        {!simulada && !onvif && (
           estado.running ? (
             <button className="boton-camara detener" type="button" disabled={operando} onClick={onDetener}>
               Detener transmisión
