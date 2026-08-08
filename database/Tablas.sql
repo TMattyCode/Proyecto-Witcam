@@ -336,8 +336,9 @@ GO
 
 /* =========================================================
    PERSONAS IDENTIFICADAS POR EL SISTEMA
-   El código es el identificador estable de la persona.
-   Ejemplo: PER-00001
+   id_persona es el identificador estable de la persona.
+   También se utiliza para nombrar su carpeta local.
+   Ejemplo: persona_15
    ========================================================= */
 
 CREATE TABLE Persona (
@@ -345,30 +346,22 @@ CREATE TABLE Persona (
 
     id_cuenta INT NOT NULL,
 
-    codigo_persona VARCHAR(50) NOT NULL,
     nombre_persona VARCHAR(150) NOT NULL,
-    tipo_galeria VARCHAR(20) NOT NULL DEFAULT 'Pendiente',
 
     fecha_registro DATETIME NOT NULL DEFAULT GETDATE(),
 
     CONSTRAINT FK_Persona_Cuenta
         FOREIGN KEY (id_cuenta)
-        REFERENCES Cuenta(id_cuenta),
-
-    CONSTRAINT UQ_Persona_Cuenta_Codigo
-        UNIQUE (id_cuenta, codigo_persona),
-
-    CONSTRAINT CK_Persona_TipoGaleria
-        CHECK (tipo_galeria IN ('Pendiente', 'Referencia'))
+        REFERENCES Cuenta(id_cuenta)
 );
 GO
 
 
 /* =========================================================
    MUESTRAS FACIALES DE PERSONAS
-   Los archivos se almacenan en un servicio externo.
-   La base de datos conserva la clave permanente del archivo.
-   Cada persona puede tener varias muestras faciales.
+   Tabla reservada para una etapa futura.
+   Actualmente las muestras se conservan en carpetas locales
+   y no es necesario registrar filas en esta tabla.
    ========================================================= */
 
 CREATE TABLE MuestraFacial (
@@ -377,10 +370,11 @@ CREATE TABLE MuestraFacial (
     id_persona INT NOT NULL,
 
     /*
-       Ejemplo:
-       personas/PER-00015/rostro_003.jpg
+       Ruta relativa del archivo local o del almacenamiento externo.
+       Ejemplo local:
+       personas/persona_15/rostro_003.jpg
     */
-    clave_archivo VARCHAR(500) NOT NULL,
+    ruta_archivo VARCHAR(500) NOT NULL,
 
     calidad DECIMAL(5,4) NULL,
     fecha_registro DATETIME NOT NULL DEFAULT GETDATE(),
@@ -389,8 +383,8 @@ CREATE TABLE MuestraFacial (
         FOREIGN KEY (id_persona)
         REFERENCES Persona(id_persona),
 
-    CONSTRAINT UQ_MuestraFacial_ClaveArchivo
-        UNIQUE (clave_archivo),
+    CONSTRAINT UQ_MuestraFacial_RutaArchivo
+        UNIQUE (ruta_archivo),
 
     CONSTRAINT CK_MuestraFacial_Calidad
         CHECK (
@@ -417,7 +411,7 @@ CREATE TABLE Deteccion (
 
     fecha_hora DATETIME NOT NULL DEFAULT GETDATE(),
 
-    clave_imagen_detectada VARCHAR(500) NULL,
+    ruta_imagen_detectada VARCHAR(500) NULL,
 
     resultado VARCHAR(100) NOT NULL,
 
@@ -525,8 +519,9 @@ CREATE INDEX IX_Camara_GrupoCamara
 ON Camara(id_grupo_camara);
 GO
 
-CREATE INDEX IX_Persona_Cuenta_TipoGaleria
-ON Persona(id_cuenta, tipo_galeria);
+CREATE INDEX IX_Persona_Cuenta_Nombre
+ON Persona(id_cuenta, nombre_persona)
+INCLUDE (fecha_registro);
 GO
 
 CREATE INDEX IX_MuestraFacial_Persona_Calidad
@@ -537,8 +532,20 @@ CREATE INDEX IX_Deteccion_Camara_Fecha
 ON Deteccion(id_camara, fecha_hora DESC);
 GO
 
-CREATE INDEX IX_Deteccion_Persona
-ON Deteccion(id_persona);
+CREATE INDEX IX_Deteccion_Persona_Fecha
+ON Deteccion(id_persona, fecha_hora DESC);
+GO
+
+CREATE INDEX IX_Deteccion_Identificados_Fecha
+ON Deteccion(fecha_hora DESC)
+INCLUDE (
+    id_camara,
+    id_persona,
+    resultado,
+    similitud,
+    ruta_imagen_detectada
+)
+WHERE id_persona IS NOT NULL;
 GO
 
 CREATE INDEX IX_ListaObservacion_Persona

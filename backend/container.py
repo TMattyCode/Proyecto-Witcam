@@ -5,6 +5,7 @@ from backend.aplicacion.servicios import (
     ServicioMonitoreo,
 )
 from backend.aplicacion.autenticacion import ServicioAutenticacion
+from backend.aplicacion.ingresos import ServicioIngresos
 from backend.aplicacion.witcam import AplicacionWitcam
 from backend.api.handler import crear_handler
 from backend.api.servidor import ServidorWitcam
@@ -14,6 +15,7 @@ from backend.galerias.referencias import CargadorReferencias
 from backend.galerias.repositorio import RepositorioGalerias
 from backend.database.conexion import FabricaConexionesSqlServer
 from backend.database.usuarios import RepositorioUsuarios
+from backend.database.ingresos import RepositorioIngresos
 from backend.ia.adaptadores.bytetrack import RastreadorByteTrack
 from backend.ia.adaptadores.insightface import (
     DetectorScrfd,
@@ -117,12 +119,17 @@ def construir_aplicacion(
     autenticacion = ServicioAutenticacion(
         RepositorioUsuarios(conexiones)
     )
+    ingresos = ServicioIngresos(
+        RepositorioIngresos(conexiones),
+        autenticacion,
+    )
     handler = crear_handler(
         PROJECT_ROOT,
         monitoreo,
         galerias,
         config.video,
         autenticacion,
+        ingresos,
     )
     servidor = ServidorWitcam(config.servidor, handler)
     return AplicacionWitcam(

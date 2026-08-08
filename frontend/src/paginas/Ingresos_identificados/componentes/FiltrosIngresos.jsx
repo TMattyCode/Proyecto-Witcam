@@ -1,43 +1,100 @@
-﻿import "./FiltrosIngresos.css";
+import { useState } from "react";
 
-export default function FiltrosIngresos() {
+import "./FiltrosIngresos.css";
+
+const VALORES_INICIALES = {
+  fechaDesde: "",
+  horaDesde: "00:00",
+  fechaHasta: "",
+  horaHasta: "00:00",
+  idCamara: "",
+};
+
+function prepararFiltros(valores) {
+  return {
+    fechaDesde: valores.fechaDesde
+      ? `${valores.fechaDesde}T${valores.horaDesde || "00:00"}:00`
+      : "",
+    fechaHasta: valores.fechaHasta
+      ? `${valores.fechaHasta}T${valores.horaHasta || "00:00"}:59`
+      : "",
+    idCamara: valores.idCamara,
+  };
+}
+
+export default function FiltrosIngresos({
+  camaras = [],
+  cargando = false,
+  onAplicar,
+}) {
+  const [valores, setValores] = useState(VALORES_INICIALES);
+
+  const actualizar = (evento) => {
+    const { name, value } = evento.target;
+    setValores((actuales) => ({ ...actuales, [name]: value }));
+  };
+
+  const buscar = (evento) => {
+    evento.preventDefault();
+    onAplicar?.(prepararFiltros(valores));
+  };
+
+  const limpiar = () => {
+    setValores(VALORES_INICIALES);
+    onAplicar?.({});
+  };
+
   return (
     <section className="filtros-ingresos">
-      <h2>Filtrar por fecha y hora</h2>
+      <h2>Filtrar por fecha, hora y cámara</h2>
 
-      <div className="filtros-ingresos-contenido">
+      <form className="filtros-ingresos-contenido" onSubmit={buscar}>
         <div className="filtro-grupo">
-          <label>Desde</label>
+          <label htmlFor="fecha-desde">Desde</label>
 
           <div className="filtro-fecha-hora">
             <input
+              id="fecha-desde"
+              name="fechaDesde"
               className="filtro-fecha"
               type="date"
-              defaultValue="2026-06-05"
+              value={valores.fechaDesde}
+              onChange={actualizar}
             />
 
             <input
+              name="horaDesde"
+              aria-label="Hora inicial"
               className="filtro-hora"
               type="time"
-              defaultValue="00:00"
+              value={valores.horaDesde}
+              onChange={actualizar}
+              disabled={!valores.fechaDesde}
             />
           </div>
         </div>
 
         <div className="filtro-grupo">
-          <label>Hasta</label>
+          <label htmlFor="fecha-hasta">Hasta</label>
 
           <div className="filtro-fecha-hora">
             <input
+              id="fecha-hasta"
+              name="fechaHasta"
               className="filtro-fecha"
               type="date"
-              defaultValue="2026-06-05"
+              value={valores.fechaHasta}
+              onChange={actualizar}
             />
 
             <input
+              name="horaHasta"
+              aria-label="Hora final"
               className="filtro-hora"
               type="time"
-              defaultValue="23:59"
+              value={valores.horaHasta}
+              onChange={actualizar}
+              disabled={!valores.fechaHasta}
             />
           </div>
         </div>
@@ -45,24 +102,40 @@ export default function FiltrosIngresos() {
         <div className="filtro-grupo filtro-camara">
           <label htmlFor="camara">Cámara</label>
 
-          <select id="camara" defaultValue="todas">
-            <option value="todas">Todas las cámaras</option>
-            <option value="acceso-principal">Acceso Principal</option>
-            <option value="caja-1">Caja 1</option>
-            <option value="bodega">Bodega</option>
+          <select
+            id="camara"
+            name="idCamara"
+            value={valores.idCamara}
+            onChange={actualizar}
+          >
+            <option value="">Todas las cámaras</option>
+            {camaras.map((camara) => (
+              <option key={camara.id} value={camara.id}>
+                {camara.nombre}
+              </option>
+            ))}
           </select>
         </div>
 
         <div className="filtros-botones">
-          <button className="boton-limpiar" type="button">
+          <button
+            className="boton-limpiar"
+            type="button"
+            onClick={limpiar}
+            disabled={cargando}
+          >
             Limpiar filtros
           </button>
 
-          <button className="boton-buscar" type="button">
-            Buscar
+          <button
+            className="boton-buscar"
+            type="submit"
+            disabled={cargando}
+          >
+            {cargando ? "Buscando..." : "Buscar"}
           </button>
         </div>
-      </div>
+      </form>
     </section>
   );
 }

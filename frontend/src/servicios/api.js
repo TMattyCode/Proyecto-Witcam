@@ -55,6 +55,23 @@ export function obtenerSubusuarios(filtros = {}) {
   return solicitar(`/api/subusuarios?${parametros.toString()}`);
 }
 
+export function obtenerIngresos(pagina = 1, limite = 25, filtros = {}) {
+  const parametros = new URLSearchParams({
+    pagina: String(pagina),
+    limite: String(limite),
+  });
+  Object.entries(filtros).forEach(([clave, valor]) => {
+    if (valor !== "" && valor !== null && valor !== undefined) {
+      parametros.set(clave, String(valor));
+    }
+  });
+  return solicitar(`/api/ingresos?${parametros.toString()}`);
+}
+
+export function obtenerCamarasIngresos() {
+  return solicitar("/api/ingresos/camaras");
+}
+
 export function crearSubusuario(datos) {
   return solicitar("/api/subusuarios", {
     method: "POST",

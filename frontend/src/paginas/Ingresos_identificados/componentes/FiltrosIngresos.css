@@ -68,6 +68,12 @@
   box-shadow: 0 0 0 3px rgba(1, 77, 253, 0.1);
 }
 
+.filtro-grupo input:disabled {
+  cursor: not-allowed;
+  background: #f3f6fa;
+  color: #8b96a8;
+}
+
 .filtro-grupo select {
   cursor: pointer;
 }
@@ -120,6 +126,12 @@
 
 .filtros-botones button:active {
   transform: translateY(1px);
+}
+
+.filtros-botones button:disabled {
+  cursor: wait;
+  opacity: 0.55;
+  transform: none;
 }
 
 

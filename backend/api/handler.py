@@ -10,6 +10,7 @@ from backend.aplicacion.servicios import (
     ServicioMonitoreo,
 )
 from backend.aplicacion.autenticacion import ServicioAutenticacion
+from backend.aplicacion.ingresos import ServicioIngresos
 from backend.api.serializacion import codificar_json
 from backend.config import ConfiguracionVideo
 from backend.exceptions import (
@@ -26,6 +27,7 @@ def crear_handler(
     galerias: ServicioGalerias,
     config_video: ConfiguracionVideo,
     autenticacion: ServicioAutenticacion | None = None,
+    ingresos: ServicioIngresos | None = None,
 ) -> type[BaseHTTPRequestHandler]:
     class WitcamHandler(BaseHTTPRequestHandler):
         def log_message(self, formato, *args):
@@ -115,6 +117,63 @@ def crear_handler(
                     self._json(
                         {"ok": False, "error": str(error)},
                         estado=403,
+                    )
+                except ValueError as error:
+                    self._json(
+                        {"ok": False, "error": str(error)},
+                        estado=400,
+                    )
+                return
+            if ruta == "/api/ingresos/camaras":
+                try:
+                    self._exigir_autenticacion()
+                    if ingresos is None:
+                        raise ErrorAutenticacion(
+                            "El servicio de ingresos no esta disponible"
+                        )
+                    self._json(
+                        ingresos.listar_camaras(self._token_sesion())
+                    )
+                except CredencialesInvalidas as error:
+                    self._json(
+                        {"ok": False, "error": str(error)},
+                        estado=401,
+                    )
+                except ErrorAutenticacion as error:
+                    self._json(
+                        {"ok": False, "error": str(error)},
+                        estado=503,
+                    )
+                return
+            if ruta == "/api/ingresos":
+                try:
+                    self._exigir_autenticacion()
+                    if ingresos is None:
+                        raise ErrorAutenticacion(
+                            "El servicio de ingresos no esta disponible"
+                        )
+                    filtros = {
+                        clave: valores[0]
+                        for clave, valores in parse_qs(
+                            url.query,
+                            keep_blank_values=True,
+                        ).items()
+                    }
+                    self._json(
+                        ingresos.listar(
+                            self._token_sesion(),
+                            filtros,
+                        )
+                    )
+                except CredencialesInvalidas as error:
+                    self._json(
+                        {"ok": False, "error": str(error)},
+                        estado=401,
+                    )
+                except ErrorAutenticacion as error:
+                    self._json(
+                        {"ok": False, "error": str(error)},
+                        estado=503,
                     )
                 except ValueError as error:
                     self._json(

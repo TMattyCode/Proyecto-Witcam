@@ -61,6 +61,7 @@ class AutenticacionFalsa:
     def __init__(self):
         self.usuario = {
             "id": 1,
+            "idCuenta": 10,
             "nombreUsuario": "matias",
             "rol": "Administrador",
         }
@@ -149,6 +150,40 @@ class AutenticacionFalsa:
         return None
 
 
+class IngresosFalso:
+    def listar(self, token, filtros=None):
+        if token != "token-prueba":
+            raise CredencialesInvalidas("La sesion no es valida")
+        filtros = filtros or {}
+        return {
+            "ok": True,
+            "total": 1,
+            "pagina": int(filtros.get("pagina", 1)),
+            "limite": int(filtros.get("limite", 25)),
+            "ingresos": [
+                {
+                    "idDeteccion": 35,
+                    "idPersona": 12,
+                    "nombrePersona": "Persona prueba",
+                    "idCamara": 4,
+                    "nombreCamara": "Acceso principal",
+                    "fechaHora": "2026-08-07T14:30:15",
+                    "rutaImagen": None,
+                    "resultado": "Identificado",
+                    "similitud": 0.87321,
+                }
+            ],
+        }
+
+    def listar_camaras(self, token):
+        if token != "token-prueba":
+            raise CredencialesInvalidas("La sesion no es valida")
+        return {
+            "ok": True,
+            "camaras": [{"id": 4, "nombre": "Acceso principal"}],
+        }
+
+
 class PruebasApi(unittest.TestCase):
     def setUp(self):
         self.temporal = tempfile.TemporaryDirectory()
@@ -173,6 +208,7 @@ class PruebasApi(unittest.TestCase):
                 alto_maximo_web=48,
             ),
             AutenticacionFalsa(),
+            IngresosFalso(),
         )
         self.servidor = ThreadingHTTPServer(("127.0.0.1", 0), handler)
         self.hilo = threading.Thread(
@@ -489,6 +525,45 @@ class PruebasApi(unittest.TestCase):
         conexion.close()
         self.assertEqual(respuesta.status, 200)
         self.assertEqual(editado["subusuario"]["nombreUsuario"], "ana.editada")
+
+    def test_ingresos_exigen_sesion_y_devuelven_datos_paginados(self):
+        estado, _, cuerpo = self._solicitar("GET", "/api/ingresos")
+        self.assertEqual(estado, 401)
+        self.assertFalse(json.loads(cuerpo)["ok"])
+
+        conexion = http.client.HTTPConnection(
+            "127.0.0.1",
+            self.puerto,
+            timeout=3,
+        )
+        conexion.request(
+            "GET",
+            "/api/ingresos?pagina=2&limite=10",
+            headers={"Authorization": "Bearer token-prueba"},
+        )
+        respuesta = conexion.getresponse()
+        listado = json.loads(respuesta.read())
+        conexion.close()
+        self.assertEqual(respuesta.status, 200)
+        self.assertEqual(listado["pagina"], 2)
+        self.assertEqual(listado["limite"], 10)
+        self.assertEqual(listado["ingresos"][0]["idDeteccion"], 35)
+
+        conexion = http.client.HTTPConnection(
+            "127.0.0.1",
+            self.puerto,
+            timeout=3,
+        )
+        conexion.request(
+            "GET",
+            "/api/ingresos/camaras",
+            headers={"Authorization": "Bearer token-prueba"},
+        )
+        respuesta = conexion.getresponse()
+        camaras = json.loads(respuesta.read())
+        conexion.close()
+        self.assertEqual(respuesta.status, 200)
+        self.assertEqual(camaras["camaras"][0]["id"], 4)
 
 
 if __name__ == "__main__":
