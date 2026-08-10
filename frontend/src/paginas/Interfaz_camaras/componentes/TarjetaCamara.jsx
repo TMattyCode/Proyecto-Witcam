@@ -1,4 +1,6 @@
 import "./TarjetaCamara.css";
+import iconoBasurero from "../../../assets/iconos/028 icono-basurero.png";
+import iconoEditar from "../../../assets/iconos/029 icono-editar.blanco.png";
 
 function IconoCamara() {
   return (
@@ -19,6 +21,7 @@ export default function TarjetaCamara({
   nombreGrupo,
   onIniciar,
   onDetener,
+  onEditar,
   onEliminar,
 }) {
   const simulada = camara.tipo === "simulada";
@@ -95,9 +98,29 @@ export default function TarjetaCamara({
           )
         )}
 
-        <button className="boton-camara secundario" type="button" disabled={operando} onClick={onEliminar}>
-          Eliminar cámara
-        </button>
+        <div className="tarjeta-camara-acciones-iconos">
+          <button
+            className="boton-camara editar"
+            type="button"
+            disabled={operando}
+            onClick={onEditar}
+            aria-label={`Editar cámara ${camara.nombre}`}
+            title="Editar cámara"
+          >
+            <img src={iconoEditar} alt="" aria-hidden="true" />
+          </button>
+
+          <button
+            className="boton-camara eliminar"
+            type="button"
+            disabled={operando}
+            onClick={onEliminar}
+            aria-label={`Eliminar cámara ${camara.nombre}`}
+            title="Eliminar cámara"
+          >
+            <img src={iconoBasurero} alt="" aria-hidden="true" />
+          </button>
+        </div>
       </footer>
     </article>
   );

@@ -5,6 +5,7 @@ import TarjetaCamara from "./componentes/TarjetaCamara";
 import EditorGruposCamara from "./componentes/EditorGruposCamara";
 import FiltroSeleccionMultiple from "./componentes/FiltroSeleccionMultiple";
 import imagenSimulacion from "../../assets/images/001 witcam inicio imagen.png";
+import iconoCamaraAzul from "../../assets/iconos/025 icono-camara-azul.png";
 import {
   detenerTransmision,
   iniciarTransmision,
@@ -70,12 +71,7 @@ function leerGruposGuardados() {
 }
 
 function IconoVista() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <rect x="3" y="5" width="18" height="14" rx="2" />
-      <path d="M8 19v2m8-2v2M8 9h8m-8 4h5" />
-    </svg>
-  );
+  return <img src={iconoCamaraAzul} alt="" aria-hidden="true" />;
 }
 
 function IconoCamaraVacia() {
@@ -87,10 +83,21 @@ function IconoCamaraVacia() {
   );
 }
 
+function IconoFlechaFiltro() {
+  return (
+    <span className="control-flecha" aria-hidden="true">
+      <svg viewBox="0 0 12 8">
+        <path d="m1 1.5 5 5 5-5" />
+      </svg>
+    </span>
+  );
+}
+
 export default function InterfazCamaras() {
   const [camaras, setCamaras] = useState(leerCamarasGuardadas);
   const [estado, setEstado] = useState(ESTADO_DETENIDO);
   const [modalAbierto, setModalAbierto] = useState(false);
+  const [camaraEditando, setCamaraEditando] = useState(null);
   const [editorGruposAbierto, setEditorGruposAbierto] = useState(false);
   const [tipoCamara, setTipoCamara] = useState("webcam");
   const [nombreCamara, setNombreCamara] = useState("Webcam integrada");
@@ -148,6 +155,7 @@ export default function InterfazCamaras() {
   };
 
   const abrirFormulario = () => {
+    setCamaraEditando(null);
     const tipoInicial = tieneWebcam ? "simulada" : "webcam";
     setTipoCamara(tipoInicial);
     setNombreCamara(
@@ -162,6 +170,18 @@ export default function InterfazCamaras() {
     setPasswordConexion("");
     setGrupoCamaraId("");
     setModalAbierto(true);
+  };
+
+  const abrirEdicion = (camara) => {
+    setCamaraEditando(camara);
+    setNombreCamara(camara.nombre);
+    setGrupoCamaraId(String(camara.grupoCamaraId ?? ""));
+    setModalAbierto(true);
+  };
+
+  const cerrarFormulario = () => {
+    setModalAbierto(false);
+    setCamaraEditando(null);
   };
 
   const cambiarTipo = (evento) => {
@@ -192,9 +212,21 @@ export default function InterfazCamaras() {
   const guardarCamara = (evento) => {
     evento.preventDefault();
     const nombre = nombreCamara.trim();
-    if (!nombre || camaras.length >= LIMITE_CAMARAS) return;
+    if (!nombre || !grupoCamaraId) return;
+
+    if (camaraEditando) {
+      guardarColeccion(camaras.map((camara) =>
+        camara.id === camaraEditando.id
+          ? { ...camara, nombre, grupoCamaraId: Number(grupoCamaraId) }
+          : camara
+      ));
+      cerrarFormulario();
+      setErrorInterfaz("");
+      return;
+    }
+
+    if (camaras.length >= LIMITE_CAMARAS) return;
     if (tipoCamara === "webcam" && tieneWebcam) return;
-    if (!grupoCamaraId) return;
     if (
       tipoCamara === "onvif" &&
       (!direccionIp.trim() || !puertoOnvif || !usuarioConexion.trim() ||
@@ -217,7 +249,7 @@ export default function InterfazCamaras() {
         : {}),
     };
     guardarColeccion([...camaras, nuevaCamara]);
-    setModalAbierto(false);
+    cerrarFormulario();
     setErrorInterfaz("");
   };
 
@@ -313,6 +345,7 @@ export default function InterfazCamaras() {
               <button
                 className={`control-camaras-boton${columnasCuadricula !== "auto" ? " filtro-activo" : ""}`}
                 type="button"
+                aria-expanded={filtroAbierto === "cuadricula"}
                 onClick={() => setFiltroAbierto(
                   filtroAbierto === "cuadricula" ? null : "cuadricula",
                 )}
@@ -320,7 +353,7 @@ export default function InterfazCamaras() {
                 {columnasCuadricula === "auto"
                   ? "Cuadrícula automática"
                   : `${columnasCuadricula} por fila`}
-                <span className="control-flecha">⌄</span>
+                <IconoFlechaFiltro />
               </button>
               {filtroAbierto === "cuadricula" && (
                 <section className="selector-cuadricula" aria-label="Opciones de cuadrícula">
@@ -355,12 +388,13 @@ export default function InterfazCamaras() {
               <button
                 className={`control-camaras-boton${gruposSeleccionados !== null ? " filtro-activo" : ""}`}
                 type="button"
+                aria-expanded={filtroAbierto === "grupos"}
                 onClick={() => setFiltroAbierto(
                   filtroAbierto === "grupos" ? null : "grupos",
                 )}
               >
                 Grupo cámaras
-                <span className="control-flecha">⌄</span>
+                <IconoFlechaFiltro />
               </button>
               {filtroAbierto === "grupos" && (
                 <FiltroSeleccionMultiple
@@ -377,12 +411,13 @@ export default function InterfazCamaras() {
               <button
                 className={`control-camaras-boton${camarasSeleccionadas !== null ? " filtro-activo" : ""}`}
                 type="button"
+                aria-expanded={filtroAbierto === "camaras"}
                 onClick={() => setFiltroAbierto(
                   filtroAbierto === "camaras" ? null : "camaras",
                 )}
               >
                 Filtrar cámaras
-                <span className="control-flecha">⌄</span>
+                <IconoFlechaFiltro />
               </button>
               {filtroAbierto === "camaras" && (
                 <FiltroSeleccionMultiple
@@ -396,7 +431,7 @@ export default function InterfazCamaras() {
               )}
             </div>
             <button
-              className="control-camaras-boton"
+              className="boton-anadir-camara"
               type="button"
               onClick={abrirEditorGrupos}
             >
@@ -433,6 +468,7 @@ export default function InterfazCamaras() {
                 }
                 onIniciar={() => iniciar(camara)}
                 onDetener={() => detener(camara)}
+                onEditar={() => abrirEdicion(camara)}
                 onEliminar={() => eliminar(camara)}
               />
             ))
@@ -461,25 +497,31 @@ export default function InterfazCamaras() {
             className="modal-camara"
             role="dialog"
             aria-modal="true"
-            aria-labelledby="titulo-anadir-camara"
+            aria-labelledby="titulo-formulario-camara"
             onSubmit={guardarCamara}
           >
             <div className="modal-camara-cabecera">
               <div>
-                <span>Configuración de prueba</span>
-                <h2 id="titulo-anadir-camara">Añadir cámara</h2>
+                <span>{camaraEditando ? "Configuración de cámara" : "Configuración de prueba"}</span>
+                <h2 id="titulo-formulario-camara">
+                  {camaraEditando ? "Editar cámara" : "Añadir cámara"}
+                </h2>
               </div>
-              <button type="button" aria-label="Cerrar" onClick={() => setModalAbierto(false)}>
+              <button type="button" aria-label="Cerrar" onClick={cerrarFormulario}>
                 ×
               </button>
             </div>
 
-            <label htmlFor="tipo-camara">Tipo de fuente</label>
-            <select id="tipo-camara" value={tipoCamara} onChange={cambiarTipo}>
-              <option value="webcam" disabled={tieneWebcam}>Webcam local</option>
-              <option value="onvif">Cámara ONVIF</option>
-              <option value="simulada">Cámara simulada con imagen</option>
-            </select>
+            {!camaraEditando && (
+              <>
+                <label htmlFor="tipo-camara">Tipo de fuente</label>
+                <select id="tipo-camara" value={tipoCamara} onChange={cambiarTipo}>
+                  <option value="webcam" disabled={tieneWebcam}>Webcam local</option>
+                  <option value="onvif">Cámara ONVIF</option>
+                  <option value="simulada">Cámara simulada con imagen</option>
+                </select>
+              </>
+            )}
 
             <label htmlFor="nombre-camara">Nombre de la cámara</label>
             <input
@@ -490,7 +532,7 @@ export default function InterfazCamaras() {
               onChange={(evento) => setNombreCamara(evento.target.value)}
             />
 
-            {tipoCamara === "webcam" ? (
+            {!camaraEditando && (tipoCamara === "webcam" ? (
               <>
                 <label htmlFor="dispositivo-camara">Dispositivo</label>
                 <select id="dispositivo-camara" value="0" disabled>
@@ -547,7 +589,7 @@ export default function InterfazCamaras() {
                 />
 
               </>
-            )}
+            ))}
 
             <label htmlFor="grupo-camara">Grupo</label>
             <select
@@ -563,27 +605,27 @@ export default function InterfazCamaras() {
               ))}
             </select>
 
-            <p>
+            {!camaraEditando && <p>
               {tipoCamara === "webcam"
                 ? "La webcam transmitirá sin activar todavía el análisis de IA."
                 : tipoCamara === "onvif"
                   ? "La fuente ONVIF quedará registrada, pero no se conectará todavía."
                   : "La cámara simulada no abre dispositivos ni consume el backend de video."}
-            </p>
+            </p>}
 
             <div className="modal-camara-acciones">
-              <button type="button" onClick={() => setModalAbierto(false)}>Cancelar</button>
+              <button type="button" onClick={cerrarFormulario}>Cancelar</button>
               <button
                 type="submit"
                 disabled={
                   !nombreCamara.trim() || !grupoCamaraId ||
-                  (tipoCamara === "onvif" && (
+                  (!camaraEditando && tipoCamara === "onvif" && (
                     !direccionIp.trim() || !puertoOnvif ||
                     !usuarioConexion.trim() || !passwordConexion
                   ))
                 }
               >
-                Guardar cámara
+                {camaraEditando ? "Guardar cambios" : "Guardar cámara"}
               </button>
             </div>
           </form>
