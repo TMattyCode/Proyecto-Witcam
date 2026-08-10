@@ -300,9 +300,8 @@ GO
 
 /* =========================================================
    CÁMARAS
-   No se guarda Conectada/Desconectada.
-   Ese estado se calculará desde el backend.
-   El campo activa es administrativo.
+   Datos necesarios para registrar cámaras ONVIF.
+   El estado conectado/desconectado se determina en tiempo real.
    ========================================================= */
 
 CREATE TABLE Camara (
@@ -312,16 +311,22 @@ CREATE TABLE Camara (
 
     nombre_camara VARCHAR(150) NOT NULL,
 
-    /*
-       Fuente completa que utiliza el backend para abrir el video.
-       Ejemplo: rtsp://servidor:8554/camara1
-    */
-    fuente_video VARCHAR(1000) NOT NULL,
+    direccion_ip VARCHAR(255) NOT NULL,
 
-    usuario_conexion VARCHAR(150) NULL,
-    password_conexion_cifrada VARBINARY(512) NULL,
+    puerto_onvif INT NOT NULL DEFAULT 80,
+
+    usuario_conexion VARCHAR(150) NOT NULL,
+
+    password_conexion_cifrada VARBINARY(512) NOT NULL,
+
+    /*
+       Esta dirección puede obtenerse posteriormente
+       mediante ONVIF y utilizarse para abrir el stream.
+    */
+    fuente_video VARCHAR(1000) NULL,
 
     activa BIT NOT NULL DEFAULT 1,
+
     fecha_registro DATETIME NOT NULL DEFAULT GETDATE(),
 
     CONSTRAINT FK_Camara_GrupoCamara
@@ -329,7 +334,10 @@ CREATE TABLE Camara (
         REFERENCES GrupoCamara(id_grupo_camara),
 
     CONSTRAINT UQ_Camara_Grupo_Nombre
-        UNIQUE (id_grupo_camara, nombre_camara)
+        UNIQUE (id_grupo_camara, nombre_camara),
+
+    CONSTRAINT CK_Camara_PuertoONVIF
+        CHECK (puerto_onvif BETWEEN 1 AND 65535)
 );
 GO
 
