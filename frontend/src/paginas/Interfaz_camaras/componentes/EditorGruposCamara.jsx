@@ -4,8 +4,7 @@ import "./EditorGruposCamara.css";
 export default function EditorGruposCamara({
   grupos,
   camaras,
-  claveAlmacenamiento,
-  onCambiar,
+  onGuardar,
   onCerrar,
 }) {
   const [gruposBorrador, setGruposBorrador] = useState(() =>
@@ -13,6 +12,7 @@ export default function EditorGruposCamara({
   );
   const [nombreGrupo, setNombreGrupo] = useState("");
   const [error, setError] = useState("");
+  const [guardando, setGuardando] = useState(false);
 
   const crearGrupo = (evento) => {
     evento.preventDefault();
@@ -29,7 +29,7 @@ export default function EditorGruposCamara({
 
     setGruposBorrador([
       ...gruposBorrador,
-      { id: Date.now(), nombre },
+      { id: `nuevo-${Date.now()}`, nombre, descripcion: "" },
     ]);
     setNombreGrupo("");
     setError("");
@@ -62,7 +62,7 @@ export default function EditorGruposCamara({
     setError("");
   };
 
-  const guardarCambios = () => {
+  const guardarCambios = async () => {
     const normalizados = gruposBorrador.map((grupo) => ({
       ...grupo,
       nombre: grupo.nombre.trim(),
@@ -78,9 +78,16 @@ export default function EditorGruposCamara({
       return;
     }
 
-    localStorage.setItem(claveAlmacenamiento, JSON.stringify(normalizados));
-    onCambiar(normalizados);
-    onCerrar();
+    setGuardando(true);
+    setError("");
+    try {
+      await onGuardar(normalizados);
+      onCerrar();
+    } catch (errorSolicitud) {
+      setError(errorSolicitud.message);
+    } finally {
+      setGuardando(false);
+    }
   };
 
   return (
@@ -101,15 +108,16 @@ export default function EditorGruposCamara({
               className="editor-grupos-guardar"
               type="button"
               onClick={guardarCambios}
+              disabled={guardando}
             >
-              Guardar cambios
+              {guardando ? "Guardando..." : "Guardar cambios"}
             </button>
             <button type="button" aria-label="Cerrar sin guardar" onClick={onCerrar}>×</button>
           </div>
         </div>
 
         <form className="editor-grupos-formulario" onSubmit={crearGrupo}>
-          <label htmlFor="nombre-grupo">Nombre del grupo</label>
+          <label htmlFor="nombre-grupo">Añadir grupo al borrador</label>
           <div className="editor-grupos-nuevo">
             <input
               id="nombre-grupo"
@@ -122,7 +130,7 @@ export default function EditorGruposCamara({
                 setError("");
               }}
             />
-            <button type="submit" disabled={!nombreGrupo.trim()}>Crear grupo</button>
+            <button type="submit" disabled={!nombreGrupo.trim() || guardando}>Añadir</button>
           </div>
         </form>
 

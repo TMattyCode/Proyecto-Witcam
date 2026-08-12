@@ -17,7 +17,11 @@ from backend.config import (
     ConfiguracionVideo,
 )
 from backend.galerias.repositorio import RepositorioGalerias
-from backend.exceptions import CredencialesInvalidas, RegistroDuplicado
+from backend.exceptions import (
+    CredencialesInvalidas,
+    ErrorAutenticacion,
+    RegistroDuplicado,
+)
 
 
 JPEG_MINIMO = b"\xff\xd8\xff\xd9"
@@ -96,8 +100,8 @@ class AutenticacionFalsa:
             raise CredencialesInvalidas("La sesion no es valida")
         filtros = filtros or {}
         estado = filtros.get("estado", "activo")
-        if estado not in {"activo", "inactivo"}:
-            raise ValueError("El estado debe ser activo o inactivo")
+        if estado != "activo":
+            raise ValueError("Solo se pueden consultar subusuarios activos")
         return {
             "ok": True,
             "filtroEstado": estado,
@@ -126,10 +130,12 @@ class AutenticacionFalsa:
     def actualizar_estado_subusuario(self, token, datos):
         if token != self.token:
             raise CredencialesInvalidas("La sesion no es valida")
+        if datos["estado"] != "inactivo":
+            raise ErrorAutenticacion("Los subusuarios solo se pueden desactivar")
         return {
             "ok": True,
             "id": datos["id"],
-            "estado": "Inactivo" if datos["estado"] == "inactivo" else "Activo",
+            "estado": "Inactivo",
         }
 
     def editar_subusuario(self, token, datos):
@@ -184,6 +190,36 @@ class IngresosFalso:
         }
 
 
+class CamarasFalso:
+    def _validar(self, token):
+        if token != "token-prueba":
+            raise CredencialesInvalidas("La sesion no es valida")
+
+    def listar(self, token):
+        self._validar(token)
+        return {
+            "ok": True,
+            "grupos": [{"id": 3, "nombre": "Entrada"}],
+            "camaras": [{"id": 9, "nombre": "Acceso", "tipo": "onvif"}],
+        }
+
+    def guardar_grupos(self, token, datos):
+        self._validar(token)
+        return self.listar(token)
+
+    def crear(self, token, datos):
+        self._validar(token)
+        return {"ok": True, "id": 9, **self.listar(token)}
+
+    def editar(self, token, datos):
+        self._validar(token)
+        return self.listar(token)
+
+    def eliminar(self, token, datos):
+        self._validar(token)
+        return {"ok": True, "grupos": [], "camaras": []}
+
+
 class PruebasApi(unittest.TestCase):
     def setUp(self):
         self.temporal = tempfile.TemporaryDirectory()
@@ -209,6 +245,7 @@ class PruebasApi(unittest.TestCase):
             ),
             AutenticacionFalsa(),
             IngresosFalso(),
+            CamarasFalso(),
         )
         self.servidor = ThreadingHTTPServer(("127.0.0.1", 0), handler)
         self.hilo = threading.Thread(
@@ -444,10 +481,10 @@ class PruebasApi(unittest.TestCase):
             headers={"Authorization": "Bearer token-prueba"},
         )
         respuesta = conexion.getresponse()
-        listado = json.loads(respuesta.read())
+        error = json.loads(respuesta.read())
         conexion.close()
-        self.assertEqual(respuesta.status, 200)
-        self.assertEqual(listado["filtroEstado"], "inactivo")
+        self.assertEqual(respuesta.status, 400)
+        self.assertFalse(error["ok"])
 
         conexion = http.client.HTTPConnection("127.0.0.1", self.puerto, timeout=3)
         conexion.request(
@@ -564,6 +601,36 @@ class PruebasApi(unittest.TestCase):
         conexion.close()
         self.assertEqual(respuesta.status, 200)
         self.assertEqual(camaras["camaras"][0]["id"], 4)
+
+    def test_camaras_exigen_sesion_y_exponen_crud(self):
+        estado, _, _ = self._solicitar("GET", "/api/camaras")
+        self.assertEqual(estado, 401)
+
+        for ruta, datos, esperado in (
+            ("/api/grupos-camara/guardar", {"grupos": []}, 200),
+            ("/api/camaras/crear", {"nombre": "Acceso"}, 201),
+            ("/api/camaras/editar", {"id": 9}, 200),
+            ("/api/camaras/eliminar", {"id": 9}, 200),
+        ):
+            conexion = http.client.HTTPConnection(
+                "127.0.0.1",
+                self.puerto,
+                timeout=3,
+            )
+            conexion.request(
+                "POST",
+                ruta,
+                json.dumps(datos),
+                {
+                    "Content-Type": "application/json",
+                    "Authorization": "Bearer token-prueba",
+                },
+            )
+            respuesta = conexion.getresponse()
+            cuerpo = json.loads(respuesta.read())
+            conexion.close()
+            self.assertEqual(respuesta.status, esperado)
+            self.assertTrue(cuerpo["ok"])
 
 
 if __name__ == "__main__":

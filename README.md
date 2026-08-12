@@ -9,8 +9,8 @@ El repositorio tambien contiene la interfaz definitiva desarrollada con React y 
 - El backend modular v2 se inicia con `main.py`, procesa una fuente de video y expone una API HTTP local.
 - La version estable anterior y su interfaz se conservan dentro de `interfaz_prueba/` como respaldo independiente.
 - La interfaz final se encuentra en `frontend/` y usa React, Vite, React Router, rutas protegidas y restauracion de sesion.
-- Registro, inicio, consulta y cierre de sesion ya consumen la API modular de Python. Las demas pantallas siguen pendientes de integracion.
-- El backend usa SQL Server para registrar cuentas y usuarios, validar credenciales y actualizar el ultimo acceso.
+- Registro, inicio, consulta y cierre de sesion ya consumen la API modular de Python. La configuracion de grupos y camaras tambien se persiste por cuenta en SQL Server.
+- El backend usa SQL Server para registrar cuentas, usuarios, grupos y camaras, validar credenciales y actualizar el ultimo acceso.
 - En desarrollo local, SQL Server se conecta mediante memoria compartida (`lpc:localhost`) y autenticacion de Windows, sin exponer un puerto TCP.
 - Actualmente el backend procesa una fuente configurable en `backend/config.py`, que puede ser el indice de una webcam, una URL RTSP o la ruta de un video local. La version final debera registrar una cantidad variable de camaras y canales de NVR.
 
@@ -38,7 +38,7 @@ Solo los adaptadores de `backend/ia/adaptadores/` importan directamente InsightF
 
 `RepositorioGalerias` comparte un `threading.RLock` entre la API y el motor. El bloqueo cubre listados, firmas, carga completa, escritura, movimiento, renombrado, rechazo y reconciliacion. De esta forma la IA no puede leer una galeria a medio modificar mientras la interfaz realiza una operacion.
 
-La capa `backend/database/` encapsula la conexion local a SQL Server y el repositorio de usuarios. El script `database/Tablas.sql` sigue siendo la fuente para crear `WitcamBD`, sus catalogos, relaciones y tablas iniciales.
+La capa `backend/database/` encapsula la conexion local a SQL Server y los repositorios de usuarios, ingresos y camaras. El script `database/Tablas.sql` sigue siendo la fuente para crear `WitcamBD`, sus catalogos, relaciones y tablas iniciales.
 
 ## Que usa
 
@@ -72,6 +72,10 @@ requirements.txt              Dependencias de Python
 frontend/                      Interfaz final React/Vite
 interfaz_prueba/               Version anterior autocontenida de respaldo
 database/Tablas.sql           Creacion inicial de la base de datos SQL Server
+database/migracion_camaras_por_cuenta.sql  Actualizacion de una base existente
+database/migracion_tipo_camara_rtsp.sql    Habilita fuentes RTSP en una base existente
+database/migracion_unicidad_activos_camaras_grupos.sql  Permite reutilizar nombres inactivos
+database/migracion_unicidad_usuarios_activos.sql  Libera usuario y correo al desactivar subusuarios
 referencias_reconocimiento/   Rostros aprobados (se crea automaticamente)
 referencias_pendientes/       Capturas por revisar (se crea automaticamente)
 ```
@@ -155,6 +159,23 @@ El archivo `database/Tablas.sql` esta escrito para SQL Server. En su estado actu
 
 Si `WitcamBD` ya existe, volver a ejecutar el script completo producira errores porque todavia no es un script idempotente.
 
+Si la base fue creada antes de incorporar los tipos `webcam`, `onvif` y `simulada`, ejecuta una sola vez `database/migracion_camaras_por_cuenta.sql`. Esta migracion conserva las camaras existentes y adapta sus columnas sin recrear la base completa. Para habilitar despues el tipo `rtsp`, ejecuta `database/migracion_tipo_camara_rtsp.sql`; este segundo script solo reemplaza las restricciones de tipos de la tabla `Camara`.
+
+Antes de guardar una camara ONVIF, define una frase secreta local para cifrar sus credenciales. No agregues este valor al repositorio:
+
+```powershell
+$env:WITCAM_CAMERA_SECRET="una-frase-larga-y-privada"
+python main.py
+```
+
+Las respuestas de la API nunca incluyen la contrasena de la camara. Una webcam o camara simulada no necesita esta variable.
+
+Las acciones de eliminar camaras y grupos usan eliminacion logica: conservan las filas y cambian `Camara.activa` o `GrupoCamara.activo` a `0`. Un grupo no puede desactivarse si contiene camaras activas y cada cuenta debe conservar al menos un grupo activo. Esto mantiene validas las referencias de las detecciones historicas.
+
+En una base existente, ejecuta `database/migracion_unicidad_activos_camaras_grupos.sql` para que la unicidad de nombres considere solamente camaras y grupos activos. Despues de desactivar un registro se puede crear otro con el mismo nombre sin eliminar el historial anterior.
+
+Los subusuarios desactivados se conservan como historial en SQL Server, pero no se listan ni se pueden reactivar desde la aplicacion. Su nombre de usuario y correo quedan disponibles para un nuevo perfil activo. En una base existente, habilita esta politica ejecutando `database/migracion_unicidad_usuarios_activos.sql`.
+
 La configuracion local predeterminada usa `ODBC Driver 17 for SQL Server`, autenticacion de Windows y `lpc:localhost`. De esta manera Python y SQL Server se comunican mediante memoria compartida sin habilitar TCP/IP ni abrir el puerto `1433`.
 
 ## Ejecucion durante el desarrollo
@@ -178,7 +199,7 @@ Vite mostrara la direccion local, normalmente:
 http://localhost:5173/
 ```
 
-Durante el desarrollo, Python usa `http://localhost:8000/` y React usa normalmente `http://localhost:5173/`. El proxy de Vite dirige `/api` y `/video_feed` al backend. Registro, inicio, consulta y cierre de sesion ya estan conectados; las pantallas operativas restantes aun usan datos vacios o controles demostrativos.
+Durante el desarrollo, Python usa `http://localhost:8000/` y React usa normalmente `http://localhost:5173/`. El proxy de Vite dirige `/api` y `/video_feed` al backend. Las camaras y grupos se cargan desde SQL Server segun la cuenta autenticada; `localStorage` ya no se usa para persistirlos.
 
 La version final se empaquetara como aplicacion de escritorio: React se compilara, Python servira sus archivos y una ventana nativa iniciara ambos componentes desde un unico ejecutable. El cliente no necesitara ejecutar Vite ni abrir el navegador manualmente.
 
@@ -253,7 +274,7 @@ python -m compileall -q backend tests main.py
 python -m unittest discover -s tests -v
 ```
 
-Actualmente existen 20 pruebas automaticas. Tambien se completo una reproduccion real de diez minutos, 1920x1080 a 30 FPS, con InsightFace/SCRFD, YOLO y ByteTrack usando galerias temporales. El pipeline llego al final del video sin cortes y la firma de galerias permanecio valida. Webcam y RTSP quedan como pruebas manuales dependientes de tener esas fuentes disponibles.
+Actualmente existen 61 pruebas automaticas. Tambien se completo una reproduccion real de diez minutos, 1920x1080 a 30 FPS, con InsightFace/SCRFD, YOLO y ByteTrack usando galerias temporales. El pipeline llego al final del video sin cortes y la firma de galerias permanecio valida. Webcam y RTSP quedan como pruebas manuales dependientes de tener esas fuentes disponibles.
 
 ## Oclusion
 

@@ -20,3 +20,7 @@ class CredencialesInvalidas(ErrorAutenticacion):
 
 class RegistroDuplicado(ErrorAutenticacion):
     """El usuario o correo ya se encuentran registrados."""
+
+
+class ErrorCamara(ErrorWitcam):
+    """Una operacion de camaras o grupos no pudo completarse."""

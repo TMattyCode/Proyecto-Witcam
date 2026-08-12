@@ -34,6 +34,19 @@ class RepositorioUsuarios:
                     """,
                     datos["nombre_cuenta"],
                 ).fetchval()
+                cursor.execute(
+                    """
+                    INSERT INTO GrupoCamara (
+                        id_cuenta,
+                        nombre_grupo,
+                        descripcion
+                    )
+                    VALUES (?, ?, ?)
+                    """,
+                    id_cuenta,
+                    "Grupo 1",
+                    "Grupo predeterminado",
+                )
                 id_usuario = cursor.execute(
                     """
                     INSERT INTO Usuario (
@@ -97,6 +110,7 @@ class RepositorioUsuarios:
                 INNER JOIN EstadoUsuario eu
                     ON eu.id_estado_usuario = u.id_estado_usuario
                 WHERE u.nombre_usuario = ?
+                  AND eu.nombre_estado = 'Activo'
                 """,
                 nombre_usuario,
             ).fetchone()

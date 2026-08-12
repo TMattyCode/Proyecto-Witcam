@@ -188,8 +188,8 @@ CREATE TABLE Usuario (
     nombre VARCHAR(100) NOT NULL,
     apellido VARCHAR(100) NOT NULL,
 
-    nombre_usuario VARCHAR(100) NOT NULL UNIQUE,
-    correo VARCHAR(250) NOT NULL UNIQUE,
+    nombre_usuario VARCHAR(100) NOT NULL,
+    correo VARCHAR(250) NOT NULL,
 
     telefono VARCHAR(20) NULL,
 
@@ -264,10 +264,7 @@ CREATE TABLE GrupoCamara (
 
     CONSTRAINT FK_GrupoCamara_Cuenta
         FOREIGN KEY (id_cuenta)
-        REFERENCES Cuenta(id_cuenta),
-
-    CONSTRAINT UQ_GrupoCamara_Cuenta_Nombre
-        UNIQUE (id_cuenta, nombre_grupo)
+        REFERENCES Cuenta(id_cuenta)
 );
 GO
 
@@ -311,13 +308,19 @@ CREATE TABLE Camara (
 
     nombre_camara VARCHAR(150) NOT NULL,
 
-    direccion_ip VARCHAR(255) NOT NULL,
+    tipo_fuente VARCHAR(20) NOT NULL,
 
-    puerto_onvif INT NOT NULL DEFAULT 80,
+    direccion_ip VARCHAR(255) NULL,
 
-    usuario_conexion VARCHAR(150) NOT NULL,
+    puerto_onvif INT NULL,
 
-    password_conexion_cifrada VARBINARY(512) NOT NULL,
+    usuario_conexion VARCHAR(150) NULL,
+
+    password_conexion_cifrada VARBINARY(512) NULL,
+
+    indice_dispositivo INT NULL,
+
+    escena_simulada VARCHAR(30) NULL,
 
     /*
        Esta dirección puede obtenerse posteriormente
@@ -333,11 +336,58 @@ CREATE TABLE Camara (
         FOREIGN KEY (id_grupo_camara)
         REFERENCES GrupoCamara(id_grupo_camara),
 
-    CONSTRAINT UQ_Camara_Grupo_Nombre
-        UNIQUE (id_grupo_camara, nombre_camara),
-
     CONSTRAINT CK_Camara_PuertoONVIF
-        CHECK (puerto_onvif BETWEEN 1 AND 65535)
+        CHECK (
+            puerto_onvif IS NULL
+            OR puerto_onvif BETWEEN 1 AND 65535
+        ),
+
+    CONSTRAINT CK_Camara_TipoFuente
+        CHECK (tipo_fuente IN ('webcam', 'onvif', 'rtsp', 'simulada')),
+
+    CONSTRAINT CK_Camara_DatosTipo
+        CHECK (
+            (
+                tipo_fuente = 'webcam'
+                AND indice_dispositivo IS NOT NULL
+                AND direccion_ip IS NULL
+                AND puerto_onvif IS NULL
+                AND usuario_conexion IS NULL
+                AND password_conexion_cifrada IS NULL
+                AND escena_simulada IS NULL
+                AND fuente_video IS NULL
+            )
+            OR (
+                tipo_fuente = 'onvif'
+                AND direccion_ip IS NOT NULL
+                AND puerto_onvif IS NOT NULL
+                AND usuario_conexion IS NOT NULL
+                AND password_conexion_cifrada IS NOT NULL
+                AND indice_dispositivo IS NULL
+                AND escena_simulada IS NULL
+            )
+            OR (
+                tipo_fuente = 'rtsp'
+                AND fuente_video IS NOT NULL
+                AND LTRIM(RTRIM(fuente_video)) <> ''
+                AND direccion_ip IS NULL
+                AND puerto_onvif IS NULL
+                AND usuario_conexion IS NULL
+                AND password_conexion_cifrada IS NULL
+                AND indice_dispositivo IS NULL
+                AND escena_simulada IS NULL
+            )
+            OR (
+                tipo_fuente = 'simulada'
+                AND escena_simulada IS NOT NULL
+                AND direccion_ip IS NULL
+                AND puerto_onvif IS NULL
+                AND usuario_conexion IS NULL
+                AND password_conexion_cifrada IS NULL
+                AND indice_dispositivo IS NULL
+                AND fuente_video IS NULL
+            )
+        )
 );
 GO
 
@@ -519,12 +569,22 @@ CREATE INDEX IX_GrupoCamara_Cuenta
 ON GrupoCamara(id_cuenta);
 GO
 
+CREATE UNIQUE INDEX UX_GrupoCamara_Cuenta_Nombre_Activo
+ON GrupoCamara(id_cuenta, nombre_grupo)
+WHERE activo = 1;
+GO
+
 CREATE INDEX IX_UsuarioGrupoCamara_Usuario
 ON Usuario_GrupoCamara(id_usuario);
 GO
 
 CREATE INDEX IX_Camara_GrupoCamara
 ON Camara(id_grupo_camara);
+GO
+
+CREATE UNIQUE INDEX UX_Camara_Grupo_Nombre_Activa
+ON Camara(id_grupo_camara, nombre_camara)
+WHERE activa = 1;
 GO
 
 CREATE INDEX IX_Persona_Cuenta_Nombre
@@ -567,6 +627,16 @@ GO
 CREATE INDEX IX_Usuario_Cuenta_Estado_Fecha
 ON Usuario(id_cuenta, id_estado_usuario, fecha_creacion DESC)
 INCLUDE (id_rol, nombre_usuario, correo, ultimo_acceso);
+GO
+
+CREATE UNIQUE INDEX UX_Usuario_Nombre_Activo
+ON Usuario(nombre_usuario)
+WHERE id_estado_usuario = 1;
+GO
+
+CREATE UNIQUE INDEX UX_Usuario_Correo_Activo
+ON Usuario(correo)
+WHERE id_estado_usuario = 1;
 GO
 
 CREATE INDEX IX_Usuario_Cuenta_UltimoAcceso

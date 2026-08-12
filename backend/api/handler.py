@@ -11,12 +11,14 @@ from backend.aplicacion.servicios import (
 )
 from backend.aplicacion.autenticacion import ServicioAutenticacion
 from backend.aplicacion.ingresos import ServicioIngresos
+from backend.aplicacion.camaras import ServicioCamaras
 from backend.api.serializacion import codificar_json
 from backend.config import ConfiguracionVideo
 from backend.exceptions import (
     CredencialesInvalidas,
     ErrorAutenticacion,
     RegistroDuplicado,
+    ErrorCamara,
 )
 from backend.video.renderizado import crear_frame_mensaje
 
@@ -28,6 +30,7 @@ def crear_handler(
     config_video: ConfiguracionVideo,
     autenticacion: ServicioAutenticacion | None = None,
     ingresos: ServicioIngresos | None = None,
+    camaras: ServicioCamaras | None = None,
 ) -> type[BaseHTTPRequestHandler]:
     class WitcamHandler(BaseHTTPRequestHandler):
         def log_message(self, formato, *args):
@@ -145,6 +148,25 @@ def crear_handler(
                         estado=503,
                     )
                 return
+            if ruta == "/api/camaras":
+                try:
+                    self._exigir_autenticacion()
+                    if camaras is None:
+                        raise ErrorCamara(
+                            "El servicio de camaras no esta disponible"
+                        )
+                    self._json(camaras.listar(self._token_sesion()))
+                except CredencialesInvalidas as error:
+                    self._json(
+                        {"ok": False, "error": str(error)},
+                        estado=401,
+                    )
+                except (ErrorAutenticacion, ErrorCamara) as error:
+                    self._json(
+                        {"ok": False, "error": str(error)},
+                        estado=403,
+                    )
+                return
             if ruta == "/api/ingresos":
                 try:
                     self._exigir_autenticacion()
@@ -228,6 +250,50 @@ def crear_handler(
                         )
                     )
                     return
+                if ruta == "/api/grupos-camara/guardar":
+                    self._exigir_autenticacion()
+                    if camaras is None:
+                        raise ErrorCamara(
+                            "El servicio de camaras no esta disponible"
+                        )
+                    self._json(
+                        camaras.guardar_grupos(
+                            self._token_sesion(),
+                            datos,
+                        )
+                    )
+                    return
+                if ruta == "/api/camaras/crear":
+                    self._exigir_autenticacion()
+                    if camaras is None:
+                        raise ErrorCamara(
+                            "El servicio de camaras no esta disponible"
+                        )
+                    self._json(
+                        camaras.crear(self._token_sesion(), datos),
+                        estado=201,
+                    )
+                    return
+                if ruta == "/api/camaras/editar":
+                    self._exigir_autenticacion()
+                    if camaras is None:
+                        raise ErrorCamara(
+                            "El servicio de camaras no esta disponible"
+                        )
+                    self._json(
+                        camaras.editar(self._token_sesion(), datos)
+                    )
+                    return
+                if ruta == "/api/camaras/eliminar":
+                    self._exigir_autenticacion()
+                    if camaras is None:
+                        raise ErrorCamara(
+                            "El servicio de camaras no esta disponible"
+                        )
+                    self._json(
+                        camaras.eliminar(self._token_sesion(), datos)
+                    )
+                    return
                 if ruta == "/api/start":
                     fuente = datos.get("source")
                     analizar = datos.get("analysis", True)
@@ -280,6 +346,11 @@ def crear_handler(
                 self._json(
                     {"ok": False, "error": str(error)},
                     estado=400,
+                )
+            except ErrorCamara as error:
+                self._json(
+                    {"ok": False, "error": str(error)},
+                    estado=409,
                 )
             except Exception as error:
                 self._json(

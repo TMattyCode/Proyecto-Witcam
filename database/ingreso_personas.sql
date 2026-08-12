@@ -101,22 +101,20 @@ BEGIN TRY
         INSERT INTO Camara (
             id_grupo_camara,
             nombre_camara,
-            direccion_ip,
-            puerto_onvif,
-            usuario_conexion,
-            password_conexion_cifrada,
+            tipo_fuente,
             fuente_video,
+            indice_dispositivo,
+            escena_simulada,
             activa,
             fecha_registro
         )
         VALUES (
             @id_grupo_camara,
             'Camara pruebas de ingresos',
-            '127.0.0.1',
-            80,
-            'usuario_prueba',
-            CONVERT(VARBINARY(512), 'password_prueba'),
-            'prueba://camara-ingresos',
+            'simulada',
+            NULL,
+            NULL,
+            'entrada',
             1,
             GETDATE()
         );

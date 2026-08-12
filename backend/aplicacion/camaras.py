@@ -1,0 +1,227 @@
+from backend.aplicacion.autenticacion import ServicioAutenticacion
+from backend.database.camaras import RepositorioCamaras
+from backend.exceptions import ErrorCamara
+
+
+class ServicioCamaras:
+    TIPOS = {"webcam", "onvif", "rtsp", "simulada"}
+    ESCENAS = {"entrada", "pasillo", "caja", "bodega"}
+
+    def __init__(
+        self,
+        repositorio: RepositorioCamaras,
+        autenticacion: ServicioAutenticacion,
+    ):
+        self.repositorio = repositorio
+        self.autenticacion = autenticacion
+
+    def listar(self, token: str) -> dict:
+        usuario = self._usuario(token)
+        datos = self.repositorio.listar(
+            usuario["idCuenta"],
+            usuario["id"],
+            usuario.get("rol") == "Administrador",
+        )
+        return {"ok": True, **datos}
+
+    def guardar_grupos(self, token: str, datos: dict) -> dict:
+        administrador = self._administrador(token)
+        if not isinstance(datos, dict) or not isinstance(
+            datos.get("grupos"), list
+        ):
+            raise ValueError("La lista de grupos no es valida")
+        grupos = [
+            self._validar_grupo(grupo, indice)
+            for indice, grupo in enumerate(datos["grupos"])
+        ]
+        if not grupos:
+            raise ValueError("Debe existir al menos un grupo de camaras")
+        nombres = [grupo["nombre"].casefold() for grupo in grupos]
+        if len(nombres) != len(set(nombres)):
+            raise ValueError("No puede haber grupos con el mismo nombre")
+        self.repositorio.guardar_grupos(
+            administrador["idCuenta"],
+            grupos,
+        )
+        return self.listar(token)
+
+    def crear(self, token: str, datos: dict) -> dict:
+        administrador = self._administrador(token)
+        normalizados = self._validar_camara(datos, creando=True)
+        id_camara = self.repositorio.crear(
+            administrador["idCuenta"],
+            normalizados,
+        )
+        return {"ok": True, "id": id_camara, **self.listar(token)}
+
+    def editar(self, token: str, datos: dict) -> dict:
+        administrador = self._administrador(token)
+        id_camara = self._id_positivo(datos, "id")
+        normalizados = self._validar_camara(datos, creando=False)
+        if not self.repositorio.editar(
+            administrador["idCuenta"],
+            id_camara,
+            normalizados,
+        ):
+            raise ErrorCamara(
+                "La camara no existe o no pertenece a esta cuenta"
+            )
+        return {"ok": True, **self.listar(token)}
+
+    def eliminar(self, token: str, datos: dict) -> dict:
+        administrador = self._administrador(token)
+        id_camara = self._id_positivo(datos, "id")
+        if not self.repositorio.eliminar(
+            administrador["idCuenta"],
+            id_camara,
+        ):
+            raise ErrorCamara(
+                "La camara no existe o no pertenece a esta cuenta"
+            )
+        return {"ok": True, **self.listar(token)}
+
+    def _usuario(self, token: str) -> dict:
+        return self.autenticacion.obtener_sesion(token)["user"]
+
+    def _administrador(self, token: str) -> dict:
+        usuario = self._usuario(token)
+        if usuario.get("rol") != "Administrador":
+            raise ErrorCamara(
+                "Solo un administrador puede gestionar camaras"
+            )
+        return usuario
+
+    @classmethod
+    def _validar_grupo(cls, grupo, indice: int) -> dict:
+        if not isinstance(grupo, dict):
+            raise ValueError("Uno de los grupos no es valido")
+        identificador = grupo.get("id", f"nuevo-{indice}")
+        if not isinstance(identificador, (int, str)) or isinstance(
+            identificador, bool
+        ):
+            raise ValueError("Uno de los grupos no es valido")
+        if isinstance(identificador, int) and identificador <= 0:
+            raise ValueError("Uno de los grupos no es valido")
+        nombre = cls._texto(grupo, "nombre", 150, obligatorio=True)
+        descripcion = cls._texto(grupo, "descripcion", 250) or None
+        return {
+            "id": identificador,
+            "nombre": nombre,
+            "descripcion": descripcion,
+        }
+
+    @classmethod
+    def _validar_camara(cls, datos, *, creando: bool) -> dict:
+        if not isinstance(datos, dict):
+            raise ValueError("Los datos de la camara no son validos")
+        tipo = cls._texto(datos, "tipo", 20, obligatorio=True).lower()
+        if tipo not in cls.TIPOS:
+            raise ValueError("El tipo de camara no es valido")
+        normalizados = {
+            "id_grupo": cls._id_positivo(datos, "grupoCamaraId"),
+            "nombre": cls._texto(
+                datos,
+                "nombre",
+                150,
+                obligatorio=True,
+            ),
+            "tipo": tipo,
+            "direccion_ip": None,
+            "puerto_onvif": None,
+            "usuario_conexion": None,
+            "password": None,
+            "fuente_video": None,
+            "indice_dispositivo": None,
+            "escena_simulada": None,
+        }
+        if tipo == "webcam":
+            indice = datos.get("fuente", 0)
+            if (
+                isinstance(indice, bool)
+                or not isinstance(indice, int)
+                or indice < 0
+            ):
+                raise ValueError("El dispositivo de webcam no es valido")
+            normalizados["indice_dispositivo"] = indice
+        elif tipo == "simulada":
+            escena = cls._texto(
+                datos,
+                "escena",
+                30,
+                obligatorio=True,
+            ).lower()
+            if escena not in cls.ESCENAS:
+                raise ValueError("La escena simulada no es valida")
+            normalizados["escena_simulada"] = escena
+        elif tipo == "rtsp":
+            fuente_video = cls._texto(
+                datos,
+                "fuenteVideo",
+                1000,
+                obligatorio=True,
+            )
+            if not fuente_video.lower().startswith(("rtsp://", "rtsps://")):
+                raise ValueError("La URL RTSP no es valida")
+            normalizados["fuente_video"] = fuente_video
+        else:
+            normalizados["direccion_ip"] = cls._texto(
+                datos,
+                "direccionIp",
+                255,
+                obligatorio=True,
+            )
+            normalizados["puerto_onvif"] = cls._id_positivo(
+                datos,
+                "puertoOnvif",
+                maximo=65535,
+            )
+            normalizados["usuario_conexion"] = cls._texto(
+                datos,
+                "usuarioConexion",
+                150,
+                obligatorio=True,
+            )
+            password = cls._texto(
+                datos,
+                "passwordConexion",
+                256,
+                recortar=False,
+            )
+            if creando and not password:
+                raise ValueError("La contrasena de la camara es obligatoria")
+            normalizados["password"] = password or None
+        return normalizados
+
+    @staticmethod
+    def _texto(
+        datos: dict,
+        clave: str,
+        maximo: int,
+        *,
+        obligatorio: bool = False,
+        recortar: bool = True,
+    ) -> str:
+        valor = datos.get(clave, "")
+        if not isinstance(valor, str):
+            raise ValueError(f"El campo {clave} no es valido")
+        valor = valor.strip() if recortar else valor
+        if len(valor) > maximo or (obligatorio and not valor):
+            raise ValueError(f"El campo {clave} no es valido")
+        return valor
+
+    @staticmethod
+    def _id_positivo(
+        datos: dict,
+        clave: str,
+        maximo: int | None = None,
+    ) -> int:
+        valor = datos.get(clave)
+        try:
+            numero = int(valor)
+        except (TypeError, ValueError) as error:
+            raise ValueError(f"El campo {clave} no es valido") from error
+        if isinstance(valor, bool) or numero <= 0 or (
+            maximo is not None and numero > maximo
+        ):
+            raise ValueError(f"El campo {clave} no es valido")
+        return numero

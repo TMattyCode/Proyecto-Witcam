@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+import os
 from pathlib import Path
 
 
@@ -19,6 +20,12 @@ class ConfiguracionBaseDatos:
     conexion_confiable: bool = True
     cifrar: bool = True
     confiar_certificado_servidor: bool = True
+    secreto_camaras: str = field(
+        default_factory=lambda: os.environ.get(
+            "WITCAM_CAMERA_SECRET",
+            "",
+        )
+    )
 
     def cadena_conexion(self) -> str:
         partes = [

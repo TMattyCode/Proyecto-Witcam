@@ -6,16 +6,18 @@ import EditorGruposCamara from "./componentes/EditorGruposCamara";
 import FiltroSeleccionMultiple from "./componentes/FiltroSeleccionMultiple";
 import imagenSimulacion from "../../assets/images/001 witcam inicio imagen.png";
 import iconoCamaraAzul from "../../assets/iconos/025 icono-camara-azul.png";
+import { useAutenticacion } from "../../contextos/AutenticacionContext";
 import {
+  crearCamara,
   detenerTransmision,
+  editarCamara,
+  eliminarCamara,
+  guardarGruposCamara,
   iniciarTransmision,
+  obtenerCamarasConfiguradas,
   obtenerEstadoMonitoreo,
 } from "../../servicios/api";
 
-const CLAVE_CAMARAS = "witcam_camaras_prueba";
-const CLAVE_CAMARA_ANTIGUA = "witcam_camara_prueba";
-const CLAVE_GRUPOS_CAMARAS = "witcam_grupos_camaras_prueba";
-const GRUPO_INICIAL = { id: 1, nombre: "Grupo 1" };
 const LIMITE_CAMARAS = 9;
 const ESCENAS_SIMULADAS = [
   { valor: "entrada", nombre: "Entrada principal" },
@@ -29,46 +31,6 @@ const ESTADO_DETENIDO = {
   last_error: null,
   last_event: "Detenido",
 };
-
-function leerCamarasGuardadas() {
-  try {
-    const coleccion = JSON.parse(localStorage.getItem(CLAVE_CAMARAS));
-    if (Array.isArray(coleccion)) return coleccion;
-
-    const anterior = JSON.parse(localStorage.getItem(CLAVE_CAMARA_ANTIGUA));
-    if (anterior && typeof anterior === "object") {
-      const migradas = [anterior];
-      localStorage.setItem(CLAVE_CAMARAS, JSON.stringify(migradas));
-      localStorage.removeItem(CLAVE_CAMARA_ANTIGUA);
-      return migradas;
-    }
-  } catch {
-    localStorage.removeItem(CLAVE_CAMARAS);
-  }
-  return [];
-}
-
-function normalizarNombreGrupoInicial(grupo) {
-  return grupo.nombre?.trim().toLocaleLowerCase() === "grupo 1"
-    ? { ...grupo, nombre: "Grupo 1" }
-    : grupo;
-}
-
-function leerGruposGuardados() {
-  try {
-    const grupos = JSON.parse(localStorage.getItem(CLAVE_GRUPOS_CAMARAS));
-    if (Array.isArray(grupos) && grupos.length) {
-      const gruposNormalizados = grupos.map(normalizarNombreGrupoInicial);
-      localStorage.setItem(CLAVE_GRUPOS_CAMARAS, JSON.stringify(gruposNormalizados));
-      return gruposNormalizados;
-    }
-  } catch {
-    // Si el contenido no es válido se reemplaza por el grupo inicial.
-  }
-  const gruposIniciales = [GRUPO_INICIAL];
-  localStorage.setItem(CLAVE_GRUPOS_CAMARAS, JSON.stringify(gruposIniciales));
-  return gruposIniciales;
-}
 
 function IconoVista() {
   return <img src={iconoCamaraAzul} alt="" aria-hidden="true" />;
@@ -94,7 +56,9 @@ function IconoFlechaFiltro() {
 }
 
 export default function InterfazCamaras() {
-  const [camaras, setCamaras] = useState(leerCamarasGuardadas);
+  const { usuario } = useAutenticacion();
+  const esAdministrador = usuario?.rol === "Administrador";
+  const [camaras, setCamaras] = useState([]);
   const [estado, setEstado] = useState(ESTADO_DETENIDO);
   const [modalAbierto, setModalAbierto] = useState(false);
   const [camaraEditando, setCamaraEditando] = useState(null);
@@ -106,8 +70,9 @@ export default function InterfazCamaras() {
   const [puertoOnvif, setPuertoOnvif] = useState("80");
   const [usuarioConexion, setUsuarioConexion] = useState("");
   const [passwordConexion, setPasswordConexion] = useState("");
+  const [fuenteVideo, setFuenteVideo] = useState("");
   const [grupoCamaraId, setGrupoCamaraId] = useState("");
-  const [gruposCamaras, setGruposCamaras] = useState(leerGruposGuardados);
+  const [gruposCamaras, setGruposCamaras] = useState([]);
   const [filtroAbierto, setFiltroAbierto] = useState(null);
   const [camarasSeleccionadas, setCamarasSeleccionadas] = useState(null);
   const [gruposSeleccionados, setGruposSeleccionados] = useState(null);
@@ -115,18 +80,40 @@ export default function InterfazCamaras() {
   const [operandoId, setOperandoId] = useState(null);
   const [errorInterfaz, setErrorInterfaz] = useState("");
   const [versionStream, setVersionStream] = useState(1);
+  const [cargandoConfiguracion, setCargandoConfiguracion] = useState(true);
   const tieneWebcam = camaras.some((camara) => camara.tipo === "webcam");
+
+  const aplicarConfiguracion = (respuesta) => {
+    setCamaras(respuesta.camaras || []);
+    setGruposCamaras(respuesta.grupos || []);
+  };
+
+  useEffect(() => {
+    let activo = true;
+    obtenerCamarasConfiguradas()
+      .then((respuesta) => {
+        if (activo) {
+          aplicarConfiguracion(respuesta);
+          setErrorInterfaz("");
+        }
+      })
+      .catch((error) => {
+        if (activo) setErrorInterfaz(error.message);
+      })
+      .finally(() => {
+        if (activo) setCargandoConfiguracion(false);
+      });
+    return () => {
+      activo = false;
+    };
+  }, []);
 
   useEffect(() => {
     let activo = true;
 
     async function actualizar() {
       try {
-        let siguienteEstado = await obtenerEstadoMonitoreo();
-        if (!tieneWebcam && siguienteEstado.running) {
-          await detenerTransmision();
-          siguienteEstado = ESTADO_DETENIDO;
-        }
+        const siguienteEstado = await obtenerEstadoMonitoreo();
         if (activo) {
           setEstado(siguienteEstado);
           setErrorInterfaz("");
@@ -149,11 +136,6 @@ export default function InterfazCamaras() {
     };
   }, [tieneWebcam]);
 
-  const guardarColeccion = (siguientes) => {
-    localStorage.setItem(CLAVE_CAMARAS, JSON.stringify(siguientes));
-    setCamaras(siguientes);
-  };
-
   const abrirFormulario = () => {
     setCamaraEditando(null);
     const tipoInicial = tieneWebcam ? "simulada" : "webcam";
@@ -168,14 +150,22 @@ export default function InterfazCamaras() {
     setPuertoOnvif("80");
     setUsuarioConexion("");
     setPasswordConexion("");
+    setFuenteVideo("");
     setGrupoCamaraId("");
     setModalAbierto(true);
   };
 
   const abrirEdicion = (camara) => {
     setCamaraEditando(camara);
+    setTipoCamara(camara.tipo);
     setNombreCamara(camara.nombre);
     setGrupoCamaraId(String(camara.grupoCamaraId ?? ""));
+    setEscena(camara.escena || ESCENAS_SIMULADAS[0].valor);
+    setDireccionIp(camara.direccionIp || "");
+    setPuertoOnvif(String(camara.puertoOnvif || 80));
+    setUsuarioConexion(camara.usuarioConexion || "");
+    setPasswordConexion("");
+    setFuenteVideo(camara.fuenteVideo || "");
     setModalAbierto(true);
   };
 
@@ -192,49 +182,32 @@ export default function InterfazCamaras() {
         ? "Webcam integrada"
         : tipo === "onvif"
           ? `Cámara ONVIF ${camaras.length + 1}`
-          : `Cámara simulada ${camaras.length + 1}`,
+          : tipo === "rtsp"
+            ? `Stream RTSP ${camaras.length + 1}`
+            : `Cámara simulada ${camaras.length + 1}`,
     );
   };
 
   const abrirEditorGrupos = () => {
-    if (!gruposCamaras.length) {
-      const gruposIniciales = [GRUPO_INICIAL];
-      localStorage.setItem(CLAVE_GRUPOS_CAMARAS, JSON.stringify(gruposIniciales));
-      setGruposCamaras(gruposIniciales);
-    } else {
-      const gruposNormalizados = gruposCamaras.map(normalizarNombreGrupoInicial);
-      localStorage.setItem(CLAVE_GRUPOS_CAMARAS, JSON.stringify(gruposNormalizados));
-      setGruposCamaras(gruposNormalizados);
-    }
     setEditorGruposAbierto(true);
   };
 
-  const guardarCamara = (evento) => {
+  const guardarCamara = async (evento) => {
     evento.preventDefault();
     const nombre = nombreCamara.trim();
     if (!nombre || !grupoCamaraId) return;
 
-    if (camaraEditando) {
-      guardarColeccion(camaras.map((camara) =>
-        camara.id === camaraEditando.id
-          ? { ...camara, nombre, grupoCamaraId: Number(grupoCamaraId) }
-          : camara
-      ));
-      cerrarFormulario();
-      setErrorInterfaz("");
-      return;
-    }
-
-    if (camaras.length >= LIMITE_CAMARAS) return;
-    if (tipoCamara === "webcam" && tieneWebcam) return;
+    if (!camaraEditando && camaras.length >= LIMITE_CAMARAS) return;
+    if (!camaraEditando && tipoCamara === "webcam" && tieneWebcam) return;
     if (
       tipoCamara === "onvif" &&
       (!direccionIp.trim() || !puertoOnvif || !usuarioConexion.trim() ||
-        !passwordConexion)
+        (!camaraEditando && !passwordConexion))
     ) return;
+    if (tipoCamara === "rtsp" && !fuenteVideo.trim()) return;
 
-    const nuevaCamara = {
-      id: `${tipoCamara}-${Date.now()}`,
+    const datosCamara = {
+      ...(camaraEditando ? { id: camaraEditando.id } : {}),
       nombre,
       tipo: tipoCamara,
       fuente: tipoCamara === "webcam" ? 0 : null,
@@ -245,12 +218,31 @@ export default function InterfazCamaras() {
             direccionIp: direccionIp.trim(),
             puertoOnvif: Number(puertoOnvif),
             usuarioConexion: usuarioConexion.trim(),
+            passwordConexion,
           }
         : {}),
+      ...(tipoCamara === "rtsp"
+        ? { fuenteVideo: fuenteVideo.trim() }
+        : {}),
     };
-    guardarColeccion([...camaras, nuevaCamara]);
-    cerrarFormulario();
-    setErrorInterfaz("");
+    setOperandoId(camaraEditando?.id || "creando");
+    try {
+      const respuesta = camaraEditando
+        ? await editarCamara(datosCamara)
+        : await crearCamara(datosCamara);
+      aplicarConfiguracion(respuesta);
+      cerrarFormulario();
+      setErrorInterfaz("");
+    } catch (error) {
+      setErrorInterfaz(error.message);
+    } finally {
+      setOperandoId(null);
+    }
+  };
+
+  const guardarGrupos = async (grupos) => {
+    const respuesta = await guardarGruposCamara(grupos);
+    aplicarConfiguracion(respuesta);
   };
 
   const iniciar = async (camara) => {
@@ -291,8 +283,16 @@ export default function InterfazCamaras() {
     if (camara.tipo === "webcam" && estado.running) {
       await detener(camara);
     }
-    guardarColeccion(camaras.filter((actual) => actual.id !== camara.id));
-    setErrorInterfaz("");
+    setOperandoId(camara.id);
+    try {
+      const respuesta = await eliminarCamara(camara.id);
+      aplicarConfiguracion(respuesta);
+      setErrorInterfaz("");
+    } catch (error) {
+      setErrorInterfaz(error.message);
+    } finally {
+      setOperandoId(null);
+    }
   };
 
   const camarasFiltradas = camaras.filter((camara) => {
@@ -430,14 +430,14 @@ export default function InterfazCamaras() {
                 />
               )}
             </div>
-            <button
+            {esAdministrador && <button
               className="boton-anadir-camara"
               type="button"
               onClick={abrirEditorGrupos}
             >
               Editor de grupos
-            </button>
-            <button
+            </button>}
+            {esAdministrador && <button
               className="boton-anadir-camara"
               type="button"
               disabled={camaras.length >= LIMITE_CAMARAS}
@@ -446,7 +446,7 @@ export default function InterfazCamaras() {
             >
               <span className="boton-anadir-camara-icono">+</span>
               Añadir cámara
-            </button>
+            </button>}
           </div>
         </div>
 
@@ -470,8 +470,13 @@ export default function InterfazCamaras() {
                 onDetener={() => detener(camara)}
                 onEditar={() => abrirEdicion(camara)}
                 onEliminar={() => eliminar(camara)}
+                gestionHabilitada={esAdministrador}
               />
             ))
+          ) : cargandoConfiguracion ? (
+            <div className="camaras-vista-vacia">
+              <h2>Cargando cámaras...</h2>
+            </div>
           ) : camaras.length ? (
             <div className="camaras-vista-vacia">
               <div className="camaras-vista-icono"><IconoCamaraVacia /></div>
@@ -518,6 +523,7 @@ export default function InterfazCamaras() {
                 <select id="tipo-camara" value={tipoCamara} onChange={cambiarTipo}>
                   <option value="webcam" disabled={tieneWebcam}>Webcam local</option>
                   <option value="onvif">Cámara ONVIF</option>
+                  <option value="rtsp">Stream RTSP o canal NVR</option>
                   <option value="simulada">Cámara simulada con imagen</option>
                 </select>
               </>
@@ -532,7 +538,7 @@ export default function InterfazCamaras() {
               onChange={(evento) => setNombreCamara(evento.target.value)}
             />
 
-            {!camaraEditando && (tipoCamara === "webcam" ? (
+            {tipoCamara === "webcam" ? (
               <>
                 <label htmlFor="dispositivo-camara">Dispositivo</label>
                 <select id="dispositivo-camara" value="0" disabled>
@@ -547,6 +553,19 @@ export default function InterfazCamaras() {
                     <option key={opcion.valor} value={opcion.valor}>{opcion.nombre}</option>
                   ))}
                 </select>
+              </>
+            ) : tipoCamara === "rtsp" ? (
+              <>
+                <label htmlFor="fuente-video-camara">URL del stream RTSP</label>
+                <input
+                  id="fuente-video-camara"
+                  type="url"
+                  maxLength={1000}
+                  spellCheck="false"
+                  placeholder="rtsp://127.0.0.1:8554/camara1"
+                  value={fuenteVideo}
+                  onChange={(evento) => setFuenteVideo(evento.target.value)}
+                />
               </>
             ) : (
               <>
@@ -589,7 +608,7 @@ export default function InterfazCamaras() {
                 />
 
               </>
-            ))}
+            )}
 
             <label htmlFor="grupo-camara">Grupo</label>
             <select
@@ -610,7 +629,9 @@ export default function InterfazCamaras() {
                 ? "La webcam transmitirá sin activar todavía el análisis de IA."
                 : tipoCamara === "onvif"
                   ? "La fuente ONVIF quedará registrada, pero no se conectará todavía."
-                  : "La cámara simulada no abre dispositivos ni consume el backend de video."}
+                  : tipoCamara === "rtsp"
+                    ? "El stream RTSP quedará registrado para conectarlo al motor de video en el siguiente paso."
+                    : "La cámara simulada no abre dispositivos ni consume el backend de video."}
             </p>}
 
             <div className="modal-camara-acciones">
@@ -622,7 +643,8 @@ export default function InterfazCamaras() {
                   (!camaraEditando && tipoCamara === "onvif" && (
                     !direccionIp.trim() || !puertoOnvif ||
                     !usuarioConexion.trim() || !passwordConexion
-                  ))
+                  )) ||
+                  (tipoCamara === "rtsp" && !fuenteVideo.trim())
                 }
               >
                 {camaraEditando ? "Guardar cambios" : "Guardar cámara"}
@@ -632,12 +654,11 @@ export default function InterfazCamaras() {
         </div>
       )}
 
-      {editorGruposAbierto && (
+      {editorGruposAbierto && esAdministrador && (
         <EditorGruposCamara
           grupos={gruposCamaras}
           camaras={camaras}
-          claveAlmacenamiento={CLAVE_GRUPOS_CAMARAS}
-          onCambiar={setGruposCamaras}
+          onGuardar={guardarGrupos}
           onCerrar={() => setEditorGruposAbierto(false)}
         />
       )}

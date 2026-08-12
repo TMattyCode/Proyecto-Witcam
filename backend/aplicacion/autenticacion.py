@@ -118,11 +118,10 @@ class ServicioAutenticacion:
             filtros = {}
         elif not isinstance(filtros, dict):
             raise ValueError("Los filtros no son validos")
-        estados = {"activo": "Activo", "inactivo": "Inactivo"}
         estado = filtros.get("estado", "activo")
         estado_normalizado = estado.strip().lower() if isinstance(estado, str) else ""
-        if estado_normalizado not in estados:
-            raise ValueError("El estado debe ser activo o inactivo")
+        if estado_normalizado != "activo":
+            raise ValueError("Solo se pueden consultar subusuarios activos")
         usuario = self._validar_filtro_texto(filtros.get("usuario", ""), 100)
         permiso = self._validar_filtro_texto(filtros.get("permiso", ""), 50)
         registro_desde = self._validar_fecha_filtro(
@@ -158,7 +157,7 @@ class ServicioAutenticacion:
             raise ValueError("El rango de ultimo acceso no es valido")
 
         filtros_normalizados = {
-            "estado": estados[estado_normalizado],
+            "estado": "Activo",
             "usuario": usuario,
             "permiso": permiso,
             "registro_desde": registro_desde,
@@ -235,14 +234,13 @@ class ServicioAutenticacion:
             if isinstance(estado_recibido, str)
             else ""
         )
-        estados = {"activo": "Activo", "inactivo": "Inactivo"}
-        if estado_normalizado not in estados:
-            raise ErrorAutenticacion("El estado debe ser activo o inactivo")
+        if estado_normalizado != "inactivo":
+            raise ErrorAutenticacion("Los subusuarios solo se pueden desactivar")
 
         actualizado = self.usuarios.actualizar_estado_subusuario(
             administrador["idCuenta"],
             id_usuario,
-            estados[estado_normalizado],
+            "Inactivo",
         )
         if not actualizado:
             raise ErrorAutenticacion(
@@ -253,7 +251,7 @@ class ServicioAutenticacion:
         return {
             "ok": True,
             "id": id_usuario,
-            "estado": estados[estado_normalizado],
+            "estado": "Inactivo",
         }
 
     def editar_subusuario(self, token: str, datos: dict) -> dict:

@@ -245,10 +245,6 @@ class PruebasAutenticacion(unittest.TestCase):
         self.assertEqual(self.repositorio.subusuarios_estado_solicitado, "Activo")
         self.assertEqual(listado["permisos"][0]["codigo"], "ver")
 
-        listado = self.servicio.listar_subusuarios(login["token"], "inactivo")
-        self.assertEqual(self.repositorio.subusuarios_estado_solicitado, "Inactivo")
-        self.assertEqual(listado["filtroEstado"], "inactivo")
-
         self.servicio.listar_subusuarios(
             login["token"],
             {
@@ -304,7 +300,7 @@ class PruebasAutenticacion(unittest.TestCase):
         login = self.servicio.iniciar_sesion(
             {"nombreUsuario": "matias", "contrasena": "segura123"}
         )
-        with self.assertRaisesRegex(ValueError, "activo o inactivo"):
+        with self.assertRaisesRegex(ValueError, "subusuarios activos"):
             self.servicio.listar_subusuarios(login["token"], "todos")
 
         with self.assertRaisesRegex(ValueError, "rango de fecha de registro"):
@@ -347,23 +343,23 @@ class PruebasAutenticacion(unittest.TestCase):
         with self.assertRaises(CredencialesInvalidas):
             self.servicio.obtener_sesion("token-subusuario")
 
-    def test_reactivar_no_crea_usuario_y_valida_identificador(self):
+    def test_reactivar_se_rechaza_y_valida_identificador(self):
         self.servicio.registrar(self.datos)
         login = self.servicio.iniciar_sesion(
             {"nombreUsuario": "matias", "contrasena": "segura123"}
         )
-        resultado = self.servicio.actualizar_estado_subusuario(
-            login["token"],
-            {"id": 2, "estado": "activo"},
-        )
-        self.assertEqual(resultado["estado"], "Activo")
+        with self.assertRaisesRegex(ErrorAutenticacion, "solo se pueden desactivar"):
+            self.servicio.actualizar_estado_subusuario(
+                login["token"],
+                {"id": 2, "estado": "activo"},
+            )
 
         for id_invalido in (None, True, 0, "2"):
             with self.subTest(id=id_invalido):
                 with self.assertRaises(ErrorAutenticacion):
                     self.servicio.actualizar_estado_subusuario(
                         login["token"],
-                        {"id": id_invalido, "estado": "activo"},
+                        {"id": id_invalido, "estado": "inactivo"},
                     )
 
     def test_edita_subusuario_activo_y_password_es_opcional(self):

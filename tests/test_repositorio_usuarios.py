@@ -81,6 +81,26 @@ class PruebasRepositorioUsuarios(unittest.TestCase):
         self.assertTrue(conexion.confirmada)
         self.assertFalse(conexion.revertida)
         self.assertTrue(conexion.cerrada)
+        consultas = conexion._cursor.consultas
+        inserciones_grupo = [
+            parametros
+            for consulta, parametros in consultas
+            if "INSERT INTO GrupoCamara" in consulta
+        ]
+        self.assertEqual(
+            inserciones_grupo,
+            [(10, "Grupo 1", "Grupo predeterminado")],
+        )
+
+    def test_login_solo_busca_usuarios_activos(self):
+        conexion = ConexionFalsa()
+        with patch("backend.database.conexion.pyodbc.connect", return_value=conexion):
+            self.repositorio.buscar_para_login("matias")
+
+        self.assertIn(
+            "eu.nombre_estado = 'Activo'",
+            conexion._cursor.consulta,
+        )
 
     def test_duplicado_revierte_la_cuenta_y_no_confirma(self):
         error = pyodbc.IntegrityError(

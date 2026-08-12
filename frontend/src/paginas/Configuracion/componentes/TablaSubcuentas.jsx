@@ -314,13 +314,10 @@ function ModalSubusuario({ permisos, subusuario, onCerrar, onGuardado }) {
 
 function ModalConfirmacionEstado({
   subusuario,
-  activar,
   procesando,
   onCancelar,
   onConfirmar,
 }) {
-  const accion = activar ? "reactivar" : "desactivar";
-
   return (
     <div
       className="modal-subusuario-fondo"
@@ -336,18 +333,16 @@ function ModalConfirmacionEstado({
         aria-labelledby="titulo-confirmacion-estado"
         aria-describedby="detalle-confirmacion-estado"
       >
-        <div className={`modal-confirmacion-icono ${activar ? "reactivar" : "desactivar"}`}>
-          {activar ? "↻" : "!"}
+        <div className="modal-confirmacion-icono desactivar">
+          !
         </div>
         <p className="modal-confirmacion-etiqueta">Confirmar acción</p>
         <h2 id="titulo-confirmacion-estado">
-          ¿Deseas {accion} este subusuario?
+          ¿Deseas desactivar este subusuario?
         </h2>
         <p id="detalle-confirmacion-estado">
           El usuario <strong>{subusuario.nombreUsuario}</strong>
-          {activar
-            ? " podrá volver a iniciar sesión y usar sus permisos asignados."
-            : " perderá el acceso inmediatamente, pero sus datos e historial se conservarán."}
+          {" perderá el acceso inmediatamente y dejará de aparecer en la aplicación, pero su historial se conservará."}
         </p>
         <div className="modal-confirmacion-acciones">
           <button type="button" onClick={onCancelar} disabled={procesando} autoFocus>
@@ -355,13 +350,13 @@ function ModalConfirmacionEstado({
           </button>
           <button
             type="button"
-            className={activar ? "confirmar-reactivacion" : "confirmar-desactivacion"}
+            className="confirmar-desactivacion"
             onClick={onConfirmar}
             disabled={procesando}
           >
             {procesando
               ? "Procesando..."
-              : `Sí, ${activar ? "reactivar" : "desactivar"}`}
+              : "Sí, desactivar"}
           </button>
         </div>
       </section>
@@ -376,7 +371,6 @@ function TablaSubusuarios({ onSubusuariosCambiaron }) {
   const [cargaInicialCompletada, setCargaInicialCompletada] = useState(false);
   const [error, setError] = useState("");
   const [modalAbierto, setModalAbierto] = useState(false);
-  const [filtroEstado, setFiltroEstado] = useState("activo");
   const [actualizandoId, setActualizandoId] = useState(null);
   const [subusuarioConfirmacion, setSubusuarioConfirmacion] = useState(null);
   const [subusuarioEdicion, setSubusuarioEdicion] = useState(null);
@@ -392,7 +386,6 @@ function TablaSubusuarios({ onSubusuariosCambiaron }) {
   useEffect(() => {
     let activo = true;
     obtenerSubusuarios({
-      estado: filtroEstado,
       ...filtrosDiferidos,
       pagina,
       limite,
@@ -417,15 +410,7 @@ function TablaSubusuarios({ onSubusuariosCambiaron }) {
     return () => {
       activo = false;
     };
-  }, [filtroEstado, filtrosDiferidos, pagina, versionConsulta]);
-
-  const seleccionarFiltro = (estado) => {
-    if (estado === filtroEstado) return;
-    setCargando(true);
-    setError("");
-    setPagina(1);
-    setFiltroEstado(estado);
-  };
+  }, [filtrosDiferidos, pagina, versionConsulta]);
 
   const actualizarFiltro = (evento) => {
     const { name, type, checked, value } = evento.target;
@@ -484,7 +469,6 @@ function TablaSubusuarios({ onSubusuariosCambiaron }) {
   const incorporarSubusuario = () => {
     setCargando(true);
     setPagina(1);
-    setFiltroEstado("activo");
     setVersionConsulta((version) => version + 1);
     setModalAbierto(false);
     onSubusuariosCambiaron?.();
@@ -497,13 +481,12 @@ function TablaSubusuarios({ onSubusuariosCambiaron }) {
   };
 
   const cambiarEstado = async (subusuario) => {
-    const activar = subusuario.estado === "Inactivo";
     setActualizandoId(subusuario.id);
     setError("");
     try {
       await actualizarEstadoSubusuario(
         subusuario.id,
-        activar ? "activo" : "inactivo",
+        "inactivo",
       );
       setCargando(true);
       setPagina(1);
@@ -563,25 +546,6 @@ function TablaSubusuarios({ onSubusuariosCambiaron }) {
         >
           <span>+</span>
           Añadir subusuario
-        </button>
-      </div>
-
-      <div className="subusuarios-filtros" aria-label="Filtrar subusuarios por estado">
-        <button
-          type="button"
-          className={filtroEstado === "activo" ? "seleccionado" : ""}
-          aria-pressed={filtroEstado === "activo"}
-          onClick={() => seleccionarFiltro("activo")}
-        >
-          Activos
-        </button>
-        <button
-          type="button"
-          className={filtroEstado === "inactivo" ? "seleccionado" : ""}
-          aria-pressed={filtroEstado === "inactivo"}
-          onClick={() => seleccionarFiltro("inactivo")}
-        >
-          Inactivos
         </button>
       </div>
 
@@ -731,7 +695,7 @@ function TablaSubusuarios({ onSubusuariosCambiaron }) {
             ) : subusuarios.length === 0 ? (
               <tr>
                 <td colSpan={6 + permisos.length} className="subcuentas-vacia">
-                  No hay subusuarios {filtroEstado === "activo" ? "activos" : "inactivos"}.
+                  No hay subusuarios activos.
                 </td>
               </tr>
             ) : (
@@ -756,28 +720,26 @@ function TablaSubusuarios({ onSubusuariosCambiaron }) {
                   ))}
                   <td>
                     <div className="subcuenta-acciones">
-                      {subusuario.estado === "Activo" && (
-                        <button
-                          className="boton-accion boton-accion-editar"
-                          type="button"
-                          onClick={() => setSubusuarioEdicion(subusuario)}
-                          aria-label={`Editar al usuario ${subusuario.nombreUsuario}`}
-                          title="Editar subusuario"
-                        >
-                          ✎
-                        </button>
-                      )}
                       <button
-                        className={`boton-accion ${subusuario.estado === "Activo" ? "boton-accion-eliminar" : "boton-accion-reactivar"}`}
+                        className="boton-accion boton-accion-editar"
+                        type="button"
+                        onClick={() => setSubusuarioEdicion(subusuario)}
+                        aria-label={`Editar al usuario ${subusuario.nombreUsuario}`}
+                        title="Editar subusuario"
+                      >
+                        ✎
+                      </button>
+                      <button
+                        className="boton-accion boton-accion-eliminar"
                         type="button"
                         disabled={actualizandoId === subusuario.id}
                         onClick={() => setSubusuarioConfirmacion(subusuario)}
-                        aria-label={`${subusuario.estado === "Activo" ? "Desactivar" : "Reactivar"} al usuario ${subusuario.nombreUsuario}`}
-                        title={subusuario.estado === "Activo" ? "Desactivar subusuario" : "Reactivar subusuario"}
+                        aria-label={`Desactivar al usuario ${subusuario.nombreUsuario}`}
+                        title="Desactivar subusuario"
                       >
                         {actualizandoId === subusuario.id
                           ? "…"
-                          : subusuario.estado === "Activo" ? <IconoDesactivar /> : "↻"}
+                          : <IconoDesactivar />}
                       </button>
                     </div>
                   </td>
@@ -833,7 +795,6 @@ function TablaSubusuarios({ onSubusuariosCambiaron }) {
       {subusuarioConfirmacion && (
         <ModalConfirmacionEstado
           subusuario={subusuarioConfirmacion}
-          activar={subusuarioConfirmacion.estado === "Inactivo"}
           procesando={actualizandoId === subusuarioConfirmacion.id}
           onCancelar={() => setSubusuarioConfirmacion(null)}
           onConfirmar={() => cambiarEstado(subusuarioConfirmacion)}

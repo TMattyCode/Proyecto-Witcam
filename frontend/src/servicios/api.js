@@ -72,6 +72,38 @@ export function obtenerCamarasIngresos() {
   return solicitar("/api/ingresos/camaras");
 }
 
+export function obtenerCamarasConfiguradas() {
+  return solicitar("/api/camaras");
+}
+
+export function guardarGruposCamara(grupos) {
+  return solicitar("/api/grupos-camara/guardar", {
+    method: "POST",
+    body: JSON.stringify({ grupos }),
+  });
+}
+
+export function crearCamara(datos) {
+  return solicitar("/api/camaras/crear", {
+    method: "POST",
+    body: JSON.stringify(datos),
+  });
+}
+
+export function editarCamara(datos) {
+  return solicitar("/api/camaras/editar", {
+    method: "POST",
+    body: JSON.stringify(datos),
+  });
+}
+
+export function eliminarCamara(id) {
+  return solicitar("/api/camaras/eliminar", {
+    method: "POST",
+    body: JSON.stringify({ id }),
+  });
+}
+
 export function crearSubusuario(datos) {
   return solicitar("/api/subusuarios", {
     method: "POST",
