@@ -1,6 +1,6 @@
 # Witcam - Reconocimiento facial y monitoreo de camaras
 
-Witcam es una aplicacion de reconocimiento facial en tiempo real. Actualmente puede analizar una webcam, una fuente RTSP o un archivo de video local, detectar personas con YOLO26n, detectar y reconocer rostros con InsightFace/SCRFD, mantener IDs de seguimiento con ByteTrack y guardar capturas de personas desconocidas para revisarlas despues.
+Witcam es una aplicacion de reconocimiento facial en tiempo real. Su motor de IA puede analizar una webcam, una fuente RTSP o un archivo de video local, detectar personas con YOLO26n, detectar y reconocer rostros con InsightFace/SCRFD, mantener IDs de seguimiento con ByteTrack y guardar capturas de personas desconocidas para revisarlas despues.
 
 El repositorio tambien contiene la interfaz definitiva desarrollada con React y Vite, ademas del script inicial para la base de datos SQL Server. La integracion entre estos componentes sigue en desarrollo.
 
@@ -9,12 +9,15 @@ El repositorio tambien contiene la interfaz definitiva desarrollada con React y 
 - El backend modular v2 se inicia con `main.py`, procesa una fuente de video y expone una API HTTP local.
 - La version estable anterior y su interfaz se conservan dentro de `interfaz_prueba/` como respaldo independiente.
 - La interfaz final se encuentra en `frontend/` y usa React, Vite, React Router, rutas protegidas y restauracion de sesion.
-- Registro, inicio, consulta y cierre de sesion ya consumen la API modular de Python. La configuracion de grupos y camaras tambien se persiste por cuenta en SQL Server.
-- El backend usa SQL Server para registrar cuentas, usuarios, grupos y camaras, validar credenciales y actualizar el ultimo acceso.
+- Registro, inicio, consulta y cierre de sesion consumen la API modular de Python. El backend evita cuentas activas duplicadas, restaura sesiones y actualiza el ultimo acceso.
+- Cada administrador tiene su propia cuenta y recibe un `Grupo 1` inicial. Puede gestionar subusuarios y asignarles los permisos preestablecidos, mientras que los registros desactivados se conservan como historial.
+- Los grupos y camaras se persisten por cuenta en SQL Server. La interfaz permite crear, editar, filtrar y desactivar camaras `webcam`, `RTSP`, `ONVIF` y simuladas, con un maximo visual actual de nueve camaras.
+- La webcam local puede iniciarse y detenerse desde React en modo de visualizacion, actualmente con `analysis: false`. Las fuentes RTSP y ONVIF ya se registran de forma segura, pero su conexion al motor de video por `id_camara` sigue pendiente; las camaras simuladas muestran una imagen estatica para probar la cuadricula.
+- La vista de ingresos identificados consulta SQL Server, admite filtros acumulables y pagina 25 detecciones por vez. Por ahora se alimenta con datos de prueba: el pipeline de IA todavia no inserta automaticamente personas, muestras ni detecciones en la base de datos.
 - En desarrollo local, SQL Server se conecta mediante memoria compartida (`lpc:localhost`) y autenticacion de Windows, sin exponer un puerto TCP.
-- Actualmente el backend procesa una fuente configurable en `backend/config.py`, que puede ser el indice de una webcam, una URL RTSP o la ruta de un video local. La version final debera registrar una cantidad variable de camaras y canales de NVR.
+- Actualmente el motor de IA procesa una sola fuente global configurable en `backend/config.py`. El siguiente paso de integracion es crear un motor por camara activa y vincular las fuentes guardadas en SQL Server con el reconocimiento y sus detecciones.
 
-## Arquitectura prevista
+## Arquitectura actual y prevista
 
 ```text
 Camaras IP (RTSP/ONVIF)
@@ -26,9 +29,9 @@ Backend Python (API + IA)
 SQL Server      Frontend React
 ```
 
-El NVR no es obligatorio para el reconocimiento. Python puede analizar directamente el stream secundario de cada camara IP. Un NVR podria incorporarse posteriormente si se necesita grabacion continua o reproduccion de video historico.
+El NVR no es obligatorio para el reconocimiento. Python puede analizar directamente el stream secundario de una camara IP o tratar cada canal RTSP de un NVR como una fuente independiente. La conexion automatica de las camaras registradas al motor de IA todavia forma parte de la siguiente etapa.
 
-MediaMTX se usa solamente durante las pruebas para publicar un video local como un stream RTSP simulado. Si una camara IP o un canal de NVR ya entrega una URL RTSP, Witcam se conecta directamente a esa direccion y MediaMTX no es necesario. La instalacion local puede mantenerse dentro de `MediaMTX/`; esa carpeta, sus ejecutables, certificados y videos no se versionan en Git.
+MediaMTX se usa solamente durante las pruebas para publicar un video local como un stream RTSP simulado. Si una camara IP o un canal de NVR ya entrega una URL RTSP, el motor puede usar directamente esa direccion y MediaMTX no es necesario. Por ahora la URL debe pasarse al motor o configurarse en `backend/config.py`; registrarla desde React todavia no inicia esa transmision. La instalacion local puede mantenerse dentro de `MediaMTX/`; esa carpeta, sus ejecutables, certificados y videos no se versionan en Git.
 
 ### Backend modular v2
 
@@ -38,7 +41,7 @@ Solo los adaptadores de `backend/ia/adaptadores/` importan directamente InsightF
 
 `RepositorioGalerias` comparte un `threading.RLock` entre la API y el motor. El bloqueo cubre listados, firmas, carga completa, escritura, movimiento, renombrado, rechazo y reconciliacion. De esta forma la IA no puede leer una galeria a medio modificar mientras la interfaz realiza una operacion.
 
-La capa `backend/database/` encapsula la conexion local a SQL Server y los repositorios de usuarios, ingresos y camaras. El script `database/Tablas.sql` sigue siendo la fuente para crear `WitcamBD`, sus catalogos, relaciones y tablas iniciales.
+La capa `backend/database/` encapsula la conexion local a SQL Server y los repositorios de usuarios, ingresos y camaras. El script `database/Tablas.sql` es la fuente unica para recrear `WitcamBD`, sus catalogos, relaciones, restricciones e indices durante esta etapa de desarrollo.
 
 ## Que usa
 
@@ -72,15 +75,12 @@ requirements.txt              Dependencias de Python
 frontend/                      Interfaz final React/Vite
 interfaz_prueba/               Version anterior autocontenida de respaldo
 database/Tablas.sql           Creacion inicial de la base de datos SQL Server
-database/migracion_camaras_por_cuenta.sql  Actualizacion de una base existente
-database/migracion_tipo_camara_rtsp.sql    Habilita fuentes RTSP en una base existente
-database/migracion_unicidad_activos_camaras_grupos.sql  Permite reutilizar nombres inactivos
-database/migracion_unicidad_usuarios_activos.sql  Libera usuario y correo al desactivar subusuarios
+database/ingreso_personas.sql Datos de prueba para personas y detecciones
 referencias_reconocimiento/   Rostros aprobados (se crea automaticamente)
 referencias_pendientes/       Capturas por revisar (se crea automaticamente)
 ```
 
-Dentro de `frontend/src/` se encuentran las paginas de inicio de sesion, registro, resumen del sistema, camaras, ingresos identificados, lista de observacion y configuracion. React Router administra las rutas internas con `HashRouter`, adecuado para la futura ventana de escritorio.
+Dentro de `frontend/src/` se encuentran las paginas de inicio de sesion, registro, resumen del sistema, camaras, ingresos identificados, lista de observacion y configuracion. React Router administra las rutas internas con `HashRouter`, adecuado para la futura ventana de escritorio. La lista de observacion y parte del resumen del sistema conservan contenido de interfaz pendiente de conectar al backend.
 
 ## Carpetas de reconocimiento
 
@@ -155,11 +155,11 @@ npm install
 
 ### Base de datos
 
-El archivo `database/Tablas.sql` esta escrito para SQL Server. En su estado actual debe ejecutarse una sola vez desde SSMS, Azure Data Studio o una herramienta compatible con separadores `GO`. El script crea la base de datos `WitcamBD` y sus tablas iniciales.
+El archivo `database/Tablas.sql` esta escrito para SQL Server y es la fuente unica del esquema durante esta etapa de desarrollo. Puede ejecutarse desde SSMS, Azure Data Studio o una herramienta compatible con separadores `GO`.
 
-Si `WitcamBD` ya existe, volver a ejecutar el script completo producira errores porque todavia no es un script idempotente.
+Si `WitcamBD` ya existe, el script la elimina y vuelve a crearla con todas sus tablas, restricciones, catalogos e indices actualizados. Por lo tanto, se puede ejecutar repetidamente mientras el esquema siga en desarrollo, pero cada ejecucion borra todos los datos almacenados anteriormente.
 
-Si la base fue creada antes de incorporar los tipos `webcam`, `onvif` y `simulada`, ejecuta una sola vez `database/migracion_camaras_por_cuenta.sql`. Esta migracion conserva las camaras existentes y adapta sus columnas sin recrear la base completa. Para habilitar despues el tipo `rtsp`, ejecuta `database/migracion_tipo_camara_rtsp.sql`; este segundo script solo reemplaza las restricciones de tipos de la tabla `Camara`.
+`database/ingreso_personas.sql` es un apoyo temporal para probar la pantalla de ingresos identificados. Usa la primera cuenta disponible, o el `@id_cuenta` indicado manualmente, crea un grupo y una camara simulada si hacen falta e inserta 20 personas con sus detecciones. No llena `MuestraFacial`, porque las muestras siguen almacenandose en carpetas locales.
 
 Antes de guardar una camara ONVIF, define una frase secreta local para cifrar sus credenciales. No agregues este valor al repositorio:
 
@@ -172,9 +172,7 @@ Las respuestas de la API nunca incluyen la contrasena de la camara. Una webcam o
 
 Las acciones de eliminar camaras y grupos usan eliminacion logica: conservan las filas y cambian `Camara.activa` o `GrupoCamara.activo` a `0`. Un grupo no puede desactivarse si contiene camaras activas y cada cuenta debe conservar al menos un grupo activo. Esto mantiene validas las referencias de las detecciones historicas.
 
-En una base existente, ejecuta `database/migracion_unicidad_activos_camaras_grupos.sql` para que la unicidad de nombres considere solamente camaras y grupos activos. Despues de desactivar un registro se puede crear otro con el mismo nombre sin eliminar el historial anterior.
-
-Los subusuarios desactivados se conservan como historial en SQL Server, pero no se listan ni se pueden reactivar desde la aplicacion. Su nombre de usuario y correo quedan disponibles para un nuevo perfil activo. En una base existente, habilita esta politica ejecutando `database/migracion_unicidad_usuarios_activos.sql`.
+La unicidad de nombres considera solamente camaras, grupos y usuarios activos. Despues de desactivar un registro se puede crear otro con el mismo nombre sin eliminar el historial anterior. Los subusuarios desactivados se conservan como historial en SQL Server, pero no se listan ni se pueden reactivar desde la aplicacion.
 
 La configuracion local predeterminada usa `ODBC Driver 17 for SQL Server`, autenticacion de Windows y `lpc:localhost`. De esta manera Python y SQL Server se comunican mediante memoria compartida sin habilitar TCP/IP ni abrir el puerto `1433`.
 
@@ -218,9 +216,24 @@ npm run build
 npm run preview
 ```
 
-## Interfaz web de prueba
+## Frontend React actual
 
-La pagina permite:
+La interfaz de `frontend/` incluye actualmente:
+
+- Registro de cuentas administradoras e inicio de sesion con rutas protegidas.
+- Restauracion y cierre de sesion, nombre real de la cuenta y resumen de subusuarios activos.
+- Creacion y edicion de subusuarios con permisos preestablecidos, buscador, filtros acumulables, paginacion y desactivacion logica con confirmacion propia.
+- Gestion por cuenta de grupos y camaras, incluyendo validacion para conservar al menos un grupo y para impedir desactivar grupos que aun contienen camaras activas.
+- Registro de fuentes `webcam`, `RTSP`, `ONVIF` y simuladas, filtros por camara y grupo, seleccion de cuadricula y vista en pantalla completa.
+- Visualizacion en vivo de una webcam local mediante el MJPEG del backend, sin ejecutar todavia el analisis facial desde esta vista. RTSP y ONVIF muestran por ahora el estado de fuente registrada hasta completar su conexion al motor.
+- Consulta paginada de ingresos identificados, con filtros por texto, fecha, hora y camara. Los botones para eliminar o enviar una persona a la lista de observacion siguen deshabilitados.
+- Diseno adaptable y navegacion con `HashRouter`, pensado para empaquetarse posteriormente como aplicacion de escritorio.
+
+La lista de observacion, las acciones sobre personas y varios datos del resumen general todavia son prototipos visuales o estan pendientes de integracion.
+
+## Interfaz anterior de respaldo
+
+La version conservada en `interfaz_prueba/` permite:
 
 - Iniciar y detener la fuente de video.
 - Ver el video procesado por Python.
@@ -253,28 +266,33 @@ Las vistas previas incluyen una version basada en la fecha de modificacion y se 
 10. La interfaz recibe el video procesado desde `/video_feed`.
 11. Si cambian las carpetas de referencias o pendientes, Python recarga las referencias automaticamente.
 
-## API compatible
+## API HTTP
 
-La v2 conserva las mismas rutas, respuestas JSON y transmision MJPEG de la version estable:
+La v2 conserva las rutas originales de la version estable y agrega los contratos utilizados por React:
 
-- `GET /`, `/video_feed`, `/placeholder`, `/api/status` y `/api/list`.
-- `GET /api/auth/session` consulta la sesion activa.
-- `POST /api/auth/register`, `/api/auth/login` y `/api/auth/logout` administran el acceso.
-- `POST /api/start`, `/api/stop`, `/api/approve`, `/api/unapprove`, `/api/rename` y `/api/reject`.
-- Los POST mantienen los campos `file`, `newName` y `type`, junto con las respuestas `ok/error`.
+- Video y galerias: `GET /`, `/video_feed`, `/placeholder`, `/api/status` y `/api/list`.
+- Autenticacion: `GET /api/auth/session` y `POST /api/auth/register`, `/api/auth/login`, `/api/auth/logout`.
+- Cuenta y subusuarios: `GET /api/cuenta/resumen`, `GET/POST /api/subusuarios`, `POST /api/subusuarios/editar` y `POST /api/subusuarios/estado`.
+- Camaras y grupos: `GET /api/camaras`, `POST /api/camaras/crear`, `/api/camaras/editar`, `/api/camaras/eliminar` y `/api/grupos-camara/guardar`.
+- Ingresos: `GET /api/ingresos` y `GET /api/ingresos/camaras`.
+- Motor y galerias: `POST /api/start`, `/api/stop`, `/api/approve`, `/api/unapprove`, `/api/rename` y `/api/reject`.
+
+`POST /api/start` acepta `source` y el booleano `analysis`; React usa actualmente `analysis: false` para mostrar la webcam sin cargar los modelos de IA. Las rutas de cuenta, subusuarios, camaras e ingresos validan la sesion y restringen las operaciones administrativas. El backend comprueba pertenencia a la cuenta para impedir consultar o modificar recursos de otro administrador. Las rutas originales de galerias mantienen los campos `file`, `newName` y `type`, junto con las respuestas `ok/error`.
 
 La interfaz anterior conserva sus archivos dentro de `interfaz_prueba/` y usa sus propias carpetas de galerias para no interferir con el backend modular.
 
-## Pruebas del backend
+## Pruebas automaticas
 
-La suite usa `unittest`, modelos falsos, galerias temporales y un servidor HTTP con puerto efimero. Cubre geometria, calidad facial, comparacion, reconciliacion, concurrencia, identidad, candidatos, pipeline, autenticacion y contratos HTTP/MJPEG.
+La suite de Python usa `unittest`, modelos falsos, galerias temporales y un servidor HTTP con puerto efimero. Cubre geometria, calidad facial, comparacion, reconciliacion, concurrencia, identidad, candidatos, pipeline, autenticacion, usuarios, camaras, ingresos y contratos HTTP/MJPEG. Las pruebas de Node verifican la validacion del registro, inicio de sesion y formularios de subusuarios.
 
 ```powershell
 python -m compileall -q backend tests main.py
 python -m unittest discover -s tests -v
+cd frontend
+npm test
 ```
 
-Actualmente existen 61 pruebas automaticas. Tambien se completo una reproduccion real de diez minutos, 1920x1080 a 30 FPS, con InsightFace/SCRFD, YOLO y ByteTrack usando galerias temporales. El pipeline llego al final del video sin cortes y la firma de galerias permanecio valida. Webcam y RTSP quedan como pruebas manuales dependientes de tener esas fuentes disponibles.
+Actualmente existen 61 pruebas automaticas de Python y 6 pruebas de Node. Tambien se completo una reproduccion real de diez minutos, 1920x1080 a 30 FPS, con InsightFace/SCRFD, YOLO y ByteTrack usando galerias temporales. El pipeline llego al final del video sin cortes y la firma de galerias permanecio valida. Webcam y RTSP quedan como pruebas manuales dependientes de tener esas fuentes disponibles.
 
 ## Oclusion
 
@@ -399,4 +417,4 @@ Esto evita subir fotos privadas al repositorio por accidente.
 
 La app esta configurada para CPU. Si el equipo tiene GPU compatible con ONNX Runtime/CUDA, se puede mejorar el rendimiento agregando deteccion automatica de `CUDAExecutionProvider`.
 
-Para la futura conexion de camaras IP, se recomienda que cada modelo soporte RTSP y ONVIF, ademas de un stream secundario configurable. Analizar un stream secundario de menor resolucion y entre 10 y 15 FPS reduce la carga sin impedir que otro sistema grabe el stream principal en alta calidad.
+Para completar la conexion de las camaras IP registradas, se recomienda usar modelos con RTSP y ONVIF, ademas de un stream secundario configurable. Analizar un stream secundario de menor resolucion y entre 10 y 15 FPS reduce la carga sin impedir que otro sistema grabe el stream principal en alta calidad.
