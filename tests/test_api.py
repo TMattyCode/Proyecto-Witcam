@@ -198,6 +198,25 @@ class IngresosFalso:
             "detecciones": [],
         }
 
+    def agregar_lista_observacion(self, token, datos):
+        if token != "token-prueba":
+            raise CredencialesInvalidas("La sesion no es valida")
+        return {
+            "ok": True,
+            "idPersona": datos["idPersona"],
+            "enListaObservacion": True,
+            "motivo": "En progreso",
+        }
+
+    def listar_observacion(self, token):
+        if token != "token-prueba":
+            raise CredencialesInvalidas("La sesion no es valida")
+        return {
+            "ok": True,
+            "total": 1,
+            "registros": [{"idLista": 8, "idCliente": 12}],
+        }
+
 
 class CamarasFalso:
     def _validar(self, token):
@@ -658,6 +677,25 @@ class PruebasApi(unittest.TestCase):
         historial = json.loads(cuerpo)
         self.assertEqual(estado, 200)
         self.assertEqual(historial["persona"]["id"], 12)
+
+        estado, _, cuerpo = self._solicitar(
+            "POST",
+            "/api/ingresos/lista-observacion",
+            {"idPersona": 12},
+            {"Authorization": "Bearer token-prueba"},
+        )
+        agregado = json.loads(cuerpo)
+        self.assertEqual(estado, 201)
+        self.assertTrue(agregado["enListaObservacion"])
+
+        estado, _, cuerpo = self._solicitar(
+            "GET",
+            "/api/lista-observacion",
+            cabeceras_extra={"Authorization": "Bearer token-prueba"},
+        )
+        listado_observacion = json.loads(cuerpo)
+        self.assertEqual(estado, 200)
+        self.assertEqual(listado_observacion["registros"][0]["idLista"], 8)
 
     def test_camaras_exigen_sesion_y_exponen_crud(self):
         estado, _, _ = self._solicitar("GET", "/api/camaras")

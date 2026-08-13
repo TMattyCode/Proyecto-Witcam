@@ -60,6 +60,12 @@ class RepositorioIngresos:
                         d.ruta_imagen_detectada,
                         d.resultado,
                         d.similitud,
+                        CASE WHEN EXISTS (
+                            SELECT 1
+                            FROM ListaObservacion lo
+                            WHERE lo.id_persona = d.id_persona
+                              AND lo.activa = 1
+                        ) THEN 1 ELSE 0 END AS en_lista_observacion,
                         ROW_NUMBER() OVER (
                             PARTITION BY d.id_persona
                             ORDER BY d.fecha_hora DESC, d.id_deteccion DESC
@@ -82,7 +88,8 @@ class RepositorioIngresos:
                     fecha_hora,
                     ruta_imagen_detectada,
                     resultado,
-                    similitud
+                    similitud,
+                    en_lista_observacion
                 FROM detecciones_filtradas
                 WHERE posicion = 1
                 ORDER BY fecha_hora DESC, id_deteccion DESC
@@ -164,7 +171,106 @@ class RepositorioIngresos:
                 if fila.similitud is not None
                 else None
             ),
+            "enListaObservacion": bool(
+                getattr(fila, "en_lista_observacion", False)
+            ),
         }
+
+    def agregar_lista_observacion(
+        self,
+        id_cuenta: int,
+        id_usuario: int,
+        id_persona: int,
+        motivo: str,
+    ) -> bool:
+        with self.conexiones.conectar() as conexion:
+            cursor = conexion.cursor()
+            persona = cursor.execute(
+                """
+                SELECT id_persona
+                FROM Persona
+                WHERE id_persona = ? AND id_cuenta = ?
+                """,
+                id_persona,
+                id_cuenta,
+            ).fetchone()
+            if persona is None:
+                return False
+            existente = cursor.execute(
+                """
+                SELECT id_lista_observacion
+                FROM ListaObservacion WITH (UPDLOCK, HOLDLOCK)
+                WHERE id_persona = ?
+                """,
+                id_persona,
+            ).fetchone()
+            if existente is None:
+                cursor.execute(
+                    """
+                    INSERT INTO ListaObservacion (
+                        id_persona, id_usuario_registro, motivo
+                    ) VALUES (?, ?, ?)
+                    """,
+                    id_persona,
+                    id_usuario,
+                    motivo,
+                )
+            else:
+                cursor.execute(
+                    """
+                    UPDATE ListaObservacion
+                    SET activa = 1,
+                        motivo = ?,
+                        id_usuario_registro = ?,
+                        fecha_ingreso_lista = GETDATE()
+                    WHERE id_persona = ? AND activa = 0
+                    """,
+                    motivo,
+                    id_usuario,
+                    id_persona,
+                )
+            conexion.commit()
+            return True
+
+    def listar_observacion(self, id_cuenta: int) -> list[dict]:
+        with self.conexiones.conectar() as conexion:
+            filas = conexion.cursor().execute(
+                """
+                SELECT
+                    lo.id_lista_observacion,
+                    p.id_persona,
+                    p.nombre_persona,
+                    lo.motivo,
+                    lo.fecha_ingreso_lista,
+                    u.nombre,
+                    u.apellido
+                FROM ListaObservacion lo
+                INNER JOIN Persona p ON p.id_persona = lo.id_persona
+                INNER JOIN Usuario u
+                    ON u.id_usuario = lo.id_usuario_registro
+                WHERE p.id_cuenta = ?
+                  AND u.id_cuenta = ?
+                  AND lo.activa = 1
+                ORDER BY lo.fecha_ingreso_lista DESC,
+                         lo.id_lista_observacion DESC
+                """,
+                id_cuenta,
+                id_cuenta,
+            ).fetchall()
+        return [
+            {
+                "idLista": fila.id_lista_observacion,
+                "idCliente": fila.id_persona,
+                "nombrePersona": fila.nombre_persona,
+                "motivo": fila.motivo,
+                "fechaIngreso": fila.fecha_ingreso_lista.isoformat(
+                    timespec="seconds"
+                ),
+                "registradoPor": f"{fila.nombre} {fila.apellido}".strip(),
+                "imagen": None,
+            }
+            for fila in filas
+        ]
 
     def listar_camaras(self, id_cuenta: int) -> list[dict]:
         with self.conexiones.conectar() as conexion:

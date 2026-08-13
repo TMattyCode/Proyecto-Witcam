@@ -64,6 +64,36 @@ class ServicioIngresos:
             raise ValueError("La persona no existe en esta cuenta")
         return {"ok": True, **historial}
 
+    def agregar_lista_observacion(self, token: str, datos) -> dict:
+        if not isinstance(datos, dict):
+            raise ValueError("Los datos de la lista de observacion no son validos")
+        id_persona = self._validar_entero(
+            datos.get("idPersona"),
+            "idPersona",
+            minimo=1,
+        )
+        usuario = self.autenticacion.obtener_sesion(token)["user"]
+        if not self.repositorio.agregar_lista_observacion(
+            usuario["idCuenta"],
+            usuario["id"],
+            id_persona,
+            "En progreso",
+        ):
+            raise ValueError("La persona no existe en esta cuenta")
+        return {
+            "ok": True,
+            "idPersona": id_persona,
+            "enListaObservacion": True,
+            "motivo": "En progreso",
+        }
+
+    def listar_observacion(self, token: str) -> dict:
+        usuario = self.autenticacion.obtener_sesion(token)["user"]
+        registros = self.repositorio.listar_observacion(
+            usuario["idCuenta"]
+        )
+        return {"ok": True, "registros": registros, "total": len(registros)}
+
     def _validar_filtros(self, filtros: dict) -> dict:
         fecha_desde = self._validar_fecha(
             filtros.get("fechaDesde"),

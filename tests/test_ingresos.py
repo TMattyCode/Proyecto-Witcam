@@ -30,6 +30,21 @@ class CursorIngresosFalso:
         )
 
     def fetchall(self):
+        if (
+            "FROM ListaObservacion lo" in self.consulta
+            and "SELECT\n                    lo.id_lista_observacion" in self.consulta
+        ):
+            return [
+                SimpleNamespace(
+                    id_lista_observacion=8,
+                    id_persona=12,
+                    nombre_persona="Persona prueba",
+                    motivo="En progreso",
+                    fecha_ingreso_lista=datetime(2026, 8, 13, 19, 20, 0),
+                    nombre="Admin",
+                    apellido="Prueba",
+                )
+            ]
         if "FROM Camara c" in self.consulta and "FROM Deteccion" not in self.consulta:
             return [
                 SimpleNamespace(
@@ -95,6 +110,18 @@ class RepositorioIngresosFalso:
             "detecciones": [],
         }
 
+    def agregar_lista_observacion(
+        self, id_cuenta, id_usuario, id_persona, motivo
+    ):
+        self.argumentos = (
+            id_cuenta, id_usuario, id_persona, motivo
+        )
+        return True
+
+    def listar_observacion(self, id_cuenta):
+        self.argumentos = (id_cuenta,)
+        return []
+
 
 class PruebasIngresos(unittest.TestCase):
     def test_repositorio_aisla_por_cuenta_y_serializa_datos(self):
@@ -155,6 +182,16 @@ class PruebasIngresos(unittest.TestCase):
         self.assertEqual(parametros, (7,))
         self.assertEqual(camaras[0]["nombre"], "Acceso principal")
 
+    def test_repositorio_lista_observacion_activa_de_la_cuenta(self):
+        conexiones = FabricaIngresosFalsa()
+        registros = RepositorioIngresos(conexiones).listar_observacion(7)
+
+        consulta, parametros = conexiones.cursor.consultas[0]
+        self.assertIn("lo.activa = 1", consulta)
+        self.assertEqual(parametros, (7, 7))
+        self.assertEqual(registros[0]["motivo"], "En progreso")
+        self.assertEqual(registros[0]["registradoPor"], "Admin Prueba")
+
     def test_repositorio_historial_usa_la_misma_persona_y_cuenta(self):
         conexiones = FabricaIngresosFalsa()
         historial = RepositorioIngresos(conexiones).listar_historial(7, 12)
@@ -212,6 +249,17 @@ class PruebasIngresos(unittest.TestCase):
         self.assertTrue(historial["ok"])
         self.assertEqual(historial["persona"]["id"], 12)
         self.assertEqual(repositorio.argumentos, (7, 12))
+
+        agregado = servicio.agregar_lista_observacion(
+            "token-prueba",
+            {"idPersona": 12},
+        )
+        self.assertTrue(agregado["enListaObservacion"])
+        self.assertEqual(agregado["motivo"], "En progreso")
+        self.assertEqual(
+            repositorio.argumentos,
+            (7, 1, 12, "En progreso"),
+        )
 
 
 if __name__ == "__main__":

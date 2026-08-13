@@ -29,6 +29,8 @@ export default function TablaIngresos({
   error = "",
   onCambiarPagina,
   onVerHistorial,
+  onAgregarObservacion,
+  personaAgregando = null,
 }) {
   const totalPaginas = Math.max(1, Math.ceil(total / limite));
   const inicio = total === 0 ? 0 : (pagina - 1) * limite + 1;
@@ -127,9 +129,10 @@ export default function TablaIngresos({
                         <img src={iconoHistorial} alt="" aria-hidden="true" />
                       </button>
                       <button
-                        className="tabla-ingresos-accion observar"
+                        className={`tabla-ingresos-accion observar${ingreso.enListaObservacion ? " agregado" : ""}`}
                         type="button"
-                        disabled
+                        disabled={ingreso.enListaObservacion || personaAgregando === ingreso.idPersona}
+                        onClick={() => onAgregarObservacion?.(ingreso)}
                         aria-label={`Añadir ${ingreso.nombrePersona} a la lista de observación`}
                         title="Añadir a lista de observación (próximamente)"
                       >

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Layout from "../../componentes/layout/Layout";
 import {
+  agregarPersonaListaObservacion,
   obtenerCamarasIngresos,
   obtenerHistorialIngresos,
   obtenerIngresos,
@@ -24,6 +25,7 @@ export default function IngresosIdentificados() {
   const [historial, setHistorial] = useState(null);
   const [cargandoHistorial, setCargandoHistorial] = useState(false);
   const [errorHistorial, setErrorHistorial] = useState("");
+  const [personaAgregando, setPersonaAgregando] = useState(null);
 
   useEffect(() => {
     let activo = true;
@@ -87,6 +89,24 @@ export default function IngresosIdentificados() {
     }
   };
 
+  const agregarAObservacion = async (ingreso) => {
+    if (ingreso.enListaObservacion) return;
+    setPersonaAgregando(ingreso.idPersona);
+    setError("");
+    try {
+      await agregarPersonaListaObservacion(ingreso.idPersona);
+      setIngresos((actuales) => actuales.map((actual) => (
+        actual.idPersona === ingreso.idPersona
+          ? { ...actual, enListaObservacion: true }
+          : actual
+      )));
+    } catch (errorSolicitud) {
+      setError(errorSolicitud.message);
+    } finally {
+      setPersonaAgregando(null);
+    }
+  };
+
   return (
     <Layout
       titulo="Ingresos identificados"
@@ -108,6 +128,8 @@ export default function IngresosIdentificados() {
           error={error}
           onCambiarPagina={cambiarPagina}
           onVerHistorial={abrirHistorial}
+          onAgregarObservacion={agregarAObservacion}
+          personaAgregando={personaAgregando}
         />
 
         {historial && (

@@ -271,6 +271,13 @@
   background: #0049d8;
 }
 
+.tabla-ingresos-accion.observar.agregado,
+.tabla-ingresos-accion.observar.agregado:disabled {
+  background: #16a765;
+  box-shadow: 0 0 0 3px rgba(22, 167, 101, 0.16);
+  cursor: default;
+}
+
 .tabla-ingresos-accion.eliminar {
   background: #fe0c0c;
 }

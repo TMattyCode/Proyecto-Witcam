@@ -1,6 +1,13 @@
 ﻿import "./TablaListaObservacion.css";
 
-export default function TablaListaObservacion({ registros = [] }) {
+const FORMATEADOR_FECHA = new Intl.DateTimeFormat("es-CL", {
+  day: "2-digit", month: "2-digit", year: "numeric",
+  hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false,
+});
+
+export default function TablaListaObservacion({
+  registros = [], cargando = false, error = "",
+}) {
   const totalRegistros = registros.length;
 
   return (
@@ -28,6 +35,8 @@ export default function TablaListaObservacion({ registros = [] }) {
 
       <div className="tabla-observacion-contenedor">
 
+        {error && <p className="tabla-sin-registros" role="alert">{error}</p>}
+
         <table className="tabla-observacion">
 
           <thead>
@@ -46,7 +55,11 @@ export default function TablaListaObservacion({ registros = [] }) {
 
           <tbody>
 
-            {totalRegistros === 0 ? (
+            {cargando ? (
+
+              <tr><td colSpan="7" className="tabla-sin-registros">Cargando lista de observaciÃ³n...</td></tr>
+
+            ) : totalRegistros === 0 ? (
 
               <tr>
 
@@ -64,14 +77,15 @@ export default function TablaListaObservacion({ registros = [] }) {
 
                   <td>{registro.idLista}</td>
 
-                  <td>{registro.idCliente}</td>
+                  <td>
+                    <strong>{registro.nombrePersona}</strong>
+                    <br />ID {registro.idCliente}
+                  </td>
 
                   <td>{registro.motivo}</td>
 
                   <td>
-                    {registro.fecha}
-                    <br />
-                    {registro.hora}
+                    {FORMATEADOR_FECHA.format(new Date(registro.fechaIngreso))}
                   </td>
 
                   <td>{registro.registradoPor}</td>

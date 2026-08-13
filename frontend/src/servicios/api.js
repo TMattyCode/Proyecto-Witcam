@@ -99,6 +99,17 @@ export function obtenerHistorialIngresos(idPersona) {
   return solicitar(`/api/ingresos/historial?${parametros.toString()}`);
 }
 
+export function agregarPersonaListaObservacion(idPersona) {
+  return solicitar("/api/ingresos/lista-observacion", {
+    method: "POST",
+    body: JSON.stringify({ idPersona }),
+  });
+}
+
+export function obtenerListaObservacion() {
+  return solicitar("/api/lista-observacion");
+}
+
 export function obtenerCamarasConfiguradas() {
   return solicitar("/api/camaras");
 }

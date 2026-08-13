@@ -191,6 +191,21 @@ def crear_handler(
                 except ValueError as error:
                     self._json({"ok": False, "error": str(error)}, estado=400)
                 return
+            if ruta == "/api/lista-observacion":
+                try:
+                    self._exigir_autenticacion()
+                    if ingresos is None:
+                        raise ErrorAutenticacion(
+                            "El servicio de ingresos no esta disponible"
+                        )
+                    self._json(
+                        ingresos.listar_observacion(self._token_sesion())
+                    )
+                except CredencialesInvalidas as error:
+                    self._json({"ok": False, "error": str(error)}, estado=401)
+                except ErrorAutenticacion as error:
+                    self._json({"ok": False, "error": str(error)}, estado=503)
+                return
             if ruta == "/api/camaras":
                 try:
                     self._exigir_autenticacion()
@@ -291,6 +306,20 @@ def crear_handler(
                             self._token_sesion(),
                             datos,
                         )
+                    )
+                    return
+                if ruta == "/api/ingresos/lista-observacion":
+                    self._exigir_autenticacion()
+                    if ingresos is None:
+                        raise ErrorAutenticacion(
+                            "El servicio de ingresos no esta disponible"
+                        )
+                    self._json(
+                        ingresos.agregar_lista_observacion(
+                            self._token_sesion(),
+                            datos,
+                        ),
+                        estado=201,
                     )
                     return
                 if ruta == "/api/grupos-camara/guardar":
