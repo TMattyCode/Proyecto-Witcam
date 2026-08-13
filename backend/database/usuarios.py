@@ -413,93 +413,66 @@ class RepositorioUsuarios:
                 conexion.commit()
             return actualizado
 
-    def editar_subusuario(
+    def actualizar_permisos_subusuario(
         self,
         id_cuenta: int,
         id_usuario: int,
-        datos: dict,
-        password_hash: str | None,
         codigos_permisos: list[str],
     ) -> bool:
-        try:
-            with self.conexiones.conectar() as conexion:
-                cursor = conexion.cursor()
-                permisos = []
-                if codigos_permisos:
-                    marcadores = ", ".join("?" for _ in codigos_permisos)
-                    permisos = cursor.execute(
-                        f"""
-                        SELECT id_permiso, codigo_permiso
-                        FROM Permiso
-                        WHERE codigo_permiso IN ({marcadores})
-                        """,
-                        *codigos_permisos,
-                    ).fetchall()
-                    encontrados = {fila.codigo_permiso for fila in permisos}
-                    if encontrados != set(codigos_permisos):
-                        raise ValueError("Uno o mas permisos no existen")
-
-                asignacion_password = (
-                    ", u.password_hash = ?" if password_hash is not None else ""
-                )
-                parametros = [
-                    datos["nombre"],
-                    datos["apellido"],
-                    datos["nombre_usuario"],
-                    datos["correo"],
-                    datos["telefono"],
-                ]
-                if password_hash is not None:
-                    parametros.append(password_hash)
-                parametros.extend((id_usuario, id_cuenta))
-                cursor.execute(
+        with self.conexiones.conectar() as conexion:
+            cursor = conexion.cursor()
+            permisos = []
+            if codigos_permisos:
+                marcadores = ", ".join("?" for _ in codigos_permisos)
+                permisos = cursor.execute(
                     f"""
-                    UPDATE u
-                    SET u.nombre = ?,
-                        u.apellido = ?,
-                        u.nombre_usuario = ?,
-                        u.correo = ?,
-                        u.telefono = ?
-                        {asignacion_password}
-                    FROM Usuario u
-                    INNER JOIN Rol r ON r.id_rol = u.id_rol
-                    INNER JOIN EstadoUsuario eu
-                        ON eu.id_estado_usuario = u.id_estado_usuario
-                    WHERE u.id_usuario = ?
-                        AND u.id_cuenta = ?
-                        AND r.nombre_rol = 'Subusuario'
-                        AND eu.nombre_estado = 'Activo'
+                    SELECT id_permiso, codigo_permiso
+                    FROM Permiso
+                    WHERE codigo_permiso IN ({marcadores})
                     """,
-                    *parametros,
-                )
-                if cursor.rowcount <= 0:
-                    return False
+                    *codigos_permisos,
+                ).fetchall()
+                encontrados = {fila.codigo_permiso for fila in permisos}
+                if encontrados != set(codigos_permisos):
+                    raise ValueError("Uno o mas permisos no existen")
 
+            usuario = cursor.execute(
+                """
+                SELECT u.id_usuario
+                FROM Usuario u WITH (UPDLOCK, HOLDLOCK)
+                INNER JOIN Rol r ON r.id_rol = u.id_rol
+                INNER JOIN EstadoUsuario eu
+                    ON eu.id_estado_usuario = u.id_estado_usuario
+                WHERE u.id_usuario = ?
+                    AND u.id_cuenta = ?
+                    AND r.nombre_rol = 'Subusuario'
+                    AND eu.nombre_estado = 'Activo'
+                """,
+                id_usuario,
+                id_cuenta,
+            ).fetchone()
+            if usuario is None:
+                return False
+
+            cursor.execute(
+                "DELETE FROM Usuario_Permiso WHERE id_usuario = ?",
+                id_usuario,
+            )
+            for permiso in permisos:
                 cursor.execute(
-                    "DELETE FROM Usuario_Permiso WHERE id_usuario = ?",
-                    id_usuario,
-                )
-                for permiso in permisos:
-                    cursor.execute(
-                        """
-                        INSERT INTO Usuario_Permiso (
-                            id_usuario,
-                            id_permiso,
-                            permitido
-                        )
-                        VALUES (?, ?, 1)
-                        """,
+                    """
+                    INSERT INTO Usuario_Permiso (
                         id_usuario,
-                        permiso.id_permiso,
+                        id_permiso,
+                        permitido
                     )
-                conexion.commit()
-                return True
-        except pyodbc.IntegrityError as error:
-            if not _es_error_duplicado(error):
-                raise
-            raise RegistroDuplicado(
-                "El nombre de usuario o correo ya esta registrado"
-            ) from error
+                    VALUES (?, ?, 1)
+                    """,
+                    id_usuario,
+                    permiso.id_permiso,
+                )
+            conexion.commit()
+            return True
 
     def registrar_acceso(self, id_usuario: int) -> None:
         with self.conexiones.conectar() as conexion:

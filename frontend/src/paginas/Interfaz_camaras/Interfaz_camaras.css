@@ -731,6 +731,18 @@
   overflow: hidden;
 }
 
+.camaras-error-operacion,
+.modal-camara > .modal-camara-error {
+  margin: 12px 0;
+  padding: 11px 14px;
+  border: 1px solid #f2b8b8;
+  border-radius: 8px;
+  background: #fff1f1;
+  color: #a51f1f;
+  font-size: 13px;
+  font-weight: 600;
+}
+
 .camaras-area.con-camaras {
   padding: 10px;
 }

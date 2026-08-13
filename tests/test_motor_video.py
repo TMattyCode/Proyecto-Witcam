@@ -47,6 +47,11 @@ class CapturadorFalso:
         return None
 
 
+class CapturadorConError(CapturadorFalso):
+    def iniciar(self):
+        raise RuntimeError("detalle tecnico sensible")
+
+
 class RepositorioFalso:
     def contar(self, carpeta):
         return 0
@@ -68,7 +73,7 @@ class PruebasMotorVideo(unittest.TestCase):
         motor = MotorReconocimiento(config, RepositorioFalso(), fabrica)
 
         with patch("backend.video.motor.CapturadorFrames", CapturadorFalso):
-            motor.iniciar(0, analizar=False)
+            motor.iniciar(0, analizar=False, id_camara=17)
             limite = time.time() + 1.0
             while not motor.obtener_estado()["streaming"]:
                 if time.time() >= limite:
@@ -80,10 +85,31 @@ class PruebasMotorVideo(unittest.TestCase):
         self.assertEqual(fabrica.llamadas, 0)
         self.assertTrue(estado["running"])
         self.assertTrue(estado["streaming"])
+        self.assertEqual(estado["camera_id"], 17)
+        self.assertIsNone(motor.obtener_estado()["camera_id"])
         self.assertEqual(
             estado["last_event"],
             "Transmision activa sin analisis",
         )
+
+    def test_error_del_motor_no_expone_el_detalle_tecnico(self):
+        config = ConfiguracionApp()
+        motor = MotorReconocimiento(
+            config,
+            RepositorioFalso(),
+            FabricaPipelineProhibida(),
+        )
+
+        with (
+            patch("backend.video.motor.CapturadorFrames", CapturadorConError),
+            self.assertLogs("backend.video.motor", level="ERROR"),
+        ):
+            motor.iniciar(0, analizar=False, id_camara=17)
+            motor.hilo.join(timeout=1.0)
+
+        error_publico = motor.obtener_estado()["last_error"]
+        self.assertIn("transmision de video", error_publico)
+        self.assertNotIn("detalle tecnico sensible", error_publico)
 
 
 if __name__ == "__main__":

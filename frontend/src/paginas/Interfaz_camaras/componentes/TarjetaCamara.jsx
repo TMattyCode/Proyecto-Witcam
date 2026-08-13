@@ -29,6 +29,7 @@ export default function TarjetaCamara({
   const onvif = camara.tipo === "onvif";
   const rtsp = camara.tipo === "rtsp";
   const fuenteRed = onvif || rtsp;
+  const transmitiendo = estado.running;
   const enVivo = simulada || (!fuenteRed && estado.streaming && !estado.last_error);
   const iniciando = !simulada && !fuenteRed && estado.running && !enVivo;
   const error = simulada || fuenteRed ? "" : errorInterfaz || estado.last_error;
@@ -107,7 +108,7 @@ export default function TarjetaCamara({
           <button
             className="boton-camara editar"
             type="button"
-            disabled={operando}
+            disabled={operando || transmitiendo}
             onClick={onEditar}
             aria-label={`Editar cámara ${camara.nombre}`}
             title="Editar cámara"
@@ -118,7 +119,7 @@ export default function TarjetaCamara({
           <button
             className="boton-camara eliminar"
             type="button"
-            disabled={operando}
+            disabled={operando || transmitiendo}
             onClick={onEliminar}
             aria-label={`Eliminar cámara ${camara.nombre}`}
             title="Eliminar cámara"

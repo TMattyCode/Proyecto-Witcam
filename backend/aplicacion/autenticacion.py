@@ -258,6 +258,10 @@ class ServicioAutenticacion:
         administrador = self._obtener_administrador(token)
         if not isinstance(datos, dict):
             raise ErrorAutenticacion("Los datos del subusuario no son validos")
+        if set(datos) - {"id", "permisos"}:
+            raise ErrorAutenticacion(
+                "El administrador solo puede modificar los permisos"
+            )
         id_usuario = datos.get("id")
         if (
             isinstance(id_usuario, bool)
@@ -265,20 +269,10 @@ class ServicioAutenticacion:
             or id_usuario <= 0
         ):
             raise ErrorAutenticacion("El subusuario no es valido")
-        normalizados, permisos = self._validar_subusuario(
-            datos,
-            contrasena_opcional=True,
-        )
-        password_hash = (
-            crear_hash_password(normalizados["contrasena"])
-            if normalizados["contrasena"]
-            else None
-        )
-        actualizado = self.usuarios.editar_subusuario(
+        permisos = self._validar_permisos(datos)
+        actualizado = self.usuarios.actualizar_permisos_subusuario(
             administrador["idCuenta"],
             id_usuario,
-            normalizados,
-            password_hash,
             permisos,
         )
         if not actualizado:
@@ -290,11 +284,6 @@ class ServicioAutenticacion:
             "ok": True,
             "subusuario": {
                 "id": id_usuario,
-                "nombre": normalizados["nombre"],
-                "apellido": normalizados["apellido"],
-                "nombreUsuario": normalizados["nombre_usuario"],
-                "correo": normalizados["correo"],
-                "telefono": normalizados["telefono"],
                 "estado": "Activo",
                 "permisos": permisos,
             },
@@ -448,6 +437,11 @@ class ServicioAutenticacion:
         ):
             raise ErrorAutenticacion("El telefono no es valido")
 
+        permisos = ServicioAutenticacion._validar_permisos(datos)
+        return campos, permisos
+
+    @staticmethod
+    def _validar_permisos(datos: dict) -> list[str]:
         permisos_recibidos = datos.get("permisos", [])
         if not isinstance(permisos_recibidos, list) or any(
             not isinstance(codigo, str) for codigo in permisos_recibidos
@@ -462,7 +456,7 @@ class ServicioAutenticacion:
         )
         if any(len(codigo) > 50 for codigo in permisos):
             raise ErrorAutenticacion("Uno o mas permisos no son validos")
-        return campos, permisos
+        return permisos
 
     @staticmethod
     def _leer_texto(

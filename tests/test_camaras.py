@@ -3,8 +3,9 @@ from contextlib import contextmanager
 from types import SimpleNamespace
 
 from backend.aplicacion.camaras import ServicioCamaras
-from backend.database.camaras import RepositorioCamaras
+from backend.database.camaras import RepositorioCamaras, _es_error_duplicado
 from backend.exceptions import ErrorCamara
+import pyodbc
 
 
 class AutenticacionCamarasFalsa:
@@ -39,7 +40,14 @@ class RepositorioCamarasFalso:
                     "direccionIp": "192.168.1.20",
                     "usuarioConexion": "operador",
                     "tienePassword": True,
-                }
+                },
+                {
+                    "id": 10,
+                    "nombre": "Webcam",
+                    "tipo": "webcam",
+                    "grupoCamaraId": 3,
+                    "fuente": 0,
+                },
             ],
         }
 
@@ -126,6 +134,14 @@ class ConexionesPersistenciaFalsas:
 
 
 class PruebasServicioCamaras(unittest.TestCase):
+    def test_solo_los_codigos_sql_de_unicidad_se_tratan_como_duplicados(self):
+        self.assertTrue(
+            _es_error_duplicado(pyodbc.IntegrityError("23000", "Error 2627"))
+        )
+        self.assertFalse(
+            _es_error_duplicado(pyodbc.IntegrityError("23000", "Error 547"))
+        )
+
     def setUp(self):
         self.repositorio = RepositorioCamarasFalso()
         self.servicio = ServicioCamaras(
@@ -155,6 +171,16 @@ class PruebasServicioCamaras(unittest.TestCase):
         llamada = self.repositorio.llamada
         self.assertTrue(respuesta["ok"])
         self.assertEqual(llamada[1], 7)
+
+    def test_transmision_valida_webcam_asignada_y_su_fuente(self):
+        self.servicio.validar_transmision("token-prueba", 10, 0)
+
+        with self.assertRaisesRegex(ErrorCamara, "fuente"):
+            self.servicio.validar_transmision("token-prueba", 10, 1)
+        with self.assertRaisesRegex(ErrorCamara, "Solo la webcam"):
+            self.servicio.validar_transmision("token-prueba", 9, None)
+        with self.assertRaisesRegex(ErrorCamara, "no existe"):
+            self.servicio.validar_transmision("token-prueba", 999, 0)
 
     def test_valida_onvif_y_password_solo_es_obligatoria_al_crear(self):
         datos = {
@@ -216,6 +242,29 @@ class PruebasServicioCamaras(unittest.TestCase):
         )
         with self.assertRaisesRegex(ErrorCamara, "administrador"):
             servicio.eliminar("token-prueba", {"id": 9})
+
+    def test_camara_en_transmision_no_se_puede_editar_ni_eliminar(self):
+        servicio = ServicioCamaras(
+            self.repositorio,
+            AutenticacionCamarasFalsa(),
+            lambda id_camara: id_camara == 9,
+        )
+        datos = {
+            "id": 9,
+            "nombre": "Acceso",
+            "tipo": "onvif",
+            "grupoCamaraId": 3,
+            "direccionIp": "192.168.1.20",
+            "puertoOnvif": 80,
+            "usuarioConexion": "operador",
+            "passwordConexion": "",
+        }
+
+        with self.assertRaisesRegex(ErrorCamara, "mientras transmite"):
+            servicio.editar("token-prueba", datos)
+        with self.assertRaisesRegex(ErrorCamara, "mientras transmite"):
+            servicio.eliminar("token-prueba", {"id": 9})
+        self.assertIsNone(self.repositorio.llamada)
 
     def test_grupos_rechazan_duplicados(self):
         with self.assertRaisesRegex(ValueError, "mismo nombre"):

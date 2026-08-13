@@ -28,6 +28,7 @@ const ESCENAS_SIMULADAS = [
 const ESTADO_DETENIDO = {
   running: false,
   streaming: false,
+  camera_id: null,
   last_error: null,
   last_event: "Detenido",
 };
@@ -78,7 +79,8 @@ export default function InterfazCamaras() {
   const [gruposSeleccionados, setGruposSeleccionados] = useState(null);
   const [columnasCuadricula, setColumnasCuadricula] = useState("auto");
   const [operandoId, setOperandoId] = useState(null);
-  const [errorInterfaz, setErrorInterfaz] = useState("");
+  const [errorOperacion, setErrorOperacion] = useState("");
+  const [errorMonitoreo, setErrorMonitoreo] = useState("");
   const [versionStream, setVersionStream] = useState(1);
   const [cargandoConfiguracion, setCargandoConfiguracion] = useState(true);
   const tieneWebcam = camaras.some((camara) => camara.tipo === "webcam");
@@ -94,11 +96,11 @@ export default function InterfazCamaras() {
       .then((respuesta) => {
         if (activo) {
           aplicarConfiguracion(respuesta);
-          setErrorInterfaz("");
+          setErrorOperacion("");
         }
       })
       .catch((error) => {
-        if (activo) setErrorInterfaz(error.message);
+        if (activo) setErrorOperacion(error.message);
       })
       .finally(() => {
         if (activo) setCargandoConfiguracion(false);
@@ -116,10 +118,10 @@ export default function InterfazCamaras() {
         const siguienteEstado = await obtenerEstadoMonitoreo();
         if (activo) {
           setEstado(siguienteEstado);
-          setErrorInterfaz("");
+          setErrorMonitoreo("");
         }
       } catch (error) {
-        if (activo && tieneWebcam) setErrorInterfaz(error.message);
+        if (activo && tieneWebcam) setErrorMonitoreo(error.message);
       }
     }
 
@@ -137,6 +139,7 @@ export default function InterfazCamaras() {
   }, [tieneWebcam]);
 
   const abrirFormulario = () => {
+    setErrorOperacion("");
     setCamaraEditando(null);
     const tipoInicial = tieneWebcam ? "simulada" : "webcam";
     setTipoCamara(tipoInicial);
@@ -156,6 +159,13 @@ export default function InterfazCamaras() {
   };
 
   const abrirEdicion = (camara) => {
+    if (estado.running && Number(estado.camera_id) === Number(camara.id)) {
+      setErrorOperacion(
+        "Deten la transmision antes de editar la camara.",
+      );
+      return;
+    }
+    setErrorOperacion("");
     setCamaraEditando(camara);
     setTipoCamara(camara.tipo);
     setNombreCamara(camara.nombre);
@@ -170,6 +180,7 @@ export default function InterfazCamaras() {
   };
 
   const cerrarFormulario = () => {
+    setErrorOperacion("");
     setModalAbierto(false);
     setCamaraEditando(null);
   };
@@ -232,9 +243,9 @@ export default function InterfazCamaras() {
         : await crearCamara(datosCamara);
       aplicarConfiguracion(respuesta);
       cerrarFormulario();
-      setErrorInterfaz("");
+      setErrorOperacion("");
     } catch (error) {
-      setErrorInterfaz(error.message);
+      setErrorOperacion(error.message);
     } finally {
       setOperandoId(null);
     }
@@ -247,19 +258,20 @@ export default function InterfazCamaras() {
 
   const iniciar = async (camara) => {
     setOperandoId(camara.id);
-    setErrorInterfaz("");
+    setErrorMonitoreo("");
     try {
-      await iniciarTransmision(camara.fuente);
+      await iniciarTransmision(camara.fuente, true, camara.id);
       setEstado((actual) => ({
         ...actual,
         running: true,
         streaming: false,
+        camera_id: camara.id,
         last_error: null,
-        last_event: "Iniciando camara",
+        last_event: "Iniciando camara y modelos de IA",
       }));
       setVersionStream((version) => version + 1);
     } catch (error) {
-      setErrorInterfaz(error.message);
+      setErrorMonitoreo(error.message);
     } finally {
       setOperandoId(null);
     }
@@ -267,29 +279,35 @@ export default function InterfazCamaras() {
 
   const detener = async (camara) => {
     setOperandoId(camara.id);
-    setErrorInterfaz("");
+    setErrorMonitoreo("");
     try {
       await detenerTransmision();
       setEstado(ESTADO_DETENIDO);
       setVersionStream((version) => version + 1);
     } catch (error) {
-      setErrorInterfaz(error.message);
+      setErrorMonitoreo(error.message);
     } finally {
       setOperandoId(null);
     }
   };
 
   const eliminar = async (camara) => {
-    if (camara.tipo === "webcam" && estado.running) {
-      await detener(camara);
+    if (
+      estado.running
+      && Number(estado.camera_id) === Number(camara.id)
+    ) {
+      setErrorOperacion(
+        "Deten la transmision antes de eliminar la camara.",
+      );
+      return;
     }
     setOperandoId(camara.id);
     try {
       const respuesta = await eliminarCamara(camara.id);
       aplicarConfiguracion(respuesta);
-      setErrorInterfaz("");
+      setErrorOperacion("");
     } catch (error) {
-      setErrorInterfaz(error.message);
+      setErrorOperacion(error.message);
     } finally {
       setOperandoId(null);
     }
@@ -450,6 +468,12 @@ export default function InterfazCamaras() {
           </div>
         </div>
 
+        {!modalAbierto && errorOperacion && (
+          <div className="camaras-error-operacion" role="alert">
+            {errorOperacion}
+          </div>
+        )}
+
         <div className={`camaras-area${camarasFiltradas.length ? " con-camaras" : ""}${claseCuadricula}`}>
           {camarasFiltradas.length ? (
             camarasFiltradas.map((camara) => (
@@ -457,7 +481,7 @@ export default function InterfazCamaras() {
                 key={camara.id}
                 camara={camara}
                 estado={camara.tipo === "webcam" ? estado : ESTADO_DETENIDO}
-                errorInterfaz={camara.tipo === "webcam" ? errorInterfaz : ""}
+                errorInterfaz={camara.tipo === "webcam" ? errorMonitoreo : ""}
                 operando={operandoId === camara.id}
                 versionStream={versionStream}
                 imagenSimulacion={imagenSimulacion}
@@ -633,6 +657,12 @@ export default function InterfazCamaras() {
                     ? "El stream RTSP quedará registrado para conectarlo al motor de video en el siguiente paso."
                     : "La cámara simulada no abre dispositivos ni consume el backend de video."}
             </p>}
+
+            {errorOperacion && (
+              <p className="modal-camara-error" role="alert">
+                {errorOperacion}
+              </p>
+            )}
 
             <div className="modal-camara-acciones">
               <button type="button" onClick={cerrarFormulario}>Cancelar</button>

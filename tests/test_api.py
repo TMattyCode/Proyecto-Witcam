@@ -33,11 +33,13 @@ class MonitoreoFalso:
         self.detenido = False
         self.fuente = None
         self.analizar = True
+        self.id_camara = None
 
-    def iniciar(self, fuente=None, analizar=True):
+    def iniciar(self, fuente=None, analizar=True, id_camara=None):
         self.iniciado = True
         self.fuente = fuente
         self.analizar = analizar
+        self.id_camara = id_camara
 
     def detener(self):
         self.detenido = True
@@ -145,8 +147,6 @@ class AutenticacionFalsa:
             "ok": True,
             "subusuario": {
                 "id": datos["id"],
-                "nombreUsuario": datos["nombreUsuario"],
-                "correo": datos["correo"],
                 "estado": "Activo",
                 "permisos": datos.get("permisos", []),
             },
@@ -219,6 +219,11 @@ class CamarasFalso:
         self._validar(token)
         return {"ok": True, "grupos": [], "camaras": []}
 
+    def validar_transmision(self, token, id_camara, fuente):
+        self._validar(token)
+        if id_camara != 17 or fuente != 0:
+            raise ErrorCamara("La camara no es valida")
+
 
 class PruebasApi(unittest.TestCase):
     def setUp(self):
@@ -268,7 +273,7 @@ class PruebasApi(unittest.TestCase):
         imagen = np.zeros((20, 20, 3), dtype=np.uint8)
         cv2.imwrite(str(galeria / "muestra.jpg"), imagen)
 
-    def _solicitar(self, metodo, ruta, datos=None):
+    def _solicitar(self, metodo, ruta, datos=None, cabeceras_extra=None):
         conexion = http.client.HTTPConnection(
             "127.0.0.1",
             self.puerto,
@@ -280,6 +285,7 @@ class PruebasApi(unittest.TestCase):
             if datos is None
             else {"Content-Type": "application/json"}
         )
+        cabeceras.update(cabeceras_extra or {})
         conexion.request(metodo, ruta, cuerpo, cabeceras)
         respuesta = conexion.getresponse()
         contenido = respuesta.read()
@@ -341,16 +347,51 @@ class PruebasApi(unittest.TestCase):
         self.assertIn(b"--frame", fragmento)
         conexion.close()
 
+    def test_error_inesperado_get_no_expone_detalles_internos(self):
+        with self.assertLogs("backend.api.handler", level="ERROR"):
+            estado, _, cuerpo = self._solicitar(
+                "GET",
+                "/api/auth/session",
+                cabeceras_extra={"Authorization": "Bearer token-invalido"},
+            )
+        respuesta = json.loads(cuerpo)
+        self.assertEqual(estado, 500)
+        self.assertIn("error interno", respuesta["error"])
+        self.assertNotIn("Token incorrecto", respuesta["error"])
+
+    def test_json_malformado_recibe_un_mensaje_publico(self):
+        conexion = http.client.HTTPConnection(
+            "127.0.0.1",
+            self.puerto,
+            timeout=3,
+        )
+        conexion.request(
+            "POST",
+            "/api/auth/login",
+            "{json-incompleto",
+            {"Content-Type": "application/json"},
+        )
+        respuesta = conexion.getresponse()
+        contenido = json.loads(respuesta.read())
+        conexion.close()
+        self.assertEqual(respuesta.status, 400)
+        self.assertEqual(
+            contenido["error"],
+            "El contenido de la solicitud no es un JSON valido",
+        )
+
     def test_contratos_post_y_operaciones(self):
         estado, _, cuerpo = self._solicitar(
             "POST",
             "/api/start",
-            {"source": 0, "analysis": False},
+            {"source": 0, "analysis": False, "cameraId": 17},
+            {"Authorization": "Bearer token-prueba"},
         )
         self.assertEqual(estado, 200)
         self.assertEqual(json.loads(cuerpo), {"ok": True})
         self.assertEqual(self.monitoreo.fuente, 0)
         self.assertFalse(self.monitoreo.analizar)
+        self.assertEqual(self.monitoreo.id_camara, 17)
 
         estado, _, cuerpo = self._solicitar("POST", "/api/stop", {})
         self.assertEqual(estado, 200)
@@ -548,8 +589,6 @@ class PruebasApi(unittest.TestCase):
             "/api/subusuarios/editar",
             json.dumps({
                 "id": 2,
-                "nombreUsuario": "ana.editada",
-                "correo": "ana@example.com",
                 "permisos": ["ver"],
             }),
             {
@@ -561,7 +600,7 @@ class PruebasApi(unittest.TestCase):
         editado = json.loads(respuesta.read())
         conexion.close()
         self.assertEqual(respuesta.status, 200)
-        self.assertEqual(editado["subusuario"]["nombreUsuario"], "ana.editada")
+        self.assertEqual(editado["subusuario"]["permisos"], ["ver"])
 
     def test_ingresos_exigen_sesion_y_devuelven_datos_paginados(self):
         estado, _, cuerpo = self._solicitar("GET", "/api/ingresos")

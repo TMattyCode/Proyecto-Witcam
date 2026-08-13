@@ -1,3 +1,4 @@
+import logging
 import threading
 import time
 from collections.abc import Callable
@@ -24,6 +25,9 @@ from backend.video.renderizado import (
     crear_frame_mensaje,
     dibujar_resultados,
 )
+
+
+LOGGER = logging.getLogger(__name__)
 
 
 class FabricaPipeline(Protocol):
@@ -62,6 +66,7 @@ class MotorReconocimiento:
         self,
         fuente: int | str | None = None,
         analizar: bool = True,
+        id_camara: int | None = None,
     ) -> None:
         if self.hilo and self.hilo.is_alive():
             return
@@ -73,6 +78,7 @@ class MotorReconocimiento:
             self.analisis_habilitado = analizar
             self.estado.ejecutando = True
             self.estado.transmitiendo = False
+            self.estado.id_camara = id_camara
             self.estado.ultimo_error = None
             self.estado.ultimo_evento = "Iniciando camara"
             self.estado.jpeg_actual = crear_frame_mensaje(
@@ -104,6 +110,7 @@ class MotorReconocimiento:
             base = {
                 "running": self.estado.ejecutando,
                 "streaming": self.estado.transmitiendo,
+                "camera_id": self.estado.id_camara,
                 "last_error": self.estado.ultimo_error,
                 "last_event": self.estado.ultimo_evento,
                 "detections": list(self.estado.detecciones),
@@ -194,9 +201,11 @@ class MotorReconocimiento:
             )
         except Exception as error:
             with self.bloqueo:
-                self.estado.ultimo_error = str(error)
+                self.estado.ultimo_error = (
+                    "No se pudo iniciar o mantener la transmision de video."
+                )
                 self.estado.ultimo_evento = "Error"
-            print(f"Error en motor de reconocimiento: {error}")
+            LOGGER.exception("Error en el motor de reconocimiento")
         finally:
             self.evento_detencion.set()
             if capturador is not None:
@@ -398,6 +407,7 @@ class MotorReconocimiento:
     def _restablecer_estado(self) -> None:
         self.estado.ejecutando = False
         self.estado.transmitiendo = False
+        self.estado.id_camara = None
         self.estado.jpeg_actual = crear_frame_mensaje(
             "Presiona Iniciar en la interfaz",
             self.config.video,

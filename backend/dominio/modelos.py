@@ -117,6 +117,7 @@ class ResultadoVisual:
 class EstadoMotor:
     ejecutando: bool = False
     transmitiendo: bool = False
+    id_camara: int | None = None
     ultimo_error: str | None = None
     ultimo_evento: str = "Detenido"
     detecciones: list[dict] = field(default_factory=list)

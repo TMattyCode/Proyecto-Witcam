@@ -12,7 +12,7 @@ El repositorio tambien contiene la interfaz definitiva desarrollada con React y 
 - Registro, inicio, consulta y cierre de sesion consumen la API modular de Python. El backend evita cuentas activas duplicadas, restaura sesiones y actualiza el ultimo acceso.
 - Cada administrador tiene su propia cuenta y recibe un `Grupo 1` inicial. Puede gestionar subusuarios y asignarles los permisos preestablecidos, mientras que los registros desactivados se conservan como historial.
 - Los grupos y camaras se persisten por cuenta en SQL Server. La interfaz permite crear, editar, filtrar y desactivar camaras `webcam`, `RTSP`, `ONVIF` y simuladas, con un maximo visual actual de nueve camaras.
-- La webcam local puede iniciarse y detenerse desde React en modo de visualizacion, actualmente con `analysis: false`. Las fuentes RTSP y ONVIF ya se registran de forma segura, pero su conexion al motor de video por `id_camara` sigue pendiente; las camaras simuladas muestran una imagen estatica para probar la cuadricula.
+- La webcam local puede iniciarse y detenerse desde React con el pipeline de IA habilitado. Las fuentes RTSP y ONVIF ya se registran de forma segura, pero su conexion al motor de video por `id_camara` sigue pendiente; las camaras simuladas muestran una imagen estatica para probar la cuadricula.
 - La vista de ingresos identificados consulta SQL Server, admite filtros acumulables y pagina 25 detecciones por vez. Por ahora se alimenta con datos de prueba: el pipeline de IA todavia no inserta automaticamente personas, muestras ni detecciones en la base de datos.
 - En desarrollo local, SQL Server se conecta mediante memoria compartida (`lpc:localhost`) y autenticacion de Windows, sin exponer un puerto TCP.
 - Actualmente el motor de IA procesa una sola fuente global configurable en `backend/config.py`. El siguiente paso de integracion es crear un motor por camara activa y vincular las fuentes guardadas en SQL Server con el reconocimiento y sus detecciones.
@@ -172,6 +172,8 @@ Las respuestas de la API nunca incluyen la contrasena de la camara. Una webcam o
 
 Las acciones de eliminar camaras y grupos usan eliminacion logica: conservan las filas y cambian `Camara.activa` o `GrupoCamara.activo` a `0`. Un grupo no puede desactivarse si contiene camaras activas y cada cuenta debe conservar al menos un grupo activo. Esto mantiene validas las referencias de las detecciones historicas.
 
+Una camara no puede editarse ni desactivarse mientras se encuentra transmitiendo. React bloquea ambas acciones y el backend vuelve a validar la regla usando el `cameraId` asociado al motor activo, de modo que una solicitud manipulada tambien se rechaza. Al iniciar, el backend comprueba ademas que la webcam esta activa, pertenece a la sesion y coincide con el indice solicitado. Primero se debe detener la transmision desde su tarjeta.
+
 La unicidad de nombres considera solamente camaras, grupos y usuarios activos. Despues de desactivar un registro se puede crear otro con el mismo nombre sin eliminar el historial anterior. Los subusuarios desactivados se conservan como historial en SQL Server, pero no se listan ni se pueden reactivar desde la aplicacion.
 
 La configuracion local predeterminada usa `ODBC Driver 17 for SQL Server`, autenticacion de Windows y `lpc:localhost`. De esta manera Python y SQL Server se comunican mediante memoria compartida sin habilitar TCP/IP ni abrir el puerto `1433`.
@@ -222,10 +224,10 @@ La interfaz de `frontend/` incluye actualmente:
 
 - Registro de cuentas administradoras e inicio de sesion con rutas protegidas.
 - Restauracion y cierre de sesion, nombre real de la cuenta y resumen de subusuarios activos.
-- Creacion y edicion de subusuarios con permisos preestablecidos, buscador, filtros acumulables, paginacion y desactivacion logica con confirmacion propia.
+- Creacion de subusuarios y administracion de sus permisos desde un unico panel, con buscador, filtros acumulables, paginacion y eliminacion logica con confirmacion propia. El administrador no puede modificar los datos personales ni la contrasena de un subusuario ya creado; esa edicion correspondera al propio usuario.
 - Gestion por cuenta de grupos y camaras, incluyendo validacion para conservar al menos un grupo y para impedir desactivar grupos que aun contienen camaras activas.
 - Registro de fuentes `webcam`, `RTSP`, `ONVIF` y simuladas, filtros por camara y grupo, seleccion de cuadricula y vista en pantalla completa.
-- Visualizacion en vivo de una webcam local mediante el MJPEG del backend, sin ejecutar todavia el analisis facial desde esta vista. RTSP y ONVIF muestran por ahora el estado de fuente registrada hasta completar su conexion al motor.
+- Visualizacion en vivo de una webcam local mediante el MJPEG procesado por YOLO, SCRFD, InsightFace y ByteTrack. RTSP y ONVIF muestran por ahora el estado de fuente registrada hasta completar su conexion al motor.
 - Consulta paginada de ingresos identificados, con filtros por texto, fecha, hora y camara. Los botones para eliminar o enviar una persona a la lista de observacion siguen deshabilitados.
 - Diseno adaptable y navegacion con `HashRouter`, pensado para empaquetarse posteriormente como aplicacion de escritorio.
 
@@ -272,12 +274,14 @@ La v2 conserva las rutas originales de la version estable y agrega los contratos
 
 - Video y galerias: `GET /`, `/video_feed`, `/placeholder`, `/api/status` y `/api/list`.
 - Autenticacion: `GET /api/auth/session` y `POST /api/auth/register`, `/api/auth/login`, `/api/auth/logout`.
-- Cuenta y subusuarios: `GET /api/cuenta/resumen`, `GET/POST /api/subusuarios`, `POST /api/subusuarios/editar` y `POST /api/subusuarios/estado`.
+- Cuenta y subusuarios: `GET /api/cuenta/resumen`, `GET/POST /api/subusuarios`, `POST /api/subusuarios/editar` para administrar exclusivamente permisos y `POST /api/subusuarios/estado` para la eliminacion logica.
 - Camaras y grupos: `GET /api/camaras`, `POST /api/camaras/crear`, `/api/camaras/editar`, `/api/camaras/eliminar` y `/api/grupos-camara/guardar`.
 - Ingresos: `GET /api/ingresos` y `GET /api/ingresos/camaras`.
 - Motor y galerias: `POST /api/start`, `/api/stop`, `/api/approve`, `/api/unapprove`, `/api/rename` y `/api/reject`.
 
-`POST /api/start` acepta `source` y el booleano `analysis`; React usa actualmente `analysis: false` para mostrar la webcam sin cargar los modelos de IA. Las rutas de cuenta, subusuarios, camaras e ingresos validan la sesion y restringen las operaciones administrativas. El backend comprueba pertenencia a la cuenta para impedir consultar o modificar recursos de otro administrador. Las rutas originales de galerias mantienen los campos `file`, `newName` y `type`, junto con las respuestas `ok/error`.
+`POST /api/start` acepta `source`, el booleano `analysis` y `cameraId`; React envia `analysis: true` y el ID de la webcam para cargar el pipeline de reconocimiento y proteger la camara activa frente a ediciones o eliminaciones. Las rutas de cuenta, subusuarios, camaras e ingresos validan la sesion y restringen las operaciones administrativas. El backend comprueba pertenencia a la cuenta para impedir consultar o modificar recursos de otro administrador. Las rutas originales de galerias mantienen los campos `file`, `newName` y `type`, junto con las respuestas `ok/error`.
+
+Los errores esperados de validacion conservan mensajes especificos para el usuario. Las excepciones internas de SQL Server, video o IA se registran solamente en la consola del backend y la API devuelve un mensaje seguro. React traduce fallos de conexion o respuestas incompletas y, si la sesion vence, elimina el token, vuelve al inicio y solicita iniciar sesion nuevamente.
 
 La interfaz anterior conserva sus archivos dentro de `interfaz_prueba/` y usa sus propias carpetas de galerias para no interferir con el backend modular.
 
@@ -292,7 +296,7 @@ cd frontend
 npm test
 ```
 
-Actualmente existen 61 pruebas automaticas de Python y 6 pruebas de Node. Tambien se completo una reproduccion real de diez minutos, 1920x1080 a 30 FPS, con InsightFace/SCRFD, YOLO y ByteTrack usando galerias temporales. El pipeline llego al final del video sin cortes y la firma de galerias permanecio valida. Webcam y RTSP quedan como pruebas manuales dependientes de tener esas fuentes disponibles.
+Actualmente existen 63 pruebas automaticas de Python y 7 pruebas de Node. Tambien se completo una reproduccion real de diez minutos, 1920x1080 a 30 FPS, con InsightFace/SCRFD, YOLO y ByteTrack usando galerias temporales. El pipeline llego al final del video sin cortes y la firma de galerias permanecio valida. Webcam y RTSP quedan como pruebas manuales dependientes de tener esas fuentes disponibles.
 
 ## Oclusion
 

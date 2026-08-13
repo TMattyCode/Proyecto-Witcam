@@ -10,8 +10,9 @@ class ServicioMonitoreo:
         self,
         fuente: int | str | None = None,
         analizar: bool = True,
+        id_camara: int | None = None,
     ) -> None:
-        self.motor.iniciar(fuente, analizar)
+        self.motor.iniciar(fuente, analizar, id_camara)
 
     def detener(self) -> None:
         self.motor.detener()
@@ -21,6 +22,10 @@ class ServicioMonitoreo:
 
     def frame(self) -> bytes | None:
         return self.motor.obtener_frame()
+
+    def camara_transmitiendo(self, id_camara: int) -> bool:
+        estado = self.motor.obtener_estado()
+        return estado["running"] and estado["camera_id"] == id_camara
 
 
 class ServicioGalerias:

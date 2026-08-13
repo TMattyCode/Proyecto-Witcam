@@ -1,22 +1,44 @@
+export const EVENTO_SESION_EXPIRADA = "witcam:sesion-expirada";
+
+function notificarSesionExpirada(ruta, respuesta) {
+  if (respuesta.status !== 401 || ruta === "/api/auth/login") return;
+  globalThis.dispatchEvent?.(new Event(EVENTO_SESION_EXPIRADA));
+}
+
 async function solicitar(ruta, opciones = {}) {
   const token =
     localStorage.getItem("witcam_token") ||
     sessionStorage.getItem("witcam_token");
-  const respuesta = await fetch(ruta, {
-    ...opciones,
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...opciones.headers,
-    },
-  });
+  let respuesta;
+  try {
+    respuesta = await fetch(ruta, {
+      ...opciones,
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...opciones.headers,
+      },
+    });
+  } catch {
+    throw new Error(
+      "No se pudo conectar con Witcam. Verifica que el servidor de Python esté funcionando.",
+    );
+  }
+  notificarSesionExpirada(ruta, respuesta);
   const tipoContenido = respuesta.headers.get("content-type") || "";
   if (!tipoContenido.includes("application/json")) {
     throw new Error(
       "El backend no devolvió una respuesta válida. Reinicia el servidor de Python.",
     );
   }
-  const datos = await respuesta.json();
+  let datos;
+  try {
+    datos = await respuesta.json();
+  } catch {
+    throw new Error(
+      "El backend devolvió una respuesta incompleta. Inténtalo nuevamente.",
+    );
+  }
   if (!respuesta.ok) {
     throw new Error(datos.error || "No se pudo completar la solicitud");
   }
@@ -118,10 +140,10 @@ export function actualizarEstadoSubusuario(id, estado) {
   });
 }
 
-export function editarSubusuario(datos) {
+export function actualizarPermisosSubusuario(id, permisos) {
   return solicitar("/api/subusuarios/editar", {
     method: "POST",
-    body: JSON.stringify(datos),
+    body: JSON.stringify({ id, permisos }),
   });
 }
 
@@ -133,10 +155,14 @@ export function obtenerEstadoMonitoreo() {
   return solicitar("/api/status");
 }
 
-export function iniciarTransmision(fuente) {
+export function iniciarTransmision(fuente, analizar = true, idCamara = null) {
   return solicitar("/api/start", {
     method: "POST",
-    body: JSON.stringify({ source: fuente, analysis: false }),
+    body: JSON.stringify({
+      source: fuente,
+      analysis: analizar,
+      cameraId: idCamara,
+    }),
   });
 }
 

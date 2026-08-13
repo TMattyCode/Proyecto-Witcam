@@ -157,27 +157,20 @@ class PruebasRepositorioUsuarios(unittest.TestCase):
         self.assertFalse(actualizado)
         self.assertFalse(conexion.confirmada)
 
-    def test_edicion_actualiza_datos_y_reemplaza_permisos_en_una_transaccion(self):
+    def test_administracion_reemplaza_solo_permisos_en_una_transaccion(self):
         conexion = ConexionFalsa()
-        datos = {
-            "nombre": "Ana",
-            "apellido": "Editada",
-            "nombre_usuario": "ana.editada",
-            "correo": "ana@example.com",
-            "telefono": None,
-        }
         with patch("backend.database.conexion.pyodbc.connect", return_value=conexion):
-            actualizado = self.repositorio.editar_subusuario(
+            actualizado = self.repositorio.actualizar_permisos_subusuario(
                 10,
                 20,
-                datos,
-                None,
                 [],
             )
         consultas = "\n".join(consulta for consulta, _ in conexion._cursor.consultas)
         self.assertTrue(actualizado)
         self.assertIn("eu.nombre_estado = 'Activo'", consultas)
         self.assertIn("DELETE FROM Usuario_Permiso", consultas)
+        self.assertNotIn("SET u.nombre", consultas)
+        self.assertNotIn("password_hash", consultas)
         self.assertTrue(conexion.confirmada)
 
 

@@ -113,19 +113,15 @@ class RepositorioUsuariosFalso:
         self.cambio_estado_solicitado = (id_cuenta, id_usuario, estado)
         return id_usuario == 2
 
-    def editar_subusuario(
+    def actualizar_permisos_subusuario(
         self,
         id_cuenta,
         id_usuario,
-        datos,
-        password_hash,
         permisos,
     ):
         self.edicion_solicitada = {
             "idCuenta": id_cuenta,
             "idUsuario": id_usuario,
-            "datos": datos,
-            "passwordHash": password_hash,
             "permisos": permisos,
         }
         return id_usuario == 2
@@ -362,33 +358,26 @@ class PruebasAutenticacion(unittest.TestCase):
                         {"id": id_invalido, "estado": "inactivo"},
                     )
 
-    def test_edita_subusuario_activo_y_password_es_opcional(self):
+    def test_administrador_solo_actualiza_permisos_del_subusuario(self):
         self.servicio.registrar(self.datos)
         login = self.servicio.iniciar_sesion(
             {"nombreUsuario": "matias", "contrasena": "segura123"}
         )
         datos = {
             "id": 2,
-            "nombre": "Ana",
-            "apellido": "Editada",
-            "nombreUsuario": "ana.editada",
-            "correo": "ANA.EDITADA@example.com",
-            "telefono": "",
-            "contrasena": "",
-            "confirmarContrasena": "",
             "permisos": ["ver"],
         }
         resultado = self.servicio.editar_subusuario(login["token"], datos)
         guardado = self.repositorio.edicion_solicitada
         self.assertEqual(guardado["idCuenta"], 1)
-        self.assertIsNone(guardado["passwordHash"])
-        self.assertEqual(guardado["datos"]["correo"], "ana.editada@example.com")
-        self.assertEqual(resultado["subusuario"]["nombreUsuario"], "ana.editada")
+        self.assertEqual(guardado["permisos"], ["ver"])
+        self.assertEqual(resultado["subusuario"]["permisos"], ["ver"])
 
-        datos["contrasena"] = "nueva1234"
-        datos["confirmarContrasena"] = "nueva1234"
-        self.servicio.editar_subusuario(login["token"], datos)
-        self.assertNotIn("nueva1234", self.repositorio.edicion_solicitada["passwordHash"])
+        with self.assertRaisesRegex(ErrorAutenticacion, "solo puede modificar"):
+            self.servicio.editar_subusuario(
+                login["token"],
+                {**datos, "correo": "otro@example.com"},
+            )
 
 
 if __name__ == "__main__":

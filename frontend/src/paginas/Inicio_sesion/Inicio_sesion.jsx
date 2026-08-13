@@ -31,6 +31,11 @@ function InicioSesion() {
     sessionStorage.removeItem("witcam_mensaje_registro");
     return mensaje;
   });
+  const [mensajeSesion] = useState(() => {
+    const mensaje = sessionStorage.getItem("witcam_mensaje_sesion") || "";
+    sessionStorage.removeItem("witcam_mensaje_sesion");
+    return mensaje;
+  });
 
   const actualizarCampo = (event) => {
     const { name, value } = event.target;
@@ -111,6 +116,11 @@ function InicioSesion() {
 
               {mensajeRegistro && (
                 <div className="mensaje-formulario exito">{mensajeRegistro}</div>
+              )}
+              {mensajeSesion && (
+                <div className="mensaje-formulario error" role="alert">
+                  {mensajeSesion}
+                </div>
               )}
               {error && (
                 <div className="mensaje-formulario error" role="alert">

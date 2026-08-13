@@ -131,6 +131,7 @@ def construir_aplicacion(
             config.base_datos.secreto_camaras,
         ),
         autenticacion,
+        monitoreo.camara_transmitiendo,
     )
     handler = crear_handler(
         PROJECT_ROOT,

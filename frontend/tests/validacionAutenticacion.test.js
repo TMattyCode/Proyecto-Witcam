@@ -3,7 +3,6 @@ import assert from "node:assert/strict";
 
 import {
   validarInicioSesion,
-  validarEdicionSubusuario,
   validarRegistro,
   validarSubusuario,
 } from "../src/utilidades/validacionAutenticacion.js";
@@ -59,24 +58,4 @@ test("valida subusuarios y elimina permisos duplicados", () => {
   });
   assert.equal("nombreCuenta" in resultado, false);
   assert.deepEqual(resultado.permisos, ["ver", "editar"]);
-});
-
-test("la edición permite conservar la contraseña o cambiarla con confirmación", () => {
-  const sinCambio = validarEdicionSubusuario({
-    ...registroValido,
-    id: 2,
-    contrasena: "",
-    confirmarContrasena: "",
-    permisos: ["ver"],
-  });
-  assert.equal(sinCambio.contrasena, "");
-  assert.throws(
-    () => validarEdicionSubusuario({
-      ...registroValido,
-      id: 2,
-      confirmarContrasena: "otra1234",
-      permisos: [],
-    }),
-    /no coinciden/,
-  );
 });

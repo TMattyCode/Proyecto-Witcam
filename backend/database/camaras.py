@@ -4,6 +4,11 @@ from backend.database.conexion import FabricaConexionesSqlServer
 from backend.exceptions import ErrorCamara
 
 
+def _es_error_duplicado(error: pyodbc.IntegrityError) -> bool:
+    detalle = " ".join(str(argumento) for argumento in error.args)
+    return "2601" in detalle or "2627" in detalle
+
+
 class RepositorioCamaras:
     def __init__(
         self,
@@ -181,6 +186,8 @@ class RepositorioCamaras:
                     )
                 conexion.commit()
             except pyodbc.IntegrityError as error:
+                if not _es_error_duplicado(error):
+                    raise
                 raise ErrorCamara(
                     "Ya existe un grupo con ese nombre"
                 ) from error
@@ -223,6 +230,8 @@ class RepositorioCamaras:
                 conexion.commit()
                 return int(id_camara)
             except pyodbc.IntegrityError as error:
+                if not _es_error_duplicado(error):
+                    raise
                 raise ErrorCamara(
                     "Ya existe una camara con ese nombre en el grupo"
                 ) from error
@@ -283,6 +292,8 @@ class RepositorioCamaras:
                 conexion.commit()
                 return True
             except pyodbc.IntegrityError as error:
+                if not _es_error_duplicado(error):
+                    raise
                 raise ErrorCamara(
                     "Ya existe una camara con ese nombre en el grupo"
                 ) from error

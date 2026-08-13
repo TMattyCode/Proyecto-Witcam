@@ -3,11 +3,10 @@ import { useDeferredValue, useEffect, useRef, useState } from "react";
 import {
   actualizarEstadoSubusuario,
   crearSubusuario,
-  editarSubusuario,
+  actualizarPermisosSubusuario,
   obtenerSubusuarios,
 } from "../../../servicios/api";
 import {
-  validarEdicionSubusuario,
   validarSubusuario,
 } from "../../../utilidades/validacionAutenticacion";
 import iconoOjo from "../../../assets/iconos/008 icono-ojo-sinrelleno.png";
@@ -57,12 +56,13 @@ function formatearFechaFiltro(fecha) {
   return `${dia}-${mes}-${anio}`;
 }
 
-function IconoDesactivar() {
+function IconoEliminar() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">
-      <circle cx="9" cy="8" r="3.25" />
-      <path d="M3.5 19c.4-3.1 2.2-5 5.5-5 2.2 0 3.8.8 4.7 2.3" />
-      <path d="M15.5 17.5h5" />
+      <path d="M4 7h16" />
+      <path d="M9 7V4h6v3" />
+      <path d="m6 7 1 13h10l1-13" />
+      <path d="M10 11v5M14 11v5" />
     </svg>
   );
 }
@@ -111,22 +111,8 @@ function CampoPassword({ label, name, value, onChange, required = true }) {
   );
 }
 
-function ModalSubusuario({ permisos, subusuario, onCerrar, onGuardado }) {
-  const editando = Boolean(subusuario);
-  const [formulario, setFormulario] = useState(() =>
-    subusuario
-      ? {
-          nombre: subusuario.nombre,
-          apellido: subusuario.apellido,
-          nombreUsuario: subusuario.nombreUsuario,
-          correo: subusuario.correo,
-          telefono: subusuario.telefono || "",
-          contrasena: "",
-          confirmarContrasena: "",
-          permisos: [...subusuario.permisos],
-        }
-      : FORMULARIO_INICIAL,
-  );
+function ModalSubusuario({ permisos, onCerrar, onGuardado }) {
+  const [formulario, setFormulario] = useState(FORMULARIO_INICIAL);
   const [error, setError] = useState("");
   const [enviando, setEnviando] = useState(false);
   const envioEnCurso = useRef(false);
@@ -152,11 +138,7 @@ function ModalSubusuario({ permisos, subusuario, onCerrar, onGuardado }) {
     setEnviando(true);
     setError("");
     try {
-      const respuesta = editando
-        ? await editarSubusuario(
-            validarEdicionSubusuario({ ...formulario, id: subusuario.id }),
-          )
-        : await crearSubusuario(validarSubusuario(formulario));
+      const respuesta = await crearSubusuario(validarSubusuario(formulario));
       onGuardado(respuesta.subusuario);
     } catch (errorSolicitud) {
       setError(errorSolicitud.message);
@@ -184,14 +166,8 @@ function ModalSubusuario({ permisos, subusuario, onCerrar, onGuardado }) {
         <div className="modal-subusuario-cabecera">
           <div>
             <span>Gestión de accesos</span>
-            <h2 id="titulo-formulario-subusuario">
-              {editando ? "Editar subusuario" : "Añadir subusuario"}
-            </h2>
-            <p>
-              {editando
-                ? `Actualiza los datos y permisos de ${subusuario.nombreUsuario}.`
-                : "Pertenecerá al mismo negocio o empresa del administrador."}
-            </p>
+            <h2 id="titulo-formulario-subusuario">Añadir subusuario</h2>
+            <p>Pertenecerá al mismo negocio o empresa del administrador.</p>
           </div>
           <button type="button" aria-label="Cerrar" onClick={onCerrar}>×</button>
         </div>
@@ -259,18 +235,18 @@ function ModalSubusuario({ permisos, subusuario, onCerrar, onGuardado }) {
             <strong>Subusuario</strong>
           </div>
           <CampoPassword
-            label={editando ? "Nueva contraseña (opcional)" : "Contraseña inicial"}
+            label="Contraseña inicial"
             name="contrasena"
             value={formulario.contrasena}
             onChange={actualizarCampo}
-            required={!editando}
+            required
           />
           <CampoPassword
-            label={editando ? "Confirmar nueva contraseña" : "Confirmar contraseña"}
+            label="Confirmar contraseña"
             name="confirmarContrasena"
             value={formulario.confirmarContrasena}
             onChange={actualizarCampo}
-            required={!editando}
+            required
           />
         </div>
 
@@ -302,9 +278,7 @@ function ModalSubusuario({ permisos, subusuario, onCerrar, onGuardado }) {
         <div className="modal-subusuario-acciones">
           <button type="button" onClick={onCerrar}>Cancelar</button>
           <button type="submit" disabled={enviando}>
-            {enviando
-              ? editando ? "Guardando..." : "Creando..."
-              : editando ? "Guardar cambios" : "Crear subusuario"}
+            {enviando ? "Creando..." : "Crear subusuario"}
           </button>
         </div>
       </form>
@@ -338,7 +312,7 @@ function ModalConfirmacionEstado({
         </div>
         <p className="modal-confirmacion-etiqueta">Confirmar acción</p>
         <h2 id="titulo-confirmacion-estado">
-          ¿Deseas desactivar este subusuario?
+          ¿Deseas eliminar este subusuario?
         </h2>
         <p id="detalle-confirmacion-estado">
           El usuario <strong>{subusuario.nombreUsuario}</strong>
@@ -356,10 +330,123 @@ function ModalConfirmacionEstado({
           >
             {procesando
               ? "Procesando..."
-              : "Sí, desactivar"}
+              : "Sí, eliminar"}
           </button>
         </div>
       </section>
+    </div>
+  );
+}
+
+function ModalAdministracionSubusuario({
+  permisos,
+  subusuario,
+  onCerrar,
+  onGuardado,
+  onEliminar,
+}) {
+  const [seleccionados, setSeleccionados] = useState(
+    () => [...subusuario.permisos],
+  );
+  const [error, setError] = useState("");
+  const [guardando, setGuardando] = useState(false);
+
+  const alternarPermiso = (codigo) => {
+    setSeleccionados((actuales) =>
+      actuales.includes(codigo)
+        ? actuales.filter((permiso) => permiso !== codigo)
+        : [...actuales, codigo],
+    );
+  };
+
+  const guardar = async (evento) => {
+    evento.preventDefault();
+    setGuardando(true);
+    setError("");
+    try {
+      await actualizarPermisosSubusuario(subusuario.id, seleccionados);
+      onGuardado();
+    } catch (errorSolicitud) {
+      setError(errorSolicitud.message);
+    } finally {
+      setGuardando(false);
+    }
+  };
+
+  return (
+    <div
+      className="modal-subusuario-fondo"
+      role="presentation"
+      onMouseDown={(evento) => {
+        if (evento.target === evento.currentTarget && !guardando) onCerrar();
+      }}
+    >
+      <form
+        className="modal-subusuario modal-administracion-subusuario"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="titulo-administracion-subusuario"
+        onSubmit={guardar}
+      >
+        <div className="modal-subusuario-cabecera">
+          <div>
+            <span>Gestión de accesos</span>
+            <h2 id="titulo-administracion-subusuario">Administrar subusuario</h2>
+            <p>
+              Permisos de <strong>{subusuario.nombreUsuario}</strong>. Los datos
+              personales solo puede modificarlos el propio usuario.
+            </p>
+          </div>
+          <button type="button" aria-label="Cerrar" onClick={onCerrar}>×</button>
+        </div>
+
+        <fieldset className="modal-subusuario-permisos">
+          <legend>Permisos disponibles</legend>
+          {permisos.length ? (
+            <div className="permisos-opciones">
+              {permisos.map((permiso) => (
+                <label key={permiso.codigo} title={permiso.descripcion || ""}>
+                  <input
+                    type="checkbox"
+                    checked={seleccionados.includes(permiso.codigo)}
+                    onChange={() => alternarPermiso(permiso.codigo)}
+                  />
+                  <span>
+                    <strong>{permiso.nombre}</strong>
+                    {permiso.descripcion && <small>{permiso.descripcion}</small>}
+                  </span>
+                </label>
+              ))}
+            </div>
+          ) : (
+            <p>No hay permisos configurados en la base de datos.</p>
+          )}
+        </fieldset>
+
+        {error && <div className="modal-subusuario-error" role="alert">{error}</div>}
+
+        <div className="modal-subusuario-acciones">
+          <button type="button" onClick={onCerrar}>Cancelar</button>
+          <button type="submit" disabled={guardando}>
+            {guardando ? "Guardando..." : "Guardar permisos"}
+          </button>
+        </div>
+
+        <section className="zona-eliminar-subusuario">
+          <div>
+            <strong>Eliminar subusuario</strong>
+            <p>Perderá el acceso, pero su historial se conservará.</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => onEliminar(subusuario)}
+            disabled={guardando}
+          >
+            <IconoEliminar />
+            Eliminar subusuario
+          </button>
+        </section>
+      </form>
     </div>
   );
 }
@@ -373,7 +460,7 @@ function TablaSubusuarios({ onSubusuariosCambiaron }) {
   const [modalAbierto, setModalAbierto] = useState(false);
   const [actualizandoId, setActualizandoId] = useState(null);
   const [subusuarioConfirmacion, setSubusuarioConfirmacion] = useState(null);
-  const [subusuarioEdicion, setSubusuarioEdicion] = useState(null);
+  const [subusuarioAdministracion, setSubusuarioAdministracion] = useState(null);
   const [filtros, setFiltros] = useState(FILTROS_INICIALES);
   const filtrosDiferidos = useDeferredValue(filtros);
   const [pagina, setPagina] = useState(1);
@@ -474,10 +561,15 @@ function TablaSubusuarios({ onSubusuariosCambiaron }) {
     onSubusuariosCambiaron?.();
   };
 
-  const incorporarEdicion = () => {
+  const incorporarPermisos = () => {
     setCargando(true);
     setVersionConsulta((version) => version + 1);
-    setSubusuarioEdicion(null);
+    setSubusuarioAdministracion(null);
+  };
+
+  const solicitarEliminacion = (subusuario) => {
+    setSubusuarioAdministracion(null);
+    setSubusuarioConfirmacion(subusuario);
   };
 
   const cambiarEstado = async (subusuario) => {
@@ -723,23 +815,11 @@ function TablaSubusuarios({ onSubusuariosCambiaron }) {
                       <button
                         className="boton-accion boton-accion-editar"
                         type="button"
-                        onClick={() => setSubusuarioEdicion(subusuario)}
-                        aria-label={`Editar al usuario ${subusuario.nombreUsuario}`}
-                        title="Editar subusuario"
+                        onClick={() => setSubusuarioAdministracion(subusuario)}
+                        aria-label={`Administrar al usuario ${subusuario.nombreUsuario}`}
+                        title="Administrar permisos y eliminar"
                       >
-                        ✎
-                      </button>
-                      <button
-                        className="boton-accion boton-accion-eliminar"
-                        type="button"
-                        disabled={actualizandoId === subusuario.id}
-                        onClick={() => setSubusuarioConfirmacion(subusuario)}
-                        aria-label={`Desactivar al usuario ${subusuario.nombreUsuario}`}
-                        title="Desactivar subusuario"
-                      >
-                        {actualizandoId === subusuario.id
-                          ? "…"
-                          : <IconoDesactivar />}
+                        ⋯
                       </button>
                     </div>
                   </td>
@@ -783,12 +863,13 @@ function TablaSubusuarios({ onSubusuariosCambiaron }) {
         />
       )}
 
-      {subusuarioEdicion && (
-        <ModalSubusuario
+      {subusuarioAdministracion && (
+        <ModalAdministracionSubusuario
           permisos={permisos}
-          subusuario={subusuarioEdicion}
-          onCerrar={() => setSubusuarioEdicion(null)}
-          onGuardado={incorporarEdicion}
+          subusuario={subusuarioAdministracion}
+          onCerrar={() => setSubusuarioAdministracion(null)}
+          onGuardado={incorporarPermisos}
+          onEliminar={solicitarEliminacion}
         />
       )}
 

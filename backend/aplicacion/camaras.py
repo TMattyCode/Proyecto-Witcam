@@ -1,3 +1,5 @@
+from collections.abc import Callable
+
 from backend.aplicacion.autenticacion import ServicioAutenticacion
 from backend.database.camaras import RepositorioCamaras
 from backend.exceptions import ErrorCamara
@@ -11,9 +13,13 @@ class ServicioCamaras:
         self,
         repositorio: RepositorioCamaras,
         autenticacion: ServicioAutenticacion,
+        camara_transmitiendo: Callable[[int], bool] | None = None,
     ):
         self.repositorio = repositorio
         self.autenticacion = autenticacion
+        self.camara_transmitiendo = camara_transmitiendo or (
+            lambda _id_camara: False
+        )
 
     def listar(self, token: str) -> dict:
         usuario = self._usuario(token)
@@ -54,9 +60,36 @@ class ServicioCamaras:
         )
         return {"ok": True, "id": id_camara, **self.listar(token)}
 
+    def validar_transmision(
+        self,
+        token: str,
+        id_camara: int,
+        fuente: int | str | None,
+    ) -> None:
+        camaras = self.listar(token)["camaras"]
+        camara = next(
+            (
+                actual
+                for actual in camaras
+                if actual["id"] == id_camara
+            ),
+            None,
+        )
+        if camara is None:
+            raise ErrorCamara(
+                "La camara no existe o no esta asignada a este usuario"
+            )
+        if camara["tipo"] != "webcam":
+            raise ErrorCamara(
+                "Solo la webcam puede iniciar una transmision por ahora"
+            )
+        if camara.get("fuente") != fuente:
+            raise ErrorCamara("La fuente no corresponde a la camara indicada")
+
     def editar(self, token: str, datos: dict) -> dict:
         administrador = self._administrador(token)
         id_camara = self._id_positivo(datos, "id")
+        self._exigir_camara_detenida(id_camara)
         normalizados = self._validar_camara(datos, creando=False)
         if not self.repositorio.editar(
             administrador["idCuenta"],
@@ -71,6 +104,7 @@ class ServicioCamaras:
     def eliminar(self, token: str, datos: dict) -> dict:
         administrador = self._administrador(token)
         id_camara = self._id_positivo(datos, "id")
+        self._exigir_camara_detenida(id_camara)
         if not self.repositorio.eliminar(
             administrador["idCuenta"],
             id_camara,
@@ -79,6 +113,12 @@ class ServicioCamaras:
                 "La camara no existe o no pertenece a esta cuenta"
             )
         return {"ok": True, **self.listar(token)}
+
+    def _exigir_camara_detenida(self, id_camara: int) -> None:
+        if self.camara_transmitiendo(id_camara):
+            raise ErrorCamara(
+                "No se puede editar ni eliminar una camara mientras transmite"
+            )
 
     def _usuario(self, token: str) -> dict:
         return self.autenticacion.obtener_sesion(token)["user"]

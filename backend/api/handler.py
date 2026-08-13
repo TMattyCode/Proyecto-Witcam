@@ -1,4 +1,5 @@
 import json
+import logging
 import mimetypes
 import time
 from http.server import BaseHTTPRequestHandler
@@ -17,10 +18,18 @@ from backend.config import ConfiguracionVideo
 from backend.exceptions import (
     CredencialesInvalidas,
     ErrorAutenticacion,
+    ErrorGaleria,
     RegistroDuplicado,
     ErrorCamara,
 )
 from backend.video.renderizado import crear_frame_mensaje
+
+
+LOGGER = logging.getLogger(__name__)
+MENSAJE_ERROR_INTERNO = (
+    "No se pudo completar la operacion por un error interno. "
+    "Intentalo nuevamente."
+)
 
 
 def crear_handler(
@@ -37,6 +46,19 @@ def crear_handler(
             return
 
         def do_GET(self):
+            try:
+                self._procesar_get()
+            except Exception:
+                LOGGER.exception("Error inesperado al procesar GET %s", self.path)
+                try:
+                    self._json(
+                        {"ok": False, "error": MENSAJE_ERROR_INTERNO},
+                        estado=500,
+                    )
+                except (BrokenPipeError, ConnectionResetError):
+                    return
+
+        def _procesar_get(self):
             url = urlparse(self.path)
             ruta = unquote(url.path)
             if ruta == "/":
@@ -297,6 +319,7 @@ def crear_handler(
                 if ruta == "/api/start":
                     fuente = datos.get("source")
                     analizar = datos.get("analysis", True)
+                    id_camara = datos.get("cameraId")
                     if isinstance(fuente, bool) or (
                         fuente is not None
                         and not isinstance(fuente, (int, str))
@@ -304,7 +327,22 @@ def crear_handler(
                         raise ValueError("La fuente de video no es valida")
                     if not isinstance(analizar, bool):
                         raise ValueError("El modo de analisis no es valido")
-                    monitoreo.iniciar(fuente, analizar)
+                    if id_camara is None or (
+                        isinstance(id_camara, bool)
+                        or not isinstance(id_camara, int)
+                        or id_camara <= 0
+                    ):
+                        raise ValueError("La camara no es valida")
+                    if camaras is None:
+                        raise ErrorCamara(
+                            "El servicio de camaras no esta disponible"
+                        )
+                    camaras.validar_transmision(
+                        self._token_sesion(),
+                        id_camara,
+                        fuente,
+                    )
+                    monitoreo.iniciar(fuente, analizar, id_camara)
                     self._json({"ok": True})
                     return
                 if ruta == "/api/stop":
@@ -352,10 +390,16 @@ def crear_handler(
                     {"ok": False, "error": str(error)},
                     estado=409,
                 )
-            except Exception as error:
+            except (ErrorGaleria, FileNotFoundError, ValueError) as error:
                 self._json(
                     {"ok": False, "error": str(error)},
                     estado=400,
+                )
+            except Exception:
+                LOGGER.exception("Error inesperado al procesar POST %s", ruta)
+                self._json(
+                    {"ok": False, "error": MENSAJE_ERROR_INTERNO},
+                    estado=500,
                 )
 
         def _exigir_autenticacion(self) -> None:
@@ -372,13 +416,23 @@ def crear_handler(
             return autorizacion[len(prefijo):].strip()
 
         def _leer_json(self) -> dict:
-            longitud = int(self.headers.get("Content-Length", "0"))
+            try:
+                longitud = int(self.headers.get("Content-Length", "0"))
+            except (TypeError, ValueError) as error:
+                raise ValueError(
+                    "El tamano de la solicitud no es valido"
+                ) from error
             if longitud == 0:
                 return {}
             if longitud > 65_536:
                 raise ValueError("La solicitud supera el tamano permitido")
-            contenido = self.rfile.read(longitud).decode("utf-8")
-            datos = json.loads(contenido)
+            try:
+                contenido = self.rfile.read(longitud).decode("utf-8")
+                datos = json.loads(contenido)
+            except (UnicodeDecodeError, json.JSONDecodeError) as error:
+                raise ValueError(
+                    "El contenido de la solicitud no es un JSON valido"
+                ) from error
             if not isinstance(datos, dict):
                 raise ValueError("El cuerpo JSON debe ser un objeto")
             return datos

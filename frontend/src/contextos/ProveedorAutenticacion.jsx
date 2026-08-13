@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   cerrarSesion as solicitarCierreSesion,
+  EVENTO_SESION_EXPIRADA,
   iniciarSesion as solicitarInicioSesion,
   obtenerSesion,
 } from "../servicios/api";
@@ -8,6 +9,7 @@ import { AutenticacionContext } from "./AutenticacionContext";
 
 const CLAVE_TOKEN = "witcam_token";
 const CLAVE_USUARIO = "witcam_usuario";
+const CLAVE_MENSAJE_SESION = "witcam_mensaje_sesion";
 
 function limpiarAlmacenamiento() {
   for (const almacenamiento of [localStorage, sessionStorage]) {
@@ -26,6 +28,21 @@ function guardarSesion(respuesta, recordar) {
 export default function ProveedorAutenticacion({ children }) {
   const [usuario, setUsuario] = useState(null);
   const [cargando, setCargando] = useState(true);
+
+  useEffect(() => {
+    const manejarSesionExpirada = () => {
+      limpiarAlmacenamiento();
+      sessionStorage.setItem(
+        CLAVE_MENSAJE_SESION,
+        "Tu sesión venció. Inicia sesión nuevamente.",
+      );
+      setUsuario(null);
+    };
+    window.addEventListener(EVENTO_SESION_EXPIRADA, manejarSesionExpirada);
+    return () => {
+      window.removeEventListener(EVENTO_SESION_EXPIRADA, manejarSesionExpirada);
+    };
+  }, []);
 
   useEffect(() => {
     let activo = true;
