@@ -1,4 +1,7 @@
 import "./TablaIngresos.css";
+import iconoObservacion from "../../../assets/iconos/013 icono-ojo-blanco.png";
+import iconoBasurero from "../../../assets/iconos/028 icono-basurero.png";
+import iconoHistorial from "../../../assets/iconos/031 icono-historial.png";
 
 const FORMATEADOR_FECHA = new Intl.DateTimeFormat("es-CL", {
   day: "2-digit",
@@ -25,6 +28,7 @@ export default function TablaIngresos({
   cargando = false,
   error = "",
   onCambiarPagina,
+  onVerHistorial,
 }) {
   const totalPaginas = Math.max(1, Math.ceil(total / limite));
   const inicio = total === 0 ? 0 : (pagina - 1) * limite + 1;
@@ -114,17 +118,22 @@ export default function TablaIngresos({
                   <td>
                     <div className="tabla-ingresos-celda-acciones">
                       <button
+                        className="tabla-ingresos-accion historial"
+                        type="button"
+                        onClick={() => onVerHistorial?.(ingreso)}
+                        aria-label={`Ver historial de ${ingreso.nombrePersona}`}
+                        title="Ver historial de ingresos"
+                      >
+                        <img src={iconoHistorial} alt="" aria-hidden="true" />
+                      </button>
+                      <button
                         className="tabla-ingresos-accion observar"
                         type="button"
                         disabled
                         aria-label={`Añadir ${ingreso.nombrePersona} a la lista de observación`}
                         title="Añadir a lista de observación (próximamente)"
                       >
-                        <svg viewBox="0 0 24 24" aria-hidden="true">
-                          <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z" />
-                          <circle cx="12" cy="12" r="2.5" />
-                          <path d="M19 3v4M17 5h4" />
-                        </svg>
+                        <img src={iconoObservacion} alt="" aria-hidden="true" />
                       </button>
                       <button
                         className="tabla-ingresos-accion eliminar"
@@ -133,9 +142,7 @@ export default function TablaIngresos({
                         aria-label={`Eliminar registro de ${ingreso.nombrePersona}`}
                         title="Eliminar ingreso (próximamente)"
                       >
-                        <svg viewBox="0 0 24 24" aria-hidden="true">
-                          <path d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13M10 11v5M14 11v5" />
-                        </svg>
+                        <img src={iconoBasurero} alt="" aria-hidden="true" />
                       </button>
                     </div>
                   </td>

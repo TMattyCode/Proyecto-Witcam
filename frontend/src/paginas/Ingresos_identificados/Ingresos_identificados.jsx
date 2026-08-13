@@ -4,9 +4,11 @@ import { useEffect, useState } from "react";
 import Layout from "../../componentes/layout/Layout";
 import {
   obtenerCamarasIngresos,
+  obtenerHistorialIngresos,
   obtenerIngresos,
 } from "../../servicios/api";
 import FiltrosIngresos from "./componentes/FiltrosIngresos";
+import HistorialIngresos from "./componentes/HistorialIngresos";
 import TablaIngresos from "./componentes/TablaIngresos";
 
 const LIMITE_PAGINA = 25;
@@ -19,6 +21,9 @@ export default function IngresosIdentificados() {
   const [error, setError] = useState("");
   const [camaras, setCamaras] = useState([]);
   const [filtrosAplicados, setFiltrosAplicados] = useState({});
+  const [historial, setHistorial] = useState(null);
+  const [cargandoHistorial, setCargandoHistorial] = useState(false);
+  const [errorHistorial, setErrorHistorial] = useState("");
 
   useEffect(() => {
     let activo = true;
@@ -69,6 +74,19 @@ export default function IngresosIdentificados() {
     setFiltrosAplicados(nuevosFiltros);
   };
 
+  const abrirHistorial = async (ingreso) => {
+    setHistorial({ persona: { id: ingreso.idPersona, nombre: ingreso.nombrePersona }, detecciones: [] });
+    setCargandoHistorial(true);
+    setErrorHistorial("");
+    try {
+      setHistorial(await obtenerHistorialIngresos(ingreso.idPersona));
+    } catch (errorSolicitud) {
+      setErrorHistorial(errorSolicitud.message);
+    } finally {
+      setCargandoHistorial(false);
+    }
+  };
+
   return (
     <Layout
       titulo="Ingresos identificados"
@@ -89,7 +107,17 @@ export default function IngresosIdentificados() {
           cargando={cargando}
           error={error}
           onCambiarPagina={cambiarPagina}
+          onVerHistorial={abrirHistorial}
         />
+
+        {historial && (
+          <HistorialIngresos
+            historial={historial}
+            cargando={cargandoHistorial}
+            error={errorHistorial}
+            onCerrar={() => setHistorial(null)}
+          />
+        )}
       </section>
     </Layout>
   );

@@ -35,7 +35,7 @@ class RepositorioIngresos:
             cursor = conexion.cursor()
             total = cursor.execute(
                 f"""
-                SELECT COUNT(*)
+                SELECT COUNT(DISTINCT d.id_persona)
                 FROM Deteccion d
                 INNER JOIN Persona p
                     ON p.id_persona = d.id_persona
@@ -49,25 +49,43 @@ class RepositorioIngresos:
             ).fetchval()
             filas = cursor.execute(
                 f"""
+                WITH detecciones_filtradas AS (
+                    SELECT
+                        d.id_deteccion,
+                        d.id_persona,
+                        p.nombre_persona,
+                        d.id_camara,
+                        c.nombre_camara,
+                        d.fecha_hora,
+                        d.ruta_imagen_detectada,
+                        d.resultado,
+                        d.similitud,
+                        ROW_NUMBER() OVER (
+                            PARTITION BY d.id_persona
+                            ORDER BY d.fecha_hora DESC, d.id_deteccion DESC
+                        ) AS posicion
+                    FROM Deteccion d
+                    INNER JOIN Persona p
+                        ON p.id_persona = d.id_persona
+                    INNER JOIN Camara c
+                        ON c.id_camara = d.id_camara
+                    INNER JOIN GrupoCamara gc
+                        ON gc.id_grupo_camara = c.id_grupo_camara
+                    WHERE {clausula_condiciones}
+                )
                 SELECT
-                    d.id_deteccion,
-                    d.id_persona,
-                    p.nombre_persona,
-                    d.id_camara,
-                    c.nombre_camara,
-                    d.fecha_hora,
-                    d.ruta_imagen_detectada,
-                    d.resultado,
-                    d.similitud
-                FROM Deteccion d
-                INNER JOIN Persona p
-                    ON p.id_persona = d.id_persona
-                INNER JOIN Camara c
-                    ON c.id_camara = d.id_camara
-                INNER JOIN GrupoCamara gc
-                    ON gc.id_grupo_camara = c.id_grupo_camara
-                WHERE {clausula_condiciones}
-                ORDER BY d.fecha_hora DESC, d.id_deteccion DESC
+                    id_deteccion,
+                    id_persona,
+                    nombre_persona,
+                    id_camara,
+                    nombre_camara,
+                    fecha_hora,
+                    ruta_imagen_detectada,
+                    resultado,
+                    similitud
+                FROM detecciones_filtradas
+                WHERE posicion = 1
+                ORDER BY fecha_hora DESC, id_deteccion DESC
                 OFFSET ? ROWS FETCH NEXT ? ROWS ONLY
                 """,
                 *parametros,
@@ -79,26 +97,73 @@ class RepositorioIngresos:
             "total": int(total or 0),
             "pagina": pagina,
             "limite": limite,
-            "ingresos": [
-                {
-                    "idDeteccion": fila.id_deteccion,
-                    "idPersona": fila.id_persona,
-                    "nombrePersona": fila.nombre_persona,
-                    "idCamara": fila.id_camara,
-                    "nombreCamara": fila.nombre_camara,
-                    "fechaHora": fila.fecha_hora.isoformat(
-                        timespec="seconds"
-                    ),
-                    "rutaImagen": fila.ruta_imagen_detectada,
-                    "resultado": fila.resultado,
-                    "similitud": (
-                        float(fila.similitud)
-                        if fila.similitud is not None
-                        else None
-                    ),
-                }
-                for fila in filas
-            ],
+            "ingresos": [self._serializar(fila) for fila in filas],
+        }
+
+    def listar_historial(self, id_cuenta: int, id_persona: int) -> dict | None:
+        with self.conexiones.conectar() as conexion:
+            cursor = conexion.cursor()
+            persona = cursor.execute(
+                """
+                SELECT id_persona, nombre_persona
+                FROM Persona
+                WHERE id_persona = ? AND id_cuenta = ?
+                """,
+                id_persona,
+                id_cuenta,
+            ).fetchone()
+            if persona is None:
+                return None
+            filas = cursor.execute(
+                """
+                SELECT
+                    d.id_deteccion,
+                    d.id_persona,
+                    p.nombre_persona,
+                    d.id_camara,
+                    c.nombre_camara,
+                    d.fecha_hora,
+                    d.ruta_imagen_detectada,
+                    d.resultado,
+                    d.similitud
+                FROM Deteccion d
+                INNER JOIN Persona p ON p.id_persona = d.id_persona
+                INNER JOIN Camara c ON c.id_camara = d.id_camara
+                INNER JOIN GrupoCamara gc
+                    ON gc.id_grupo_camara = c.id_grupo_camara
+                WHERE d.id_persona = ?
+                  AND p.id_cuenta = ?
+                  AND gc.id_cuenta = ?
+                ORDER BY d.fecha_hora DESC, d.id_deteccion DESC
+                """,
+                id_persona,
+                id_cuenta,
+                id_cuenta,
+            ).fetchall()
+        return {
+            "persona": {
+                "id": persona.id_persona,
+                "nombre": persona.nombre_persona,
+            },
+            "detecciones": [self._serializar(fila) for fila in filas],
+        }
+
+    @staticmethod
+    def _serializar(fila) -> dict:
+        return {
+            "idDeteccion": fila.id_deteccion,
+            "idPersona": fila.id_persona,
+            "nombrePersona": fila.nombre_persona,
+            "idCamara": fila.id_camara,
+            "nombreCamara": fila.nombre_camara,
+            "fechaHora": fila.fecha_hora.isoformat(timespec="seconds"),
+            "rutaImagen": fila.ruta_imagen_detectada,
+            "resultado": fila.resultado,
+            "similitud": (
+                float(fila.similitud)
+                if fila.similitud is not None
+                else None
+            ),
         }
 
     def listar_camaras(self, id_cuenta: int) -> list[dict]:

@@ -49,6 +49,21 @@ class ServicioIngresos:
             "camaras": self.repositorio.listar_camaras(id_cuenta),
         }
 
+    def listar_historial(self, token: str, id_persona) -> dict:
+        identificador = self._validar_entero(
+            id_persona,
+            "idPersona",
+            minimo=1,
+        )
+        sesion = self.autenticacion.obtener_sesion(token)
+        historial = self.repositorio.listar_historial(
+            sesion["user"]["idCuenta"],
+            identificador,
+        )
+        if historial is None:
+            raise ValueError("La persona no existe en esta cuenta")
+        return {"ok": True, **historial}
+
     def _validar_filtros(self, filtros: dict) -> dict:
         fecha_desde = self._validar_fecha(
             filtros.get("fechaDesde"),

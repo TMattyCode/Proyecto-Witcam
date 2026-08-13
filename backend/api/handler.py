@@ -170,6 +170,27 @@ def crear_handler(
                         estado=503,
                     )
                 return
+            if ruta == "/api/ingresos/historial":
+                try:
+                    self._exigir_autenticacion()
+                    if ingresos is None:
+                        raise ErrorAutenticacion(
+                            "El servicio de ingresos no esta disponible"
+                        )
+                    parametros = parse_qs(url.query, keep_blank_values=True)
+                    self._json(
+                        ingresos.listar_historial(
+                            self._token_sesion(),
+                            parametros.get("idPersona", [""])[0],
+                        )
+                    )
+                except CredencialesInvalidas as error:
+                    self._json({"ok": False, "error": str(error)}, estado=401)
+                except ErrorAutenticacion as error:
+                    self._json({"ok": False, "error": str(error)}, estado=503)
+                except ValueError as error:
+                    self._json({"ok": False, "error": str(error)}, estado=400)
+                return
             if ruta == "/api/camaras":
                 try:
                     self._exigir_autenticacion()

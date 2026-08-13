@@ -94,6 +94,11 @@ export function obtenerCamarasIngresos() {
   return solicitar("/api/ingresos/camaras");
 }
 
+export function obtenerHistorialIngresos(idPersona) {
+  const parametros = new URLSearchParams({ idPersona: String(idPersona) });
+  return solicitar(`/api/ingresos/historial?${parametros.toString()}`);
+}
+
 export function obtenerCamarasConfiguradas() {
   return solicitar("/api/camaras");
 }

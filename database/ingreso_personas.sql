@@ -27,7 +27,8 @@ DECLARE @id_camara INT;
 
 DECLARE @personas_insertadas TABLE (
     id_persona INT NOT NULL,
-    nombre_persona VARCHAR(150) NOT NULL
+    nombre_persona VARCHAR(150) NOT NULL,
+    fecha_registro DATETIME NOT NULL
 );
 
 BEGIN TRY
@@ -129,10 +130,12 @@ BEGIN TRY
     )
     OUTPUT
         inserted.id_persona,
-        inserted.nombre_persona
+        inserted.nombre_persona,
+        inserted.fecha_registro
     INTO @personas_insertadas (
         id_persona,
-        nombre_persona
+        nombre_persona,
+        fecha_registro
     )
     VALUES
         (@id_cuenta, 'Persona prueba 01', DATEADD(MINUTE, -190, GETDATE())),
@@ -160,6 +163,7 @@ BEGIN TRY
         SELECT
             id_persona,
             nombre_persona,
+            fecha_registro,
             ROW_NUMBER() OVER (ORDER BY id_persona) AS numero
         FROM @personas_insertadas
     )
@@ -174,7 +178,7 @@ BEGIN TRY
     SELECT
         @id_camara,
         id_persona,
-        DATEADD(MINUTE, numero - 20, GETDATE()),
+        fecha_registro,
         CONCAT(
             'referencias_pendientes/persona_',
             id_persona,
@@ -183,6 +187,37 @@ BEGIN TRY
         'Identificado',
         CAST(0.70 + (numero * 0.01) AS DECIMAL(6,5))
     FROM personas_numeradas;
+
+    INSERT INTO Deteccion (
+        id_camara,
+        id_persona,
+        fecha_hora,
+        ruta_imagen_detectada,
+        resultado,
+        similitud
+    )
+    SELECT
+        @id_camara,
+        pi.id_persona,
+        DATEADD(MINUTE, repeticion.minutos_atras, GETDATE()),
+        CONCAT(
+            'referencias_pendientes/persona_',
+            pi.id_persona,
+            '/deteccion_prueba_anterior.jpg'
+        ),
+        'Identificado',
+        repeticion.similitud
+    FROM @personas_insertadas AS pi
+    INNER JOIN (
+        VALUES
+            ('Persona prueba 01', -290, CAST(0.81 AS DECIMAL(6,5))),
+            ('Persona prueba 02', -280, CAST(0.82 AS DECIMAL(6,5))),
+            ('Persona prueba 03', -270, CAST(0.83 AS DECIMAL(6,5))),
+            ('Persona prueba 04', -260, CAST(0.84 AS DECIMAL(6,5))),
+            ('Persona prueba 05', -250, CAST(0.85 AS DECIMAL(6,5))),
+            ('Persona prueba 19', -210, CAST(0.89 AS DECIMAL(6,5)))
+    ) AS repeticion(nombre_persona, minutos_atras, similitud)
+        ON repeticion.nombre_persona = pi.nombre_persona;
 
     COMMIT TRANSACTION;
 END TRY

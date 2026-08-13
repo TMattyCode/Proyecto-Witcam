@@ -1,0 +1,39 @@
+.historial-ingresos-fondo {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(2, 14, 42, 0.55);
+  box-sizing: border-box;
+}
+
+.historial-ingresos-modal {
+  width: min(900px, 100%);
+  max-height: 85vh;
+  overflow: hidden;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 24px 70px rgba(0, 18, 55, 0.3);
+}
+
+.historial-ingresos-modal header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 24px 28px;
+  border-bottom: 1px solid #e3e9f1;
+}
+
+.historial-ingresos-modal header span { color: #014dfd; font-size: 13px; font-weight: 700; text-transform: uppercase; }
+.historial-ingresos-modal header h2 { margin: 6px 0 2px; color: #07142f; font-size: 25px; }
+.historial-ingresos-modal header p { margin: 0; color: #718098; }
+.historial-ingresos-modal header button { width: 40px; height: 40px; border: 0; border-radius: 50%; background: #eef2f7; color: #53627a; font-size: 28px; cursor: pointer; }
+.historial-ingresos-tabla-contenedor { max-height: 60vh; overflow: auto; }
+.historial-ingresos-modal table { width: 100%; border-collapse: collapse; }
+.historial-ingresos-modal th, .historial-ingresos-modal td { padding: 14px 18px; border-bottom: 1px solid #edf1f6; text-align: left; }
+.historial-ingresos-modal th { position: sticky; top: 0; background: #f7f9fc; color: #535f7b; font-size: 12px; text-transform: uppercase; }
+.historial-ingresos-modal td { color: #07142f; font-size: 14px; }
+.historial-ingresos-error { margin: 16px 28px 0; padding: 10px 12px; border-radius: 8px; background: #fff0f0; color: #a51616; }

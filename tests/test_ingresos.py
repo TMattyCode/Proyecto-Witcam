@@ -23,6 +23,12 @@ class CursorIngresosFalso:
     def fetchval(self):
         return 1
 
+    def fetchone(self):
+        return SimpleNamespace(
+            id_persona=12,
+            nombre_persona="Persona prueba",
+        )
+
     def fetchall(self):
         if "FROM Camara c" in self.consulta and "FROM Deteccion" not in self.consulta:
             return [
@@ -82,6 +88,13 @@ class RepositorioIngresosFalso:
         self.argumentos = (id_cuenta,)
         return [{"id": 4, "nombre": "Acceso principal"}]
 
+    def listar_historial(self, id_cuenta, id_persona):
+        self.argumentos = (id_cuenta, id_persona)
+        return {
+            "persona": {"id": id_persona, "nombre": "Persona prueba"},
+            "detecciones": [],
+        }
+
 
 class PruebasIngresos(unittest.TestCase):
     def test_repositorio_aisla_por_cuenta_y_serializa_datos(self):
@@ -93,6 +106,8 @@ class PruebasIngresos(unittest.TestCase):
         self.assertIn("p.id_cuenta = ?", consulta_total)
         self.assertIn("gc.id_cuenta = ?", consulta_total)
         self.assertIn("d.id_persona IS NOT NULL", consulta_listado)
+        self.assertIn("PARTITION BY d.id_persona", consulta_listado)
+        self.assertIn("WHERE posicion = 1", consulta_listado)
         self.assertEqual(parametros_total, (7, 7))
         self.assertEqual(parametros_listado, (7, 7, 25, 25))
         self.assertEqual(resultado["ingresos"][0]["idDeteccion"], 35)
@@ -140,6 +155,18 @@ class PruebasIngresos(unittest.TestCase):
         self.assertEqual(parametros, (7,))
         self.assertEqual(camaras[0]["nombre"], "Acceso principal")
 
+    def test_repositorio_historial_usa_la_misma_persona_y_cuenta(self):
+        conexiones = FabricaIngresosFalsa()
+        historial = RepositorioIngresos(conexiones).listar_historial(7, 12)
+
+        consulta_persona, parametros_persona = conexiones.cursor.consultas[0]
+        consulta_historial, parametros_historial = conexiones.cursor.consultas[1]
+        self.assertIn("id_persona = ? AND id_cuenta = ?", consulta_persona)
+        self.assertEqual(parametros_persona, (12, 7))
+        self.assertIn("ORDER BY d.fecha_hora DESC", consulta_historial)
+        self.assertEqual(parametros_historial, (12, 7, 7))
+        self.assertEqual(historial["persona"]["id"], 12)
+
     def test_servicio_usa_cuenta_autenticada_y_valida_paginacion(self):
         repositorio = RepositorioIngresosFalso()
         servicio = ServicioIngresos(
@@ -180,6 +207,11 @@ class PruebasIngresos(unittest.TestCase):
         respuesta_camaras = servicio.listar_camaras("token-prueba")
         self.assertEqual(respuesta_camaras["camaras"][0]["id"], 4)
         self.assertEqual(repositorio.argumentos, (7,))
+
+        historial = servicio.listar_historial("token-prueba", "12")
+        self.assertTrue(historial["ok"])
+        self.assertEqual(historial["persona"]["id"], 12)
+        self.assertEqual(repositorio.argumentos, (7, 12))
 
 
 if __name__ == "__main__":

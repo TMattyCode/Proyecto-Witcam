@@ -189,6 +189,15 @@ class IngresosFalso:
             "camaras": [{"id": 4, "nombre": "Acceso principal"}],
         }
 
+    def listar_historial(self, token, id_persona):
+        if token != "token-prueba":
+            raise CredencialesInvalidas("La sesion no es valida")
+        return {
+            "ok": True,
+            "persona": {"id": int(id_persona), "nombre": "Persona prueba"},
+            "detecciones": [],
+        }
+
 
 class CamarasFalso:
     def _validar(self, token):
@@ -640,6 +649,15 @@ class PruebasApi(unittest.TestCase):
         conexion.close()
         self.assertEqual(respuesta.status, 200)
         self.assertEqual(camaras["camaras"][0]["id"], 4)
+
+        estado, _, cuerpo = self._solicitar(
+            "GET",
+            "/api/ingresos/historial?idPersona=12",
+            cabeceras_extra={"Authorization": "Bearer token-prueba"},
+        )
+        historial = json.loads(cuerpo)
+        self.assertEqual(estado, 200)
+        self.assertEqual(historial["persona"]["id"], 12)
 
     def test_camaras_exigen_sesion_y_exponen_crud(self):
         estado, _, _ = self._solicitar("GET", "/api/camaras")
