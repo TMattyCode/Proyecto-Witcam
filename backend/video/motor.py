@@ -2,12 +2,16 @@ import logging
 import threading
 import time
 from collections.abc import Callable
+from datetime import datetime
 from typing import Protocol
+
+import cv2
 
 from backend.config import ConfiguracionApp
 from backend.dominio.modelos import (
     EstadoMotor,
     EstadoSeguimiento,
+    EventoIdentidadEstable,
     ResultadoVisual,
 )
 from backend.galerias.reconciliacion import reconciliar
@@ -18,6 +22,7 @@ from backend.galerias.referencias import (
 from backend.galerias.repositorio import RepositorioGalerias
 from backend.ia.pipeline import PipelineReconocimiento
 from backend.utilidades.tiempo import limpiar_historial
+from backend.utilidades.imagenes import recortar_muestra
 from backend.video.captura import CapturadorFrames
 from backend.video.renderizado import (
     ajustar_para_web,
@@ -48,12 +53,15 @@ class MotorReconocimiento:
     def __init__(
         self,
         config: ConfiguracionApp,
-        repositorio: RepositorioGalerias,
+        repositorio: RepositorioGalerias | None,
         fabrica_pipeline: FabricaPipeline,
+        registrar_deteccion: Callable[[EventoIdentidadEstable], None]
+        | None = None,
     ):
         self.config = config
         self.repositorio = repositorio
         self.fabrica_pipeline = fabrica_pipeline
+        self.registrar_deteccion = registrar_deteccion
         self.bloqueo = threading.Lock()
         self.evento_detencion = threading.Event()
         self.hilo: threading.Thread | None = None
@@ -67,10 +75,21 @@ class MotorReconocimiento:
         fuente: int | str | None = None,
         analizar: bool = True,
         id_camara: int | None = None,
+        id_cuenta: int | None = None,
+        repositorio: RepositorioGalerias | None = None,
     ) -> None:
         if self.hilo and self.hilo.is_alive():
             return
         self.evento_detencion.clear()
+        if repositorio is not None:
+            self.repositorio = repositorio
+            usar_repositorio = getattr(
+                self.fabrica_pipeline,
+                "usar_repositorio",
+                None,
+            )
+            if usar_repositorio is not None:
+                usar_repositorio(repositorio)
         with self.bloqueo:
             self.fuente_actual = (
                 self.config.video.fuente if fuente is None else fuente
@@ -79,6 +98,7 @@ class MotorReconocimiento:
             self.estado.ejecutando = True
             self.estado.transmitiendo = False
             self.estado.id_camara = id_camara
+            self.estado.id_cuenta = id_cuenta
             self.estado.ultimo_error = None
             self.estado.ultimo_evento = "Iniciando camara"
             self.estado.jpeg_actual = crear_frame_mensaje(
@@ -117,16 +137,26 @@ class MotorReconocimiento:
                 "references_count": self.estado.cantidad_referencias,
                 "has_frame": self.estado.jpeg_actual is not None,
             }
-        galerias = self.config.galerias
+        repositorio = self.repositorio
+        galerias = getattr(repositorio, "config", self.config.galerias)
+        tiene_cuenta = self.estado.id_cuenta is not None
         base.update(
             {
-                "references_files": self.repositorio.contar(
-                    galerias.carpeta_referencias
+                "references_files": (
+                    repositorio.contar(galerias.carpeta_referencias)
+                    if tiene_cuenta and repositorio is not None
+                    else 0
                 ),
-                "pending_files": self.repositorio.contar(
-                    galerias.carpeta_pendientes
+                "pending_files": (
+                    repositorio.contar(galerias.carpeta_pendientes)
+                    if tiene_cuenta and repositorio is not None
+                    else 0
                 ),
-                "gallery_signature": self.repositorio.firma(),
+                "gallery_signature": (
+                    repositorio.firma()
+                    if tiene_cuenta and repositorio is not None
+                    else ""
+                ),
                 "similarity_threshold": self.config.rostro.umbral_similitud,
             }
         )
@@ -154,6 +184,10 @@ class MotorReconocimiento:
         pipeline = None
         cargador = None
         try:
+            if self.analisis_habilitado and self.repositorio is None:
+                raise RuntimeError(
+                    "No se ha seleccionado la galeria de la cuenta."
+                )
             self.registrar_evento("Abriendo fuente de video")
             es_archivo = CapturadorFrames._es_archivo_local(
                 self.fuente_actual
@@ -257,6 +291,7 @@ class MotorReconocimiento:
         )
         contador_personas = self.config.yolo.detectar_cada_n_ciclos - 1
         personas = []
+        identidades_notificadas: dict[tuple[str, int], tuple[str, str]] = {}
         with self.bloqueo:
             self.estado.ultimo_evento = "Fuente de video activa"
             self.estado.cantidad_referencias = len(referencias)
@@ -348,6 +383,11 @@ class MotorReconocimiento:
                 personas,
                 seguimiento,
             )
+            identidades_notificadas = self._notificar_identidades_estables(
+                frame,
+                seguimiento,
+                identidades_notificadas,
+            )
             resultados = resultados_rostros
             if pipeline.detector_personas is not None:
                 resultados = (
@@ -386,6 +426,70 @@ class MotorReconocimiento:
                 ]
             ultima_secuencia = capturador.secuencia_actual()
 
+    def _notificar_identidades_estables(
+        self,
+        frame,
+        seguimiento: EstadoSeguimiento,
+        notificadas: dict[tuple[str, int], tuple[str, str]],
+    ) -> dict[tuple[str, int], tuple[str, str]]:
+        if (
+            self.registrar_deteccion is None
+            or self.estado.id_camara is None
+            or self.estado.id_cuenta is None
+        ):
+            return notificadas
+        origen = "persona"
+        identidades = seguimiento.historial_personas
+        if self.fabrica_pipeline.detector_personas is None:
+            origen = "rostro"
+            identidades = seguimiento.historial_rostros
+
+        actuales: dict[tuple[str, int], tuple[str, str]] = {}
+        for tracker_id, identidad in identidades.items():
+            if (
+                "nombre" not in identidad
+                or identidad.get("identidad_suspendida", False)
+            ):
+                continue
+            firma = (identidad["nombre"], identidad["tipo"])
+            clave = (origen, tracker_id)
+            actuales[clave] = firma
+            if notificadas.get(clave) == firma:
+                continue
+            bbox = identidad.get("bbox")
+            if origen == "persona":
+                for rostro_id in identidad.get("rostros_asociados", set()):
+                    rostro = seguimiento.historial_rostros.get(rostro_id)
+                    if rostro is not None and rostro.get("bbox") is not None:
+                        bbox = rostro["bbox"]
+                        break
+            imagen = (
+                recortar_muestra(frame, bbox).copy()
+                if bbox is not None
+                else None
+            )
+            if imagen is not None and max(imagen.shape[:2]) > 512:
+                escala = 512 / max(imagen.shape[:2])
+                imagen = cv2.resize(
+                    imagen,
+                    None,
+                    fx=escala,
+                    fy=escala,
+                    interpolation=cv2.INTER_AREA,
+                )
+            self.registrar_deteccion(
+                EventoIdentidadEstable(
+                    id_camara=self.estado.id_camara,
+                    id_cuenta=self.estado.id_cuenta,
+                    nombre=identidad["nombre"],
+                    tipo_galeria=identidad["tipo"],
+                    similitud=float(identidad["similitud"]),
+                    fecha_hora=datetime.now(),
+                    imagen=imagen,
+                )
+            )
+        return actuales
+
     def _publicar_video(self, capturador: CapturadorFrames) -> None:
         intervalo = 1.0 / self.config.video.fps_video_web
         while not self.evento_detencion.is_set():
@@ -408,6 +512,7 @@ class MotorReconocimiento:
         self.estado.ejecutando = False
         self.estado.transmitiendo = False
         self.estado.id_camara = None
+        self.estado.id_cuenta = None
         self.estado.jpeg_actual = crear_frame_mensaje(
             "Presiona Iniciar en la interfaz",
             self.config.video,

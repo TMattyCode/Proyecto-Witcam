@@ -179,6 +179,16 @@
   display: block;
 }
 
+.tabla-ingresos-persona {
+  min-width: 0;
+}
+
+.tabla-ingresos-persona strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .tabla-ingresos td small {
   margin-top: 3px;
   color: #718098;
@@ -284,6 +294,10 @@
 
 .tabla-ingresos-accion.eliminar:hover {
   background: #d90000;
+}
+
+.tabla-ingresos-accion.eliminar:disabled {
+  background: #ef9b9b;
 }
 
 .tabla-ingresos-accion:disabled {
@@ -441,4 +455,90 @@
 .tabla-ingresos-exportar:disabled:hover {
   background: #ffffff;
   color: #7b879c;
+}
+
+.modal-eliminar-persona-fondo {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(4, 14, 38, 0.58);
+  backdrop-filter: blur(3px);
+}
+
+.modal-eliminar-persona {
+  width: min(440px, 100%);
+  padding: 28px;
+  border: 1px solid #e2e8f2;
+  border-radius: 16px;
+  background: #ffffff;
+  box-shadow: 0 24px 70px rgba(7, 20, 47, 0.28);
+  text-align: center;
+}
+
+.modal-eliminar-persona-icono {
+  width: 52px;
+  height: 52px;
+  margin: 0 auto 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: #ffe8e8;
+  color: #d61f2c;
+  font-size: 28px;
+  font-weight: 800;
+}
+
+.modal-eliminar-persona-etiqueta {
+  margin: 0 0 7px;
+  color: #d61f2c;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+}
+
+.modal-eliminar-persona h2 {
+  margin: 0;
+  color: #07142f;
+  font-size: 21px;
+}
+
+.modal-eliminar-persona > p:last-of-type {
+  margin: 12px 0 24px;
+  color: #65728a;
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.modal-eliminar-persona-acciones {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.modal-eliminar-persona-acciones button {
+  min-height: 42px;
+  border: 1px solid #ccd6e5;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #22304d;
+  font-family: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.modal-eliminar-persona-acciones .confirmar {
+  border-color: #df2834;
+  background: #df2834;
+  color: #ffffff;
+}
+
+.modal-eliminar-persona-acciones button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
 }

@@ -1,4 +1,13 @@
+from dataclasses import dataclass
+
 from backend.database.conexion import FabricaConexionesSqlServer
+
+
+@dataclass(frozen=True)
+class ResultadoEliminacionPersona:
+    id_persona: int
+    nombre: str
+    rutas_archivos: tuple[str, ...]
 
 
 class RepositorioIngresos:
@@ -296,3 +305,111 @@ class RepositorioIngresos:
             }
             for fila in filas
         ]
+
+    def eliminar_persona(
+        self,
+        id_cuenta: int,
+        id_persona: int,
+    ) -> ResultadoEliminacionPersona | None:
+        """Elimina la identidad y conserva sus detecciones anonimizadas."""
+        with self.conexiones.conectar() as conexion:
+            cursor = conexion.cursor()
+            persona = cursor.execute(
+                """
+                SELECT id_persona, nombre_persona
+                FROM Persona WITH (UPDLOCK, HOLDLOCK)
+                WHERE id_persona = ? AND id_cuenta = ?
+                """,
+                id_persona,
+                id_cuenta,
+            ).fetchone()
+            if persona is None:
+                return None
+            observacion_activa = cursor.execute(
+                """
+                SELECT TOP 1 id_lista_observacion
+                FROM ListaObservacion WITH (UPDLOCK, HOLDLOCK)
+                WHERE id_persona = ? AND activa = 1
+                """,
+                id_persona,
+            ).fetchone()
+            if observacion_activa is not None:
+                raise ValueError(
+                    "La persona esta en la lista de observacion y no puede eliminarse"
+                )
+
+            detecciones = cursor.execute(
+                """
+                SELECT ruta_imagen_detectada AS ruta_archivo
+                FROM Deteccion
+                WHERE id_persona = ?
+                  AND ruta_imagen_detectada IS NOT NULL
+                """,
+                id_persona,
+            ).fetchall()
+            muestras = cursor.execute(
+                """
+                SELECT ruta_archivo
+                FROM MuestraFacial
+                WHERE id_persona = ?
+                """,
+                id_persona,
+            ).fetchall()
+            rutas = tuple(
+                dict.fromkeys(
+                    str(fila.ruta_archivo)
+                    for fila in (*detecciones, *muestras)
+                    if getattr(fila, "ruta_archivo", None)
+                )
+            )
+
+            cursor.execute(
+                """
+                DELETE a
+                FROM Alerta a
+                INNER JOIN Deteccion d
+                    ON d.id_deteccion = a.id_deteccion
+                WHERE d.id_persona = ?
+                """,
+                id_persona,
+            )
+            cursor.execute(
+                """
+                DELETE a
+                FROM Alerta a
+                INNER JOIN ListaObservacion lo
+                    ON lo.id_lista_observacion = a.id_lista_observacion
+                WHERE lo.id_persona = ?
+                """,
+                id_persona,
+            )
+            cursor.execute(
+                "DELETE FROM ListaObservacion WHERE id_persona = ?",
+                id_persona,
+            )
+            cursor.execute(
+                "DELETE FROM MuestraFacial WHERE id_persona = ?",
+                id_persona,
+            )
+            cursor.execute(
+                """
+                UPDATE Deteccion
+                SET id_persona = NULL,
+                    ruta_imagen_detectada = NULL,
+                    resultado = 'Anonimizado',
+                    similitud = NULL
+                WHERE id_persona = ?
+                """,
+                id_persona,
+            )
+            cursor.execute(
+                "DELETE FROM Persona WHERE id_persona = ? AND id_cuenta = ?",
+                id_persona,
+                id_cuenta,
+            )
+            conexion.commit()
+            return ResultadoEliminacionPersona(
+                id_persona=id_persona,
+                nombre=str(persona.nombre_persona),
+                rutas_archivos=rutas,
+            )

@@ -30,7 +30,9 @@ export default function TablaIngresos({
   onCambiarPagina,
   onVerHistorial,
   onAgregarObservacion,
+  onEliminarPersona,
   personaAgregando = null,
+  personaEliminando = null,
 }) {
   const totalPaginas = Math.max(1, Math.ceil(total / limite));
   const inicio = total === 0 ? 0 : (pagina - 1) * limite + 1;
@@ -92,8 +94,10 @@ export default function TablaIngresos({
               ingresos.map((ingreso) => (
                 <tr key={ingreso.idDeteccion}>
                   <td>#{ingreso.idDeteccion}</td>
-                  <td>
-                    <strong>{ingreso.nombrePersona}</strong>
+                  <td className="tabla-ingresos-persona">
+                    <strong title={ingreso.nombrePersona}>
+                      {ingreso.nombrePersona || "Persona sin nombre"}
+                    </strong>
                     <small>ID {ingreso.idPersona}</small>
                   </td>
                   <td>
@@ -141,9 +145,17 @@ export default function TablaIngresos({
                       <button
                         className="tabla-ingresos-accion eliminar"
                         type="button"
-                        disabled
+                        disabled={
+                          ingreso.enListaObservacion
+                          || personaEliminando === ingreso.idPersona
+                        }
+                        onClick={() => onEliminarPersona?.(ingreso)}
                         aria-label={`Eliminar registro de ${ingreso.nombrePersona}`}
-                        title="Eliminar ingreso (próximamente)"
+                        title={
+                          ingreso.enListaObservacion
+                            ? "La persona esta en la lista de observacion"
+                            : "Eliminar persona"
+                        }
                       >
                         <img src={iconoBasurero} alt="" aria-hidden="true" />
                       </button>

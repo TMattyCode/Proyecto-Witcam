@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Layout from "../../componentes/layout/Layout";
 import {
   agregarPersonaListaObservacion,
+  eliminarPersona,
   obtenerCamarasIngresos,
   obtenerHistorialIngresos,
   obtenerIngresos,
@@ -13,6 +14,7 @@ import HistorialIngresos from "./componentes/HistorialIngresos";
 import TablaIngresos from "./componentes/TablaIngresos";
 
 const LIMITE_PAGINA = 25;
+const INTERVALO_ACTUALIZACION = 7000;
 
 export default function IngresosIdentificados() {
   const [ingresos, setIngresos] = useState([]);
@@ -26,26 +28,54 @@ export default function IngresosIdentificados() {
   const [cargandoHistorial, setCargandoHistorial] = useState(false);
   const [errorHistorial, setErrorHistorial] = useState("");
   const [personaAgregando, setPersonaAgregando] = useState(null);
+  const [personaEliminar, setPersonaEliminar] = useState(null);
+  const [personaEliminando, setPersonaEliminando] = useState(null);
 
   useEffect(() => {
     let activo = true;
-    obtenerIngresos(pagina, LIMITE_PAGINA, filtrosAplicados)
-      .then((respuesta) => {
+    let solicitudEnCurso = false;
+    let conexionConfirmada = false;
+    let fallosConsecutivos = 0;
+
+    const actualizarIngresos = async (esCargaInicial = false) => {
+      if (solicitudEnCurso) return;
+      solicitudEnCurso = true;
+      try {
+        const respuesta = await obtenerIngresos(
+          pagina,
+          LIMITE_PAGINA,
+          filtrosAplicados,
+        );
         if (!activo) return;
+        conexionConfirmada = true;
+        fallosConsecutivos = 0;
         setIngresos(respuesta.ingresos);
         setTotal(respuesta.total);
-      })
-      .catch((errorSolicitud) => {
+        setError("");
+      } catch (errorSolicitud) {
         if (!activo) return;
-        setIngresos([]);
-        setTotal(0);
-        setError(errorSolicitud.message);
-      })
-      .finally(() => {
-        if (activo) setCargando(false);
-      });
+        fallosConsecutivos += 1;
+        if (esCargaInicial) {
+          setIngresos([]);
+          setTotal(0);
+        }
+        if (!conexionConfirmada || fallosConsecutivos >= 2) {
+          setError(errorSolicitud.message);
+        }
+      } finally {
+        solicitudEnCurso = false;
+        if (activo && esCargaInicial) setCargando(false);
+      }
+    };
+
+    actualizarIngresos(true);
+    const intervalo = window.setInterval(
+      () => actualizarIngresos(false),
+      INTERVALO_ACTUALIZACION,
+    );
     return () => {
       activo = false;
+      window.clearInterval(intervalo);
     };
   }, [pagina, filtrosAplicados]);
 
@@ -107,6 +137,27 @@ export default function IngresosIdentificados() {
     }
   };
 
+  const confirmarEliminacion = async () => {
+    if (!personaEliminar || personaEliminando !== null) return;
+    const idPersona = personaEliminar.idPersona;
+    setPersonaEliminando(idPersona);
+    setError("");
+    try {
+      await eliminarPersona(idPersona);
+      setIngresos((actuales) => actuales.filter(
+        (ingreso) => ingreso.idPersona !== idPersona,
+      ));
+      setTotal((actual) => Math.max(0, actual - 1));
+      if (historial?.persona?.id === idPersona) setHistorial(null);
+      setPersonaEliminar(null);
+    } catch (errorSolicitud) {
+      setError(errorSolicitud.message);
+      setPersonaEliminar(null);
+    } finally {
+      setPersonaEliminando(null);
+    }
+  };
+
   return (
     <Layout
       titulo="Ingresos identificados"
@@ -129,8 +180,65 @@ export default function IngresosIdentificados() {
           onCambiarPagina={cambiarPagina}
           onVerHistorial={abrirHistorial}
           onAgregarObservacion={agregarAObservacion}
+          onEliminarPersona={setPersonaEliminar}
           personaAgregando={personaAgregando}
+          personaEliminando={personaEliminando}
         />
+
+        {personaEliminar && (
+          <div
+            className="modal-eliminar-persona-fondo"
+            role="presentation"
+            onMouseDown={(evento) => {
+              if (
+                evento.target === evento.currentTarget
+                && personaEliminando === null
+              ) {
+                setPersonaEliminar(null);
+              }
+            }}
+          >
+            <section
+              className="modal-eliminar-persona"
+              role="alertdialog"
+              aria-modal="true"
+              aria-labelledby="titulo-eliminar-persona"
+              aria-describedby="detalle-eliminar-persona"
+            >
+              <div className="modal-eliminar-persona-icono">!</div>
+              <p className="modal-eliminar-persona-etiqueta">
+                Accion irreversible
+              </p>
+              <h2 id="titulo-eliminar-persona">
+                ¿Eliminar a {personaEliminar.nombrePersona}?
+              </h2>
+              <p id="detalle-eliminar-persona">
+                Se eliminaran su identidad, galeria e imagenes. Sus ingresos
+                permaneceran en el historial sin datos personales.
+              </p>
+              <div className="modal-eliminar-persona-acciones">
+                <button
+                  type="button"
+                  onClick={() => setPersonaEliminar(null)}
+                  disabled={personaEliminando !== null}
+                  autoFocus
+                >
+                  No, cancelar
+                </button>
+                <button
+                  type="button"
+                  className="confirmar"
+                  onClick={confirmarEliminacion}
+                  disabled={personaEliminando !== null}
+                >
+                  {personaEliminando !== null
+                    ? "Eliminando..."
+                    : "Si, eliminar"}
+                </button>
+              </div>
+            </section>
+          </div>
+        )}
 
         {historial && (
           <HistorialIngresos

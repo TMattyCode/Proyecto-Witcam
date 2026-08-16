@@ -2,6 +2,7 @@ from datetime import datetime
 
 from backend.aplicacion.autenticacion import ServicioAutenticacion
 from backend.database.ingresos import RepositorioIngresos
+from backend.galerias.almacenamiento import AlmacenamientoPorCuenta
 
 
 class ServicioIngresos:
@@ -9,9 +10,11 @@ class ServicioIngresos:
         self,
         repositorio: RepositorioIngresos,
         autenticacion: ServicioAutenticacion,
+        almacenamiento: AlmacenamientoPorCuenta | None = None,
     ):
         self.repositorio = repositorio
         self.autenticacion = autenticacion
+        self.almacenamiento = almacenamiento
 
     def listar(self, token: str, filtros: dict | None = None) -> dict:
         filtros = filtros or {}
@@ -93,6 +96,43 @@ class ServicioIngresos:
             usuario["idCuenta"]
         )
         return {"ok": True, "registros": registros, "total": len(registros)}
+
+    def eliminar_persona(self, token: str, datos) -> dict:
+        if not isinstance(datos, dict):
+            raise ValueError("Los datos de la persona no son validos")
+        id_persona = self._validar_entero(
+            datos.get("idPersona"),
+            "idPersona",
+            minimo=1,
+        )
+        usuario = self.autenticacion.exigir_permiso(token, "eliminar")
+        id_cuenta = usuario["idCuenta"]
+        if self.almacenamiento is None:
+            resultado = self.repositorio.eliminar_persona(
+                id_cuenta,
+                id_persona,
+            )
+        else:
+            repositorio_galeria = self.almacenamiento.obtener(id_cuenta)
+            with repositorio_galeria.transaccion():
+                resultado = self.repositorio.eliminar_persona(
+                    id_cuenta,
+                    id_persona,
+                )
+                if resultado is not None:
+                    self.almacenamiento.eliminar_archivos_persona(
+                        id_cuenta,
+                        resultado.id_persona,
+                        resultado.nombre,
+                        resultado.rutas_archivos,
+                    )
+        if resultado is None:
+            raise ValueError("La persona no existe en esta cuenta")
+        return {
+            "ok": True,
+            "idPersona": resultado.id_persona,
+            "nombrePersona": resultado.nombre,
+        }
 
     def _validar_filtros(self, filtros: dict) -> dict:
         fecha_desde = self._validar_fecha(

@@ -65,8 +65,13 @@ class ServicioCamaras:
         token: str,
         id_camara: int,
         fuente: int | str | None,
-    ) -> None:
-        camaras = self.listar(token)["camaras"]
+    ) -> int:
+        usuario = self._usuario(token)
+        camaras = self.repositorio.listar(
+            usuario["idCuenta"],
+            usuario["id"],
+            usuario.get("rol") == "Administrador",
+        )["camaras"]
         camara = next(
             (
                 actual
@@ -85,6 +90,7 @@ class ServicioCamaras:
             )
         if camara.get("fuente") != fuente:
             raise ErrorCamara("La fuente no corresponde a la camara indicada")
+        return usuario["idCuenta"]
 
     def editar(self, token: str, datos: dict) -> dict:
         administrador = self._administrador(token)

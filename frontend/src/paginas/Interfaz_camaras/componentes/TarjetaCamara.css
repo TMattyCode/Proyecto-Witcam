@@ -221,7 +221,7 @@
 
 .boton-camara:disabled {
   opacity: 0.58;
-  cursor: wait;
+  cursor: not-allowed;
 }
 
 .boton-camara.iniciar {
@@ -273,7 +273,7 @@
   background: #075cff;
 }
 
-.boton-camara.editar:hover {
+.boton-camara.editar:hover:not(:disabled) {
   background: #0049d8;
 }
 
@@ -281,7 +281,7 @@
   background: #fe0c0c;
 }
 
-.boton-camara.eliminar:hover {
+.boton-camara.eliminar:hover:not(:disabled) {
   background: #d90000;
 }
 

@@ -1,18 +1,37 @@
+from pathlib import Path
+
+from backend.aplicacion.autenticacion import ServicioAutenticacion
+from backend.galerias.almacenamiento import AlmacenamientoPorCuenta
 from backend.galerias.repositorio import RepositorioGalerias
 from backend.video.motor import MotorReconocimiento
 
 
 class ServicioMonitoreo:
-    def __init__(self, motor: MotorReconocimiento):
+    def __init__(
+        self,
+        motor: MotorReconocimiento,
+        almacenamiento: AlmacenamientoPorCuenta | None = None,
+    ):
         self.motor = motor
+        self.almacenamiento = almacenamiento
 
     def iniciar(
         self,
         fuente: int | str | None = None,
         analizar: bool = True,
         id_camara: int | None = None,
+        id_cuenta: int | None = None,
     ) -> None:
-        self.motor.iniciar(fuente, analizar, id_camara)
+        repositorio = None
+        if self.almacenamiento is not None and id_cuenta is not None:
+            repositorio = self.almacenamiento.obtener(id_cuenta)
+        self.motor.iniciar(
+            fuente,
+            analizar,
+            id_camara,
+            id_cuenta,
+            repositorio,
+        )
 
     def detener(self) -> None:
         self.motor.detener()
@@ -29,35 +48,70 @@ class ServicioMonitoreo:
 
 
 class ServicioGalerias:
-    def __init__(self, repositorio: RepositorioGalerias):
+    def __init__(
+        self,
+        repositorio: RepositorioGalerias | AlmacenamientoPorCuenta,
+        autenticacion: ServicioAutenticacion | None = None,
+    ):
         self.repositorio = repositorio
+        self.autenticacion = autenticacion
 
-    def listar(self) -> dict:
-        config = self.repositorio.config
+    def _obtener_repositorio(
+        self,
+        token: str | None = None,
+    ) -> RepositorioGalerias:
+        if isinstance(self.repositorio, RepositorioGalerias):
+            return self.repositorio
+        if self.autenticacion is None or token is None:
+            raise ValueError("La sesion es necesaria para acceder a galerias")
+        usuario = self.autenticacion.obtener_sesion(token)["user"]
+        return self.repositorio.obtener(usuario["idCuenta"])
+
+    def listar(self, token: str | None = None) -> dict:
+        repositorio = self._obtener_repositorio(token)
+        config = repositorio.config
         return {
-            "references": self.repositorio.listar(
+            "references": repositorio.listar(
                 config.carpeta_referencias
             ),
-            "pending": self.repositorio.listar(
+            "pending": repositorio.listar(
                 config.carpeta_pendientes
             ),
-            "gallery_signature": self.repositorio.firma(),
+            "gallery_signature": repositorio.firma(),
         }
 
-    def aprobar(self, nombre: str) -> None:
-        self.repositorio.aprobar(nombre)
+    def aprobar(self, nombre: str, token: str | None = None) -> None:
+        self._obtener_repositorio(token).aprobar(nombre)
 
-    def devolver_a_pendiente(self, nombre: str) -> None:
-        self.repositorio.devolver_a_pendiente(nombre)
+    def devolver_a_pendiente(
+        self,
+        nombre: str,
+        token: str | None = None,
+    ) -> None:
+        self._obtener_repositorio(token).devolver_a_pendiente(nombre)
 
     def renombrar(
         self,
         tipo_externo: str,
         nombre: str,
         nuevo_nombre: str,
+        token: str | None = None,
     ) -> None:
         tipo = "pendiente" if tipo_externo == "pending" else "oficial"
-        self.repositorio.renombrar(tipo, nombre, nuevo_nombre)
+        self._obtener_repositorio(token).renombrar(
+            tipo,
+            nombre,
+            nuevo_nombre,
+        )
 
-    def rechazar(self, nombre: str) -> None:
-        self.repositorio.rechazar(nombre)
+    def rechazar(self, nombre: str, token: str | None = None) -> None:
+        self._obtener_repositorio(token).rechazar(nombre)
+
+    def obtener_imagen(
+        self,
+        token: str,
+        tipo_externo: str,
+        nombre: str,
+    ) -> Path:
+        tipo = "pendiente" if tipo_externo == "pending" else "oficial"
+        return self._obtener_repositorio(token).obtener_portada(tipo, nombre)

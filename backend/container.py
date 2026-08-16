@@ -6,17 +6,22 @@ from backend.aplicacion.servicios import (
 )
 from backend.aplicacion.autenticacion import ServicioAutenticacion
 from backend.aplicacion.ingresos import ServicioIngresos
+from backend.aplicacion.registro_detecciones import RegistradorDetecciones
 from backend.aplicacion.camaras import ServicioCamaras
 from backend.aplicacion.witcam import AplicacionWitcam
 from backend.api.handler import crear_handler
 from backend.api.servidor import ServidorWitcam
 from backend.config import ConfiguracionApp, PROJECT_ROOT, cargar_configuracion
 from backend.galerias.muestras import GestorMuestras
+from backend.galerias.almacenamiento import AlmacenamientoPorCuenta
 from backend.galerias.referencias import CargadorReferencias
 from backend.galerias.repositorio import RepositorioGalerias
 from backend.database.conexion import FabricaConexionesSqlServer
 from backend.database.usuarios import RepositorioUsuarios
 from backend.database.ingresos import RepositorioIngresos
+from backend.database.registro_detecciones import (
+    RepositorioRegistroDetecciones,
+)
 from backend.database.camaras import RepositorioCamaras
 from backend.ia.adaptadores.bytetrack import RastreadorByteTrack
 from backend.ia.adaptadores.insightface import (
@@ -35,7 +40,7 @@ class FabricaPipelineReal:
     def __init__(
         self,
         config: ConfiguracionApp,
-        repositorio: RepositorioGalerias,
+        repositorio: RepositorioGalerias | None,
     ):
         self.config = config
         self.repositorio = repositorio
@@ -45,15 +50,25 @@ class FabricaPipelineReal:
         self.cargador = None
         self.muestras = None
 
+    def usar_repositorio(self, repositorio: RepositorioGalerias) -> None:
+        if repositorio is self.repositorio:
+            return
+        self.repositorio = repositorio
+        self.cargador = None
+        self.muestras = None
+
     def preparar_modelos(self) -> CargadorReferencias:
-        sesion = SesionInsightFace(self.config.rostro)
-        self.detector_rostros = DetectorScrfd(sesion)
-        self.reconocedor = ReconocedorInsightFace(sesion)
-        self.detector_personas = (
-            DetectorYoloPersonas(self.config.yolo)
-            if self.config.yolo.habilitado
-            else None
-        )
+        if self.repositorio is None:
+            raise RuntimeError("No se ha seleccionado una cuenta para la IA")
+        if self.reconocedor is None:
+            sesion = SesionInsightFace(self.config.rostro)
+            self.detector_rostros = DetectorScrfd(sesion)
+            self.reconocedor = ReconocedorInsightFace(sesion)
+            self.detector_personas = (
+                DetectorYoloPersonas(self.config.yolo)
+                if self.config.yolo.habilitado
+                else None
+            )
         self.cargador = CargadorReferencias(
             self.repositorio,
             self.reconocedor,
@@ -112,18 +127,30 @@ def construir_aplicacion(
     config: ConfiguracionApp | None = None,
 ) -> AplicacionWitcam:
     config = config or cargar_configuracion()
-    repositorio = RepositorioGalerias(config.galerias)
-    fabrica = FabricaPipelineReal(config, repositorio)
-    motor = MotorReconocimiento(config, repositorio, fabrica)
-    monitoreo = ServicioMonitoreo(motor)
-    galerias = ServicioGalerias(repositorio)
+    almacenamiento = AlmacenamientoPorCuenta(config.galerias)
+    fabrica = FabricaPipelineReal(config, None)
     conexiones = FabricaConexionesSqlServer(config.base_datos)
+    registrador_detecciones = RegistradorDetecciones(
+        RepositorioRegistroDetecciones(conexiones),
+        almacenamiento,
+        config.detecciones.cooldown_segundos,
+        config.detecciones.capacidad_cola,
+    )
+    motor = MotorReconocimiento(
+        config,
+        None,
+        fabrica,
+        registrador_detecciones.registrar,
+    )
+    monitoreo = ServicioMonitoreo(motor, almacenamiento)
     autenticacion = ServicioAutenticacion(
         RepositorioUsuarios(conexiones)
     )
+    galerias = ServicioGalerias(almacenamiento, autenticacion)
     ingresos = ServicioIngresos(
         RepositorioIngresos(conexiones),
         autenticacion,
+        almacenamiento,
     )
     camaras = ServicioCamaras(
         RepositorioCamaras(
@@ -145,10 +172,11 @@ def construir_aplicacion(
     servidor = ServidorWitcam(config.servidor, handler)
     return AplicacionWitcam(
         config,
-        repositorio,
+        None,
         monitoreo,
         galerias,
         servidor,
+        registrador_detecciones,
     )
 
 

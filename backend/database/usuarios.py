@@ -485,3 +485,32 @@ class RepositorioUsuarios:
                 id_usuario,
             )
             conexion.commit()
+
+    def tiene_permiso(self, id_usuario: int, codigo_permiso: str) -> bool:
+        with self.conexiones.conectar() as conexion:
+            valor = conexion.cursor().execute(
+                """
+                SELECT CASE
+                    WHEN r.nombre_rol = 'Administrador' THEN 1
+                    WHEN EXISTS (
+                        SELECT 1
+                        FROM Usuario_Permiso up
+                        INNER JOIN Permiso p
+                            ON p.id_permiso = up.id_permiso
+                        WHERE up.id_usuario = u.id_usuario
+                          AND up.permitido = 1
+                          AND p.codigo_permiso = ?
+                    ) THEN 1
+                    ELSE 0
+                END
+                FROM Usuario u
+                INNER JOIN Rol r ON r.id_rol = u.id_rol
+                INNER JOIN EstadoUsuario eu
+                    ON eu.id_estado_usuario = u.id_estado_usuario
+                WHERE u.id_usuario = ?
+                  AND eu.nombre_estado = 'Activo'
+                """,
+                codigo_permiso,
+                id_usuario,
+            ).fetchval()
+        return bool(valor)

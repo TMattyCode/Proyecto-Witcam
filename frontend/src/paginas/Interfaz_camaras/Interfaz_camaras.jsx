@@ -112,16 +112,30 @@ export default function InterfazCamaras() {
 
   useEffect(() => {
     let activo = true;
+    let solicitudEnCurso = false;
+    let conexionConfirmada = false;
+    let fallosConsecutivos = 0;
 
     async function actualizar() {
+      if (solicitudEnCurso) return;
+      solicitudEnCurso = true;
       try {
         const siguienteEstado = await obtenerEstadoMonitoreo();
         if (activo) {
+          conexionConfirmada = true;
+          fallosConsecutivos = 0;
           setEstado(siguienteEstado);
           setErrorMonitoreo("");
         }
       } catch (error) {
-        if (activo && tieneWebcam) setErrorMonitoreo(error.message);
+        if (activo && tieneWebcam) {
+          fallosConsecutivos += 1;
+          if (!conexionConfirmada || fallosConsecutivos >= 3) {
+            setErrorMonitoreo(error.message);
+          }
+        }
+      } finally {
+        solicitudEnCurso = false;
       }
     }
 

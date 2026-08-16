@@ -2,6 +2,7 @@ from backend.aplicacion.servicios import (
     ServicioGalerias,
     ServicioMonitoreo,
 )
+from backend.aplicacion.registro_detecciones import RegistradorDetecciones
 from backend.api.servidor import ServidorWitcam
 from backend.config import ConfiguracionApp
 from backend.galerias.repositorio import RepositorioGalerias
@@ -12,26 +13,20 @@ class AplicacionWitcam:
     def __init__(
         self,
         config: ConfiguracionApp,
-        repositorio: RepositorioGalerias,
+        repositorio: RepositorioGalerias | None,
         monitoreo: ServicioMonitoreo,
         galerias: ServicioGalerias,
         servidor: ServidorWitcam,
+        registrador_detecciones: RegistradorDetecciones | None = None,
     ):
         self.config = config
         self.repositorio = repositorio
         self.monitoreo = monitoreo
         self.galerias = galerias
         self.servidor = servidor
+        self.registrador_detecciones = registrador_detecciones
 
     def preparar(self) -> None:
-        self.repositorio.preparar()
-        config = self.config.galerias
-        self.repositorio.migrar_imagenes_sueltas(
-            config.carpeta_referencias
-        )
-        self.repositorio.migrar_imagenes_sueltas(
-            config.carpeta_pendientes
-        )
         motor = self.monitoreo.motor
         with motor.bloqueo:
             motor.estado.jpeg_actual = crear_frame_mensaje(
@@ -48,4 +43,6 @@ class AplicacionWitcam:
 
     def cerrar(self) -> None:
         self.monitoreo.detener()
+        if self.registrador_detecciones is not None:
+            self.registrador_detecciones.cerrar()
         self.servidor.cerrar()

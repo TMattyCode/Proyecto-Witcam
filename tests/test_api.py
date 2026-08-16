@@ -35,11 +35,18 @@ class MonitoreoFalso:
         self.analizar = True
         self.id_camara = None
 
-    def iniciar(self, fuente=None, analizar=True, id_camara=None):
+    def iniciar(
+        self,
+        fuente=None,
+        analizar=True,
+        id_camara=None,
+        id_cuenta=None,
+    ):
         self.iniciado = True
         self.fuente = fuente
         self.analizar = analizar
         self.id_camara = id_camara
+        self.id_cuenta = id_cuenta
 
     def detener(self):
         self.detenido = True
@@ -217,6 +224,15 @@ class IngresosFalso:
             "registros": [{"idLista": 8, "idCliente": 12}],
         }
 
+    def eliminar_persona(self, token, datos):
+        if token != "token-prueba":
+            raise CredencialesInvalidas("La sesion no es valida")
+        return {
+            "ok": True,
+            "idPersona": datos["idPersona"],
+            "nombrePersona": "Persona prueba",
+        }
+
 
 class CamarasFalso:
     def _validar(self, token):
@@ -251,6 +267,7 @@ class CamarasFalso:
         self._validar(token)
         if id_camara != 17 or fuente != 0:
             raise ErrorCamara("La camara no es valida")
+        return 10
 
 
 class PruebasApi(unittest.TestCase):
@@ -351,7 +368,11 @@ class PruebasApi(unittest.TestCase):
                 "similarity_threshold",
             },
         )
-        estado, _, cuerpo = self._solicitar("GET", "/api/list")
+        estado, _, cuerpo = self._solicitar(
+            "GET",
+            "/api/list",
+            cabeceras_extra={"Authorization": "Bearer token-prueba"},
+        )
         listado = json.loads(cuerpo)
         self.assertEqual(estado, 200)
         self.assertEqual(
@@ -362,6 +383,14 @@ class PruebasApi(unittest.TestCase):
             set(listado["references"][0]),
             {"name", "url", "modified", "sampleCount"},
         )
+        estado, cabeceras, cuerpo = self._solicitar(
+            "GET",
+            listado["references"][0]["url"],
+            cabeceras_extra={"Authorization": "Bearer token-prueba"},
+        )
+        self.assertEqual(estado, 200)
+        self.assertEqual(cabeceras["Content-Type"], "image/jpeg")
+        self.assertTrue(cuerpo.startswith(b"\xff\xd8"))
 
         conexion = http.client.HTTPConnection(
             "127.0.0.1",
@@ -438,13 +467,19 @@ class PruebasApi(unittest.TestCase):
             ("/api/reject", {"file": "Alice_Nueva"}),
         ]
         for ruta, datos in operaciones:
-            estado, _, cuerpo = self._solicitar("POST", ruta, datos)
+            estado, _, cuerpo = self._solicitar(
+                "POST",
+                ruta,
+                datos,
+                {"Authorization": "Bearer token-prueba"},
+            )
             self.assertEqual(estado, 200)
             self.assertEqual(json.loads(cuerpo), {"ok": True})
         estado, _, cuerpo = self._solicitar(
             "POST",
             "/api/reject",
             {"file": "NoExiste"},
+            {"Authorization": "Bearer token-prueba"},
         )
         self.assertEqual(estado, 400)
         self.assertEqual(json.loads(cuerpo)["ok"], False)
@@ -696,6 +731,17 @@ class PruebasApi(unittest.TestCase):
         listado_observacion = json.loads(cuerpo)
         self.assertEqual(estado, 200)
         self.assertEqual(listado_observacion["registros"][0]["idLista"], 8)
+
+        estado, _, cuerpo = self._solicitar(
+            "POST",
+            "/api/ingresos/eliminar-persona",
+            {"idPersona": 12},
+            {"Authorization": "Bearer token-prueba"},
+        )
+        eliminada = json.loads(cuerpo)
+        self.assertEqual(estado, 200)
+        self.assertTrue(eliminada["ok"])
+        self.assertEqual(eliminada["idPersona"], 12)
 
     def test_camaras_exigen_sesion_y_exponen_crud(self):
         estado, _, _ = self._solicitar("GET", "/api/camaras")

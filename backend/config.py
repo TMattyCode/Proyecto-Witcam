@@ -6,6 +6,15 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 
+def _directorio_datos() -> Path:
+    configurado = os.environ.get("WITCAM_DATA_DIR")
+    if configurado:
+        return Path(configurado).expanduser()
+    program_data = os.environ.get("PROGRAMDATA")
+    base = Path(program_data) if program_data else PROJECT_ROOT
+    return base / "Witcam" / "data"
+
+
 @dataclass(frozen=True)
 class ConfiguracionServidor:
     host: str = "localhost"
@@ -123,7 +132,14 @@ class ConfiguracionDesconocidos:
 
 
 @dataclass(frozen=True)
+class ConfiguracionDetecciones:
+    cooldown_segundos: int = 30 * 60
+    capacidad_cola: int = 100
+
+
+@dataclass(frozen=True)
 class ConfiguracionGalerias:
+    directorio_datos: Path = field(default_factory=_directorio_datos)
     carpeta_referencias: Path = PROJECT_ROOT / "referencias_reconocimiento"
     carpeta_pendientes: Path = PROJECT_ROOT / "referencias_pendientes"
     intervalo_revision: float = 2.0
@@ -155,6 +171,9 @@ class ConfiguracionApp:
     tracking: ConfiguracionTracking = field(default_factory=ConfiguracionTracking)
     desconocidos: ConfiguracionDesconocidos = field(
         default_factory=ConfiguracionDesconocidos
+    )
+    detecciones: ConfiguracionDetecciones = field(
+        default_factory=ConfiguracionDetecciones
     )
     galerias: ConfiguracionGalerias = field(default_factory=ConfiguracionGalerias)
 

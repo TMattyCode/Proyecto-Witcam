@@ -106,6 +106,13 @@ export function agregarPersonaListaObservacion(idPersona) {
   });
 }
 
+export function eliminarPersona(idPersona) {
+  return solicitar("/api/ingresos/eliminar-persona", {
+    method: "POST",
+    body: JSON.stringify({ idPersona }),
+  });
+}
+
 export function obtenerListaObservacion() {
   return solicitar("/api/lista-observacion");
 }

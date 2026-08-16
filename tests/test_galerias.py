@@ -56,6 +56,32 @@ class PruebasGalerias(unittest.TestCase):
         self.repositorio.rechazar("Matías")
         self.assertEqual(self.repositorio.contar(self.config.carpeta_pendientes), 0)
 
+    def test_elimina_galeria_por_id_persistente_aunque_cambie_el_nombre(self):
+        ruta = self.config.carpeta_pendientes / "Nombre_antiguo" / "muestra.jpg"
+        self._crear_imagen(ruta)
+        self.repositorio.guardar_id_persona(
+            "pendiente",
+            "Nombre_antiguo",
+            7,
+            12,
+        )
+        self.repositorio.renombrar(
+            "pendiente",
+            "Nombre_antiguo",
+            "Nombre_nuevo",
+        )
+
+        eliminadas = self.repositorio.eliminar_persona(
+            7,
+            12,
+            "Nombre base de datos",
+        )
+
+        self.assertEqual(eliminadas, 1)
+        self.assertFalse(
+            (self.config.carpeta_pendientes / "Nombre_nuevo").exists()
+        )
+
     def test_bloqueo_permite_lecturas_y_renombrados_concurrentes(self):
         self._crear_imagen(
             self.config.carpeta_pendientes / "Persona" / "muestra.jpg"

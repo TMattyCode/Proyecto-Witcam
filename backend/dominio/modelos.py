@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import Path
 
 import numpy as np
@@ -113,11 +114,23 @@ class ResultadoVisual:
     color: Color
 
 
+@dataclass(frozen=True)
+class EventoIdentidadEstable:
+    id_camara: int
+    id_cuenta: int
+    nombre: str
+    tipo_galeria: str
+    similitud: float
+    fecha_hora: datetime
+    imagen: np.ndarray | None = None
+
+
 @dataclass
 class EstadoMotor:
     ejecutando: bool = False
     transmitiendo: bool = False
     id_camara: int | None = None
+    id_cuenta: int | None = None
     ultimo_error: str | None = None
     ultimo_evento: str = "Detenido"
     detecciones: list[dict] = field(default_factory=list)

@@ -1,4 +1,5 @@
 import hashlib
+import json
 import shutil
 import threading
 from contextlib import contextmanager
@@ -90,16 +91,20 @@ class RepositorioGalerias:
                     ),
                 )
                 modificada = max(archivo.stat().st_mtime for archivo in archivos)
-                relativa = quote(
-                    portada.resolve()
-                    .relative_to(self.raiz_proyecto.resolve())
-                    .as_posix(),
-                    safe="/",
+                tipo = (
+                    "pending"
+                    if carpeta.resolve()
+                    == self.config.carpeta_pendientes.resolve()
+                    else "reference"
                 )
                 galerias.append(
                     {
                         "name": nombre,
-                        "url": f"/{relativa}?v={portada.stat().st_mtime_ns}",
+                        "url": (
+                            "/api/galerias/imagen"
+                            f"?type={tipo}&name={quote(nombre)}"
+                            f"&v={portada.stat().st_mtime_ns}"
+                        ),
                         "modified": modificada,
                         "sampleCount": len(archivos),
                     }
@@ -108,6 +113,27 @@ class RepositorioGalerias:
                 galerias,
                 key=lambda item: item["modified"],
                 reverse=True,
+            )
+
+    def obtener_portada(self, tipo: str, nombre: str) -> Path:
+        with self._bloqueo:
+            carpeta = self.carpeta_por_tipo(tipo)
+            galeria = self.ruta_galeria(carpeta, nombre)
+            if not galeria.is_dir():
+                raise FileNotFoundError("La persona no existe")
+            muestras = [
+                archivo
+                for archivo in galeria.iterdir()
+                if archivo.is_file()
+                and archivo.suffix.lower() in self.config.extensiones
+            ]
+            if not muestras:
+                raise FileNotFoundError("La persona no tiene muestras")
+            return max(
+                muestras,
+                key=lambda archivo: calcular_calidad_muestra(
+                    leer_imagen(archivo)
+                ),
             )
 
     def contar(self, carpeta: Path) -> int:
@@ -157,6 +183,85 @@ class RepositorioGalerias:
 
     def ruta_galeria(self, carpeta: Path, nombre: str) -> Path:
         return carpeta / self.nombre_seguro(nombre)
+
+    def obtener_datos_persona(
+        self,
+        tipo: str,
+        nombre: str,
+    ) -> tuple[dict[str, int], str | None]:
+        """Obtiene IDs persistentes y una muestra sin exponerlos en la UI."""
+        with self._bloqueo:
+            galeria = self.ruta_galeria(
+                self.carpeta_por_tipo(tipo),
+                nombre,
+            )
+            if not galeria.is_dir():
+                return {}, None
+            metadatos = self._leer_metadatos(galeria)
+            muestras = [
+                archivo
+                for archivo in galeria.iterdir()
+                if archivo.is_file()
+                and archivo.suffix.lower() in self.config.extensiones
+            ]
+            if not muestras:
+                return metadatos, None
+            mejor = max(
+                muestras,
+                key=lambda archivo: calcular_calidad_muestra(
+                    leer_imagen(archivo)
+                ),
+            )
+            try:
+                ruta = mejor.resolve().relative_to(
+                    self.raiz_proyecto.resolve()
+                )
+                return metadatos, ruta.as_posix()
+            except ValueError:
+                return metadatos, str(mejor.resolve())
+
+    def guardar_id_persona(
+        self,
+        tipo: str,
+        nombre: str,
+        id_cuenta: int,
+        id_persona: int,
+    ) -> None:
+        with self._bloqueo:
+            galeria = self.ruta_galeria(
+                self.carpeta_por_tipo(tipo),
+                nombre,
+            )
+            if not galeria.is_dir():
+                return
+            asociaciones = self._leer_metadatos(galeria)
+            asociaciones[str(id_cuenta)] = id_persona
+            temporal = galeria / ".witcam.json.tmp"
+            destino = galeria / ".witcam.json"
+            temporal.write_text(
+                json.dumps(
+                    {"personas_por_cuenta": asociaciones},
+                    sort_keys=True,
+                ),
+                encoding="utf-8",
+            )
+            temporal.replace(destino)
+
+    @staticmethod
+    def _leer_metadatos(galeria: Path) -> dict[str, int]:
+        ruta = galeria / ".witcam.json"
+        if not ruta.is_file():
+            return {}
+        try:
+            contenido = json.loads(ruta.read_text(encoding="utf-8"))
+            asociaciones = contenido.get("personas_por_cuenta", {})
+            return {
+                str(cuenta): int(persona)
+                for cuenta, persona in asociaciones.items()
+                if int(persona) > 0
+            }
+        except (OSError, ValueError, TypeError, AttributeError):
+            return {}
 
     @staticmethod
     def ruta_directorio_unica(ruta: Path) -> Path:
@@ -243,3 +348,33 @@ class RepositorioGalerias:
             if not ruta.is_dir():
                 raise FileNotFoundError("La persona pendiente no existe")
             shutil.rmtree(ruta)
+
+    def eliminar_persona(
+        self,
+        id_cuenta: int,
+        id_persona: int,
+        nombre: str,
+    ) -> int:
+        """Elimina galerias asociadas por metadata o por su nombre actual."""
+        eliminadas = 0
+        with self._bloqueo:
+            for carpeta in (
+                self.config.carpeta_referencias,
+                self.config.carpeta_pendientes,
+            ):
+                if not carpeta.is_dir():
+                    continue
+                for galeria in list(carpeta.iterdir()):
+                    if not galeria.is_dir():
+                        continue
+                    asociaciones = self._leer_metadatos(galeria)
+                    coincide_id = (
+                        asociaciones.get(str(id_cuenta)) == id_persona
+                    )
+                    coincide_nombre = (
+                        galeria.name == self.nombre_seguro(nombre)
+                    )
+                    if coincide_id or coincide_nombre:
+                        shutil.rmtree(galeria)
+                        eliminadas += 1
+        return eliminadas

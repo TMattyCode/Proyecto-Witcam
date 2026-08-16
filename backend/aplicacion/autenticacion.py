@@ -103,6 +103,14 @@ class ServicioAutenticacion:
         usuario = self._obtener_usuario_sesion(token)
         return {"ok": True, "user": usuario}
 
+    def exigir_permiso(self, token: str, codigo_permiso: str) -> dict:
+        usuario = self._obtener_usuario_sesion(token)
+        if not self.usuarios.tiene_permiso(usuario["id"], codigo_permiso):
+            raise ErrorAutenticacion(
+                "No tienes permiso para realizar esta operacion"
+            )
+        return usuario
+
     def obtener_resumen_cuenta(self, token: str) -> dict:
         usuario = self._obtener_usuario_sesion(token)
         resumen = self.usuarios.obtener_resumen_cuenta(usuario["idCuenta"])

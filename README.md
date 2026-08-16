@@ -13,9 +13,9 @@ El repositorio tambien contiene la interfaz definitiva desarrollada con React y 
 - Cada administrador tiene su propia cuenta y recibe un `Grupo 1` inicial. Puede gestionar subusuarios y asignarles los permisos preestablecidos, mientras que los registros desactivados se conservan como historial.
 - Los grupos y camaras se persisten por cuenta en SQL Server. La interfaz permite crear, editar, filtrar y desactivar camaras `webcam`, `RTSP`, `ONVIF` y simuladas, con un maximo visual actual de nueve camaras.
 - La webcam local puede iniciarse y detenerse desde React con el pipeline de IA habilitado. Las fuentes RTSP y ONVIF ya se registran de forma segura, pero su conexion al motor de video por `id_camara` sigue pendiente; las camaras simuladas muestran una imagen estatica para probar la cuadricula.
-- La vista de ingresos identificados consulta SQL Server, admite filtros acumulables y pagina 25 detecciones por vez. Por ahora se alimenta con datos de prueba: el pipeline de IA todavia no inserta automaticamente personas, muestras ni detecciones en la base de datos.
+- La vista de ingresos identificados consulta SQL Server, admite filtros acumulables y pagina 25 personas por vez. El pipeline de IA registra automaticamente las identidades estables y React actualiza la tabla en segundo plano sin recargar la pagina ni borrar los filtros. Una persona que no este en observacion puede eliminarse manualmente junto con sus imagenes; sus detecciones se conservan anonimizadas.
 - En desarrollo local, SQL Server se conecta mediante memoria compartida (`lpc:localhost`) y autenticacion de Windows, sin exponer un puerto TCP.
-- Actualmente el motor de IA procesa una sola fuente global configurable en `backend/config.py`. El siguiente paso de integracion es crear un motor por camara activa y vincular las fuentes guardadas en SQL Server con el reconocimiento y sus detecciones.
+- Actualmente el motor de IA procesa una sola fuente global configurable en `backend/config.py`. Las detecciones de la webcam quedan vinculadas a su camara, cuenta y grupo; el siguiente paso de integracion es crear un motor por camara activa y habilitar el mismo flujo para RTSP y ONVIF.
 
 ## Arquitectura actual y prevista
 
@@ -42,6 +42,8 @@ Solo los adaptadores de `backend/ia/adaptadores/` importan directamente InsightF
 `RepositorioGalerias` comparte un `threading.RLock` entre la API y el motor. El bloqueo cubre listados, firmas, carga completa, escritura, movimiento, renombrado, rechazo y reconciliacion. De esta forma la IA no puede leer una galeria a medio modificar mientras la interfaz realiza una operacion.
 
 La capa `backend/database/` encapsula la conexion local a SQL Server y los repositorios de usuarios, ingresos y camaras. El script `database/Tablas.sql` es la fuente unica para recrear `WitcamBD`, sus catalogos, relaciones, restricciones e indices durante esta etapa de desarrollo.
+
+El registro de detecciones se ejecuta en una cola independiente para no detener el video si SQL Server demora o no esta disponible. Cada galeria conserva un archivo interno `.witcam.json` con la asociacion entre la carpeta facial y `Persona.id_persona`; este metadato acompana a la galeria cuando se renombra o se mueve y no aparece como muestra en la interfaz.
 
 ## Que usa
 
@@ -86,30 +88,35 @@ Dentro de `frontend/src/` se encuentran las paginas de inicio de sesion, registr
 
 El programa crea automaticamente las carpetas necesarias si no existen.
 
+El backend modular guarda los datos fuera del repositorio y los separa por
+cuenta. En Windows, la ruta predeterminada es:
+
 ```text
-referencias_reconocimiento/
-referencias_pendientes/
+C:\ProgramData\Witcam\data\cuentas\cuenta_<id_cuenta>\
+  galerias\
+    reconocimiento\
+    pendientes\
+  detecciones\
+    <ano>\
+      <mes>\
 ```
 
 Cada persona se representa mediante una subcarpeta y puede contener varias muestras:
 
 ```text
-referencias_reconocimiento/
-  Matias/
-    frontal.jpg
-    perfil.jpg
-referencias_pendientes/
-  desconocido_track_8_20260724_192239/
-    muestra_01.jpg
+cuenta_7/galerias/reconocimiento/Matias/frontal.jpg
+cuenta_7/galerias/reconocimiento/Matias/perfil.jpg
+cuenta_7/galerias/pendientes/desconocido_track_8_.../muestra_01.jpg
+cuenta_7/detecciones/2026/08/deteccion_<uuid>.jpg
 ```
 
-El nombre de la subcarpeta es la identidad mostrada en pantalla. InsightFace compara el rostro contra todas sus muestras. Las imagenes sueltas del formato anterior se migran automaticamente a galerias de una muestra al iniciar la app.
+El nombre de la subcarpeta es la identidad mostrada en pantalla. InsightFace compara el rostro contra todas sus muestras. No se migran las carpetas antiguas de la raiz porque durante esta etapa solo contienen datos de prueba.
 
 ## Primer uso
 
-La primera vez puedes ejecutar la app aunque no exista ninguna imagen de referencia. Si `referencias_reconocimiento/` esta vacia, el programa avisa por consola y sigue funcionando.
+La primera vez puedes ejecutar la app aunque no exista ninguna imagen de referencia. Las carpetas de la cuenta se crean al iniciar una de sus camaras y el programa sigue funcionando con la galeria vacia.
 
-Cuando detecte un rostro desconocido valido, creara una galeria en `referencias_pendientes/`. Mientras siga observando esa identidad pendiente, puede agregar vistas diferentes hasta completar la galeria.
+Cuando detecte un rostro desconocido valido, creara una galeria en `galerias/pendientes/` dentro de la cuenta propietaria de la camara. Mientras siga observando esa identidad pendiente, puede agregar vistas diferentes hasta completar la galeria.
 
 Antes de crear la galeria, el recorte se procesa una segunda vez con SCRFD. Si el propio modelo no puede volver a detectar ese rostro guardado, la captura se descarta y el motor espera un angulo reutilizable.
 
@@ -161,6 +168,10 @@ Si `WitcamBD` ya existe, el script la elimina y vuelve a crearla con todas sus t
 
 `database/ingreso_personas.sql` es un apoyo temporal para probar la pantalla de ingresos identificados. Usa la primera cuenta disponible, o el `@id_cuenta` indicado manualmente, crea un grupo y una camara simulada si hacen falta e inserta 20 personas con sus detecciones. No llena `MuestraFacial`, porque las muestras siguen almacenandose en carpetas locales.
 
+La IA no crea una fila por cada frame. Cuando un tracker obtiene una identidad estable, el backend consulta la ultima deteccion de esa persona en el mismo grupo de camaras. Si han transcurrido menos de 30 minutos, conserva el reconocimiento y el seguimiento pero omite el nuevo `INSERT`; pasado ese plazo registra otro ingreso. SQL Server aplica esta comprobacion dentro de la misma transaccion, por lo que el cooldown tambien sobrevive a reinicios del backend.
+
+Cada ingreso aceptado guarda su propio recorte en la carpeta mensual de `detecciones` y registra esa ruta relativa en SQL Server. Si el cooldown rechaza el ingreso o la transaccion falla, el archivo temporal se elimina. Las muestras faciales y las capturas historicas no se mezclan.
+
 Antes de guardar una camara ONVIF, define una frase secreta local para cifrar sus credenciales. No agregues este valor al repositorio:
 
 ```powershell
@@ -169,6 +180,13 @@ python main.py
 ```
 
 Las respuestas de la API nunca incluyen la contrasena de la camara. Una webcam o camara simulada no necesita esta variable.
+
+Para usar otro directorio de datos durante desarrollo o pruebas, define `WITCAM_DATA_DIR` antes de iniciar el backend. Si no se define, Windows utiliza `C:\ProgramData\Witcam\data`:
+
+```powershell
+$env:WITCAM_DATA_DIR="C:\datos-prueba-witcam"
+python main.py
+```
 
 Las acciones de eliminar camaras y grupos usan eliminacion logica: conservan las filas y cambian `Camara.activa` o `GrupoCamara.activo` a `0`. Un grupo no puede desactivarse si contiene camaras activas y cada cuenta debe conservar al menos un grupo activo. Esto mantiene validas las referencias de las detecciones historicas.
 
@@ -228,10 +246,10 @@ La interfaz de `frontend/` incluye actualmente:
 - Gestion por cuenta de grupos y camaras, incluyendo validacion para conservar al menos un grupo y para impedir desactivar grupos que aun contienen camaras activas.
 - Registro de fuentes `webcam`, `RTSP`, `ONVIF` y simuladas, filtros por camara y grupo, seleccion de cuadricula y vista en pantalla completa.
 - Visualizacion en vivo de una webcam local mediante el MJPEG procesado por YOLO, SCRFD, InsightFace y ByteTrack. RTSP y ONVIF muestran por ahora el estado de fuente registrada hasta completar su conexion al motor.
-- Consulta paginada de ingresos identificados, con filtros por texto, fecha, hora y camara. Los botones para eliminar o enviar una persona a la lista de observacion siguen deshabilitados.
+- Consulta paginada de ingresos identificados, con filtros por texto, fecha, hora y camara. Se puede enviar una persona a observacion o eliminarla mediante una confirmacion irreversible.
 - Diseno adaptable y navegacion con `HashRouter`, pensado para empaquetarse posteriormente como aplicacion de escritorio.
 
-La lista de observacion, las acciones sobre personas y varios datos del resumen general todavia son prototipos visuales o estan pendientes de integracion.
+La lista de observacion y varios datos del resumen general todavia conservan elementos pendientes de integracion. El backend rechaza la eliminacion de una persona mientras permanezca activa en observacion.
 
 ## Interfaz anterior de respaldo
 
@@ -272,14 +290,16 @@ Las vistas previas incluyen una version basada en la fecha de modificacion y se 
 
 La v2 conserva las rutas originales de la version estable y agrega los contratos utilizados por React:
 
-- Video y galerias: `GET /`, `/video_feed`, `/placeholder`, `/api/status` y `/api/list`.
+- Video y galerias: `GET /`, `/video_feed`, `/placeholder`, `/api/status`, `/api/list` y `/api/galerias/imagen`.
 - Autenticacion: `GET /api/auth/session` y `POST /api/auth/register`, `/api/auth/login`, `/api/auth/logout`.
 - Cuenta y subusuarios: `GET /api/cuenta/resumen`, `GET/POST /api/subusuarios`, `POST /api/subusuarios/editar` para administrar exclusivamente permisos y `POST /api/subusuarios/estado` para la eliminacion logica.
 - Camaras y grupos: `GET /api/camaras`, `POST /api/camaras/crear`, `/api/camaras/editar`, `/api/camaras/eliminar` y `/api/grupos-camara/guardar`.
-- Ingresos: `GET /api/ingresos` y `GET /api/ingresos/camaras`.
+- Ingresos: `GET /api/ingresos`, `GET /api/ingresos/camaras`, `GET /api/ingresos/historial`, `POST /api/ingresos/lista-observacion` y `POST /api/ingresos/eliminar-persona`.
 - Motor y galerias: `POST /api/start`, `/api/stop`, `/api/approve`, `/api/unapprove`, `/api/rename` y `/api/reject`.
 
-`POST /api/start` acepta `source`, el booleano `analysis` y `cameraId`; React envia `analysis: true` y el ID de la webcam para cargar el pipeline de reconocimiento y proteger la camara activa frente a ediciones o eliminaciones. Las rutas de cuenta, subusuarios, camaras e ingresos validan la sesion y restringen las operaciones administrativas. El backend comprueba pertenencia a la cuenta para impedir consultar o modificar recursos de otro administrador. Las rutas originales de galerias mantienen los campos `file`, `newName` y `type`, junto con las respuestas `ok/error`.
+`POST /api/start` acepta `source`, el booleano `analysis` y `cameraId`; React envia `analysis: true` y el ID de la webcam para cargar exclusivamente la galeria de la cuenta propietaria. Las rutas de cuenta, subusuarios, camaras, ingresos, galerias y sus imagenes validan la sesion. El backend comprueba pertenencia a la cuenta para impedir consultar o modificar recursos de otro administrador. Las operaciones de galerias mantienen los campos `file`, `newName` y `type`, junto con las respuestas `ok/error`.
+
+La eliminacion manual de una persona exige el rol Administrador o el permiso `eliminar`. El backend bloquea la galeria durante la operacion, rechaza identidades activas en observacion, elimina muestras y fotografias locales, borra la fila de `Persona` y conserva las detecciones con `id_persona`, ruta y similitud en `NULL`. La limpieza automatica por antiguedad todavia queda pendiente.
 
 Los errores esperados de validacion conservan mensajes especificos para el usuario. Las excepciones internas de SQL Server, video o IA se registran solamente en la consola del backend y la API devuelve un mensaje seguro. React traduce fallos de conexion o respuestas incompletas y, si la sesion vence, elimina el token, vuelve al inicio y solicita iniciar sesion nuevamente.
 
@@ -296,7 +316,7 @@ cd frontend
 npm test
 ```
 
-Actualmente existen 63 pruebas automaticas de Python y 7 pruebas de Node. Tambien se completo una reproduccion real de diez minutos, 1920x1080 a 30 FPS, con InsightFace/SCRFD, YOLO y ByteTrack usando galerias temporales. El pipeline llego al final del video sin cortes y la firma de galerias permanecio valida. Webcam y RTSP quedan como pruebas manuales dependientes de tener esas fuentes disponibles.
+Actualmente existen 75 pruebas automaticas de Python y 10 pruebas de Node. Tambien se completo una reproduccion real de diez minutos, 1920x1080 a 30 FPS, con InsightFace/SCRFD, YOLO y ByteTrack usando galerias temporales. El pipeline llego al final del video sin cortes y la firma de galerias permanecio valida. Webcam, escritura real en SQL Server y RTSP quedan como pruebas manuales dependientes de tener esas fuentes disponibles.
 
 ## Oclusion
 
@@ -374,6 +394,8 @@ Si un desconocido se parece parcialmente a una identidad existente por encima de
 `ConfiguracionVideo.ancho_analisis`, `ConfiguracionVideo.alto_analisis` y `ConfiguracionRostro.tamano_detector`: controlan la carga del modelo. El video conserva su proporcion original dentro de esos limites para no deformar los rostros. Subirlos puede mejorar la deteccion de rostros pequenos, pero aumenta el lag. Los puntos faciales detectados se trasladan al frame original antes de generar el embedding, para aprovechar el detalle disponible en fuentes de alta resolucion.
 
 `ConfiguracionYolo.habilitado`: activa YOLO26n para detectar cuerpos aunque SCRFD no encuentre un rostro. YOLO usa un ByteTrack independiente y muestra `Persona ID | sin rostro visible` cuando una persona permanece en escena sin una deteccion facial asociada.
+
+`ConfiguracionDetecciones.cooldown_segundos`: controla el intervalo minimo entre dos ingresos de una misma persona dentro del mismo grupo de camaras. El valor predeterminado es `1800`, equivalente a 30 minutos. No reduce la frecuencia del reconocimiento ni la mejora de muestras; solamente limita las filas nuevas en `Deteccion`.
 
 `ConfiguracionYolo.tamano_imagen`, `ConfiguracionYolo.confianza` y `ConfiguracionYolo.detectar_cada_n_ciclos`: equilibran alcance, confianza y carga de CPU. YOLO se limita a la clase COCO `person` y se ejecuta con menor frecuencia que SCRFD. El archivo `yolo26n.pt` contiene los pesos del modelo y no se versiona en Git.
 

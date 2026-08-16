@@ -48,6 +48,16 @@ def crear_handler(
         def do_GET(self):
             try:
                 self._procesar_get()
+            except CredencialesInvalidas as error:
+                self._json(
+                    {"ok": False, "error": str(error)},
+                    estado=401,
+                )
+            except (ErrorGaleria, FileNotFoundError, ValueError) as error:
+                self._json(
+                    {"ok": False, "error": str(error)},
+                    estado=404,
+                )
             except Exception:
                 LOGGER.exception("Error inesperado al procesar GET %s", self.path)
                 try:
@@ -79,7 +89,18 @@ def crear_handler(
                 self._json(monitoreo.estado())
                 return
             if ruta == "/api/list":
-                self._json(galerias.listar())
+                self._exigir_autenticacion()
+                self._json(galerias.listar(self._token_sesion()))
+                return
+            if ruta == "/api/galerias/imagen":
+                self._exigir_autenticacion()
+                parametros = parse_qs(url.query, keep_blank_values=True)
+                imagen = galerias.obtener_imagen(
+                    self._token_sesion(),
+                    parametros.get("type", [""])[0],
+                    parametros.get("name", [""])[0],
+                )
+                self._servir_ruta(imagen, sin_cache=True)
                 return
             if ruta == "/api/auth/session":
                 try:
@@ -322,6 +343,19 @@ def crear_handler(
                         estado=201,
                     )
                     return
+                if ruta == "/api/ingresos/eliminar-persona":
+                    self._exigir_autenticacion()
+                    if ingresos is None:
+                        raise ErrorAutenticacion(
+                            "El servicio de ingresos no esta disponible"
+                        )
+                    self._json(
+                        ingresos.eliminar_persona(
+                            self._token_sesion(),
+                            datos,
+                        )
+                    )
+                    return
                 if ruta == "/api/grupos-camara/guardar":
                     self._exigir_autenticacion()
                     if camaras is None:
@@ -387,12 +421,17 @@ def crear_handler(
                         raise ErrorCamara(
                             "El servicio de camaras no esta disponible"
                         )
-                    camaras.validar_transmision(
+                    id_cuenta = camaras.validar_transmision(
                         self._token_sesion(),
                         id_camara,
                         fuente,
                     )
-                    monitoreo.iniciar(fuente, analizar, id_camara)
+                    monitoreo.iniciar(
+                        fuente,
+                        analizar,
+                        id_camara,
+                        id_cuenta,
+                    )
                     self._json({"ok": True})
                     return
                 if ruta == "/api/stop":
@@ -400,11 +439,19 @@ def crear_handler(
                     self._json({"ok": True})
                     return
                 if ruta == "/api/approve":
-                    galerias.aprobar(datos.get("file", ""))
+                    self._exigir_autenticacion()
+                    galerias.aprobar(
+                        datos.get("file", ""),
+                        self._token_sesion(),
+                    )
                     self._json({"ok": True})
                     return
                 if ruta == "/api/unapprove":
-                    galerias.devolver_a_pendiente(datos.get("file", ""))
+                    self._exigir_autenticacion()
+                    galerias.devolver_a_pendiente(
+                        datos.get("file", ""),
+                        self._token_sesion(),
+                    )
                     self._json({"ok": True})
                     return
                 if ruta == "/api/rename":
@@ -412,11 +459,16 @@ def crear_handler(
                         datos.get("type", ""),
                         datos.get("file", ""),
                         datos.get("newName", ""),
+                        self._token_sesion(),
                     )
                     self._json({"ok": True})
                     return
                 if ruta == "/api/reject":
-                    galerias.rechazar(datos.get("file", ""))
+                    self._exigir_autenticacion()
+                    galerias.rechazar(
+                        datos.get("file", ""),
+                        self._token_sesion(),
+                    )
                     self._json({"ok": True})
                     return
                 self.send_error(404)
@@ -507,14 +559,20 @@ def crear_handler(
             if not ruta.exists() or not ruta.is_file():
                 self.send_error(404)
                 return
-            tipo = (
-                mimetypes.guess_type(str(ruta))[0]
-                or "application/octet-stream"
+            self._servir_ruta(ruta)
+
+        def _servir_ruta(
+            self,
+            ruta: Path,
+            sin_cache: bool = False,
+        ) -> None:
+            tipo = mimetypes.guess_type(str(ruta))[0] or (
+                "application/octet-stream"
             )
             contenido = ruta.read_bytes()
             self.send_response(200)
             self.send_header("Content-Type", tipo)
-            if ruta.suffix.lower() in galerias.repositorio.config.extensiones:
+            if sin_cache:
                 self.send_header("Cache-Control", "no-store, max-age=0")
                 self.send_header("Pragma", "no-cache")
             self.send_header("Content-Length", str(len(contenido)))

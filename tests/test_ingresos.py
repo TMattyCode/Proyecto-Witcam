@@ -5,7 +5,10 @@ from decimal import Decimal
 from types import SimpleNamespace
 
 from backend.aplicacion.ingresos import ServicioIngresos
-from backend.database.ingresos import RepositorioIngresos
+from backend.database.ingresos import (
+    RepositorioIngresos,
+    ResultadoEliminacionPersona,
+)
 
 
 class CursorIngresosFalso:
@@ -85,6 +88,10 @@ class AutenticacionIngresosFalsa:
             "user": {"id": 1, "idCuenta": 7},
         }
 
+    def exigir_permiso(self, token, codigo_permiso):
+        self.ultimo_permiso = codigo_permiso
+        return self.obtener_sesion(token)["user"]
+
 
 class RepositorioIngresosFalso:
     def __init__(self):
@@ -121,6 +128,94 @@ class RepositorioIngresosFalso:
     def listar_observacion(self, id_cuenta):
         self.argumentos = (id_cuenta,)
         return []
+
+    def eliminar_persona(self, id_cuenta, id_persona):
+        self.argumentos = (id_cuenta, id_persona)
+        return ResultadoEliminacionPersona(
+            id_persona=id_persona,
+            nombre="Persona prueba",
+            rutas_archivos=("cuentas/cuenta_7/detecciones/imagen.jpg",),
+        )
+
+
+class AlmacenamientoFalso:
+    def __init__(self):
+        self.argumentos = None
+
+    def eliminar_archivos_persona(self, *argumentos):
+        self.argumentos = argumentos
+
+    def obtener(self, id_cuenta):
+        return RepositorioGaleriaFalso()
+
+
+class RepositorioGaleriaFalso:
+    @contextmanager
+    def transaccion(self):
+        yield
+
+
+class CursorEliminacionFalso:
+    def __init__(self, observacion_activa=False, persona_existe=True):
+        self.observacion_activa = observacion_activa
+        self.persona_existe = persona_existe
+        self.consulta = ""
+        self.consultas = []
+
+    def execute(self, consulta, *parametros):
+        self.consulta = consulta
+        self.consultas.append((consulta, parametros))
+        return self
+
+    def fetchone(self):
+        if "FROM Persona WITH" in self.consulta:
+            if not self.persona_existe:
+                return None
+            return SimpleNamespace(
+                id_persona=12,
+                nombre_persona="Persona prueba",
+            )
+        if "FROM ListaObservacion WITH" in self.consulta:
+            return (
+                SimpleNamespace(id_lista_observacion=8)
+                if self.observacion_activa
+                else None
+            )
+        return None
+
+    def fetchall(self):
+        if "FROM Deteccion" in self.consulta:
+            return [
+                SimpleNamespace(
+                    ruta_archivo="cuentas/cuenta_7/detecciones/captura.jpg"
+                )
+            ]
+        return []
+
+
+class ConexionEliminacionFalsa:
+    def __init__(self, cursor):
+        self._cursor = cursor
+        self.confirmada = False
+
+    def cursor(self):
+        return self._cursor
+
+    def commit(self):
+        self.confirmada = True
+
+
+class FabricaEliminacionFalsa:
+    def __init__(self, observacion_activa=False, persona_existe=True):
+        self.cursor = CursorEliminacionFalso(
+            observacion_activa,
+            persona_existe,
+        )
+        self.conexion = ConexionEliminacionFalsa(self.cursor)
+
+    @contextmanager
+    def conectar(self):
+        yield self.conexion
 
 
 class PruebasIngresos(unittest.TestCase):
@@ -260,6 +355,43 @@ class PruebasIngresos(unittest.TestCase):
             repositorio.argumentos,
             (7, 1, 12, "En progreso"),
         )
+
+    def test_eliminacion_anonimiza_detecciones_y_borra_identidad(self):
+        conexiones = FabricaEliminacionFalsa()
+        resultado = RepositorioIngresos(conexiones).eliminar_persona(7, 12)
+
+        consultas = "\n".join(
+            consulta for consulta, _ in conexiones.cursor.consultas
+        )
+        self.assertEqual(resultado.id_persona, 12)
+        self.assertIn("SET id_persona = NULL", consultas)
+        self.assertIn("ruta_imagen_detectada = NULL", consultas)
+        self.assertIn("DELETE FROM Persona", consultas)
+        self.assertTrue(conexiones.conexion.confirmada)
+
+    def test_eliminacion_rechaza_persona_en_observacion(self):
+        conexiones = FabricaEliminacionFalsa(observacion_activa=True)
+        with self.assertRaisesRegex(ValueError, "lista de observacion"):
+            RepositorioIngresos(conexiones).eliminar_persona(7, 12)
+        self.assertFalse(conexiones.conexion.confirmada)
+
+    def test_servicio_elimina_solo_en_cuenta_autenticada_y_limpia_archivos(self):
+        repositorio = RepositorioIngresosFalso()
+        almacenamiento = AlmacenamientoFalso()
+        servicio = ServicioIngresos(
+            repositorio,
+            AutenticacionIngresosFalsa(),
+            almacenamiento,
+        )
+
+        respuesta = servicio.eliminar_persona(
+            "token-prueba",
+            {"idPersona": 12},
+        )
+
+        self.assertTrue(respuesta["ok"])
+        self.assertEqual(repositorio.argumentos, (7, 12))
+        self.assertEqual(almacenamiento.argumentos[:3], (7, 12, "Persona prueba"))
 
 
 if __name__ == "__main__":
