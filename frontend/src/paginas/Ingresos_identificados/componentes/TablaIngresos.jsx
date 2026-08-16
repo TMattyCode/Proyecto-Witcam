@@ -2,6 +2,7 @@ import "./TablaIngresos.css";
 import iconoObservacion from "../../../assets/iconos/013 icono-ojo-blanco.png";
 import iconoBasurero from "../../../assets/iconos/028 icono-basurero.png";
 import iconoHistorial from "../../../assets/iconos/031 icono-historial.png";
+import RostroPersona from "./RostroPersona";
 
 const FORMATEADOR_FECHA = new Intl.DateTimeFormat("es-CL", {
   day: "2-digit",
@@ -66,13 +67,10 @@ export default function TablaIngresos({
         <table className="tabla-ingresos" aria-busy={cargando}>
           <thead>
             <tr>
-              <th>ID detección</th>
               <th>Persona</th>
               <th>Cámara</th>
               <th>Fecha y hora</th>
-              <th>Resultado</th>
-              <th>Similitud</th>
-              <th>Ruta de imagen</th>
+              <th>Rostro</th>
               <th>Acciones</th>
             </tr>
           </thead>
@@ -80,46 +78,35 @@ export default function TablaIngresos({
           <tbody>
             {cargando ? (
               <tr>
-                <td colSpan="8" className="tabla-sin-registros">
+                <td colSpan="5" className="tabla-sin-registros">
                   Cargando ingresos identificados...
                 </td>
               </tr>
             ) : ingresos.length === 0 ? (
               <tr>
-                <td colSpan="8" className="tabla-sin-registros">
+                <td colSpan="5" className="tabla-sin-registros">
                   No existen ingresos identificados registrados.
                 </td>
               </tr>
             ) : (
               ingresos.map((ingreso) => (
                 <tr key={ingreso.idDeteccion}>
-                  <td>#{ingreso.idDeteccion}</td>
                   <td className="tabla-ingresos-persona">
                     <strong title={ingreso.nombrePersona}>
                       {ingreso.nombrePersona || "Persona sin nombre"}
                     </strong>
-                    <small>ID {ingreso.idPersona}</small>
                   </td>
                   <td>
                     <strong>{ingreso.nombreCamara}</strong>
-                    <small>ID {ingreso.idCamara}</small>
                   </td>
                   <td className="tabla-ingresos-fecha">
                     {formatearFecha(ingreso.fechaHora)}
                   </td>
-                  <td>{ingreso.resultado}</td>
-                  <td title={ingreso.similitud ?? undefined}>
-                    {ingreso.similitud === null
-                      ? "Sin dato"
-                      : `${(ingreso.similitud * 100).toFixed(1)}%`}
-                  </td>
                   <td>
-                    <span
-                      className="tabla-ingresos-ruta"
-                      title={ingreso.rutaImagen || "Sin imagen"}
-                    >
-                      {ingreso.rutaImagen || "Sin imagen"}
-                    </span>
+                    <RostroPersona
+                      idPersona={ingreso.idPersona}
+                      nombre={ingreso.nombrePersona}
+                    />
                   </td>
                   <td>
                     <div className="tabla-ingresos-celda-acciones">
@@ -138,7 +125,11 @@ export default function TablaIngresos({
                         disabled={ingreso.enListaObservacion || personaAgregando === ingreso.idPersona}
                         onClick={() => onAgregarObservacion?.(ingreso)}
                         aria-label={`Añadir ${ingreso.nombrePersona} a la lista de observación`}
-                        title="Añadir a lista de observación (próximamente)"
+                        title={
+                          ingreso.enListaObservacion
+                            ? "La persona ya está en la lista de observación"
+                            : "Añadir a la lista de observación"
+                        }
                       >
                         <img src={iconoObservacion} alt="" aria-hidden="true" />
                       </button>

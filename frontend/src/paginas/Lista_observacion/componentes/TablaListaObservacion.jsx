@@ -6,7 +6,8 @@ const FORMATEADOR_FECHA = new Intl.DateTimeFormat("es-CL", {
 });
 
 export default function TablaListaObservacion({
-  registros = [], cargando = false, error = "",
+  registros = [], cargando = false, error = "", onQuitar,
+  personaQuitando = null,
 }) {
   const totalRegistros = registros.length;
 
@@ -42,8 +43,7 @@ export default function TablaListaObservacion({
           <thead>
 
             <tr>
-              <th>ID. lista</th>
-              <th>ID. cliente</th>
+              <th>Persona</th>
               <th>Motivo</th>
               <th>Fecha del incidente</th>
               <th>Registrado por</th>
@@ -57,13 +57,13 @@ export default function TablaListaObservacion({
 
             {cargando ? (
 
-              <tr><td colSpan="7" className="tabla-sin-registros">Cargando lista de observaciÃ³n...</td></tr>
+              <tr><td colSpan="6" className="tabla-sin-registros">Cargando lista de observaciÃ³n...</td></tr>
 
             ) : totalRegistros === 0 ? (
 
               <tr>
 
-                <td colSpan="7" className="tabla-sin-registros">
+                <td colSpan="6" className="tabla-sin-registros">
                   No existen clientes en la lista de observación.
                 </td>
 
@@ -74,15 +74,11 @@ export default function TablaListaObservacion({
               registros.map((registro) => (
 
                 <tr key={registro.idLista}>
-
-                  <td>{registro.idLista}</td>
-
                   <td>
                     <strong>{registro.nombrePersona}</strong>
-                    <br />ID {registro.idCliente}
                   </td>
 
-                  <td>{registro.motivo}</td>
+                  <td>{registro.motivo || "Sin motivo"}</td>
 
                   <td>
                     {FORMATEADOR_FECHA.format(new Date(registro.fechaIngreso))}
@@ -111,10 +107,14 @@ export default function TablaListaObservacion({
                   <td>
 
                     <button
-                      className="tabla-observacion-eliminar"
+                      className="tabla-observacion-quitar"
                       type="button"
+                      onClick={() => onQuitar?.(registro)}
+                      disabled={personaQuitando === registro.idCliente}
+                      aria-label={`Quitar a ${registro.nombrePersona} de la lista de observación`}
+                      title="Quitar de la lista de observación"
                     >
-                      ×
+                      ↩
                     </button>
 
                   </td>

@@ -28,6 +28,9 @@ export default function IngresosIdentificados() {
   const [cargandoHistorial, setCargandoHistorial] = useState(false);
   const [errorHistorial, setErrorHistorial] = useState("");
   const [personaAgregando, setPersonaAgregando] = useState(null);
+  const [personaObservacion, setPersonaObservacion] = useState(null);
+  const [motivoObservacion, setMotivoObservacion] = useState("");
+  const [errorObservacion, setErrorObservacion] = useState("");
   const [personaEliminar, setPersonaEliminar] = useState(null);
   const [personaEliminando, setPersonaEliminando] = useState(null);
 
@@ -119,19 +122,42 @@ export default function IngresosIdentificados() {
     }
   };
 
-  const agregarAObservacion = async (ingreso) => {
+  const abrirMotivoObservacion = (ingreso) => {
     if (ingreso.enListaObservacion) return;
+    setPersonaObservacion(ingreso);
+    setMotivoObservacion("");
+    setErrorObservacion("");
+  };
+
+  const cerrarMotivoObservacion = () => {
+    if (personaAgregando !== null) return;
+    setPersonaObservacion(null);
+    setMotivoObservacion("");
+    setErrorObservacion("");
+  };
+
+  const agregarAObservacion = async (evento) => {
+    evento.preventDefault();
+    if (!personaObservacion || personaAgregando !== null) return;
+    const ingreso = personaObservacion;
     setPersonaAgregando(ingreso.idPersona);
     setError("");
+    setErrorObservacion("");
     try {
-      await agregarPersonaListaObservacion(ingreso.idPersona);
+      await agregarPersonaListaObservacion(
+        ingreso.idPersona,
+        motivoObservacion.trim(),
+      );
       setIngresos((actuales) => actuales.map((actual) => (
         actual.idPersona === ingreso.idPersona
           ? { ...actual, enListaObservacion: true }
           : actual
       )));
+      setPersonaObservacion(null);
+      setMotivoObservacion("");
     } catch (errorSolicitud) {
       setError(errorSolicitud.message);
+      setErrorObservacion(errorSolicitud.message);
     } finally {
       setPersonaAgregando(null);
     }
@@ -179,11 +205,79 @@ export default function IngresosIdentificados() {
           error={error}
           onCambiarPagina={cambiarPagina}
           onVerHistorial={abrirHistorial}
-          onAgregarObservacion={agregarAObservacion}
+          onAgregarObservacion={abrirMotivoObservacion}
           onEliminarPersona={setPersonaEliminar}
           personaAgregando={personaAgregando}
           personaEliminando={personaEliminando}
         />
+
+        {personaObservacion && (
+          <div
+            className="modal-motivo-observacion-fondo"
+            role="presentation"
+            onMouseDown={(evento) => {
+              if (evento.target === evento.currentTarget) {
+                cerrarMotivoObservacion();
+              }
+            }}
+          >
+            <form
+              className="modal-motivo-observacion"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="titulo-motivo-observacion"
+              onSubmit={agregarAObservacion}
+            >
+              <div className="modal-motivo-observacion-icono">◎</div>
+              <p className="modal-motivo-observacion-etiqueta">
+                Lista de observación
+              </p>
+              <h2 id="titulo-motivo-observacion">
+                Añadir a {personaObservacion.nombrePersona}
+              </h2>
+              <label htmlFor="motivo-observacion">
+                Motivo <span>(opcional)</span>
+              </label>
+              <textarea
+                id="motivo-observacion"
+                value={motivoObservacion}
+                onChange={(evento) => setMotivoObservacion(evento.target.value)}
+                maxLength={500}
+                rows={4}
+                placeholder="Describe por qué esta persona requiere observación"
+                autoFocus
+              />
+              <div className="modal-motivo-observacion-contador">
+                {motivoObservacion.length}/500
+              </div>
+              {errorObservacion && (
+                <p className="modal-motivo-observacion-error" role="alert">
+                  {errorObservacion}
+                </p>
+              )}
+              <div className="modal-motivo-observacion-acciones">
+                <button
+                  type="button"
+                  onClick={cerrarMotivoObservacion}
+                  disabled={personaAgregando !== null}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="confirmar"
+                  disabled={personaAgregando !== null}
+                >
+                  {personaAgregando !== null
+                    ? "Añadiendo..."
+                    : motivoObservacion.trim()
+                      ? "Aceptar"
+                      : "Omitir"}
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
 
         {personaEliminar && (
           <div

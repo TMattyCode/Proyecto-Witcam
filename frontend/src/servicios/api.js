@@ -1,14 +1,19 @@
 export const EVENTO_SESION_EXPIRADA = "witcam:sesion-expirada";
 
+function obtenerToken() {
+  return (
+    localStorage.getItem("witcam_token")
+    || sessionStorage.getItem("witcam_token")
+  );
+}
+
 function notificarSesionExpirada(ruta, respuesta) {
   if (respuesta.status !== 401 || ruta === "/api/auth/login") return;
   globalThis.dispatchEvent?.(new Event(EVENTO_SESION_EXPIRADA));
 }
 
 async function solicitar(ruta, opciones = {}) {
-  const token =
-    localStorage.getItem("witcam_token") ||
-    sessionStorage.getItem("witcam_token");
+  const token = obtenerToken();
   let respuesta;
   try {
     respuesta = await fetch(ruta, {
@@ -99,11 +104,46 @@ export function obtenerHistorialIngresos(idPersona) {
   return solicitar(`/api/ingresos/historial?${parametros.toString()}`);
 }
 
-export function agregarPersonaListaObservacion(idPersona) {
+export function agregarPersonaListaObservacion(idPersona, motivo = "") {
   return solicitar("/api/ingresos/lista-observacion", {
+    method: "POST",
+    body: JSON.stringify({ idPersona, motivo }),
+  });
+}
+
+export function quitarPersonaListaObservacion(idPersona) {
+  return solicitar("/api/ingresos/quitar-lista-observacion", {
     method: "POST",
     body: JSON.stringify({ idPersona }),
   });
+}
+
+export async function obtenerRostroPersona(idPersona) {
+  const ruta = `/api/ingresos/rostro?idPersona=${encodeURIComponent(idPersona)}`;
+  let respuesta;
+  try {
+    respuesta = await fetch(ruta, {
+      headers: {
+        ...(obtenerToken()
+          ? { Authorization: `Bearer ${obtenerToken()}` }
+          : {}),
+      },
+    });
+  } catch {
+    throw new Error("No se pudo cargar el rostro de la persona.");
+  }
+  notificarSesionExpirada(ruta, respuesta);
+  if (!respuesta.ok) {
+    let mensaje = "La persona no tiene una muestra facial disponible.";
+    try {
+      const datos = await respuesta.json();
+      mensaje = datos.error || mensaje;
+    } catch {
+      // La imagen es complementaria; basta con mostrar el marcador vacío.
+    }
+    throw new Error(mensaje);
+  }
+  return respuesta.blob();
 }
 
 export function eliminarPersona(idPersona) {

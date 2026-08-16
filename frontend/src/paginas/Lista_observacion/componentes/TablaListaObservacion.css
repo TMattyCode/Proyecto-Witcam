@@ -107,41 +107,35 @@
 
 .tabla-observacion th:nth-child(1),
 .tabla-observacion td:nth-child(1) {
-  width: 9%;
-  text-align: center;
+  width: 18%;
 }
 
 .tabla-observacion th:nth-child(2),
 .tabla-observacion td:nth-child(2) {
-  width: 13%;
+  width: 27%;
+  text-align: center;
 }
 
 .tabla-observacion th:nth-child(3),
 .tabla-observacion td:nth-child(3) {
-  width: 23%;
+  width: 18%;
   text-align: center;
 }
 
 .tabla-observacion th:nth-child(4),
 .tabla-observacion td:nth-child(4) {
-  width: 17%;
+  width: 16%;
   text-align: center;
 }
 
 .tabla-observacion th:nth-child(5),
 .tabla-observacion td:nth-child(5) {
-  width: 16%;
+  width: 11%;
   text-align: center;
 }
 
 .tabla-observacion th:nth-child(6),
 .tabla-observacion td:nth-child(6) {
-  width: 12%;
-  text-align: center;
-}
-
-.tabla-observacion th:nth-child(7),
-.tabla-observacion td:nth-child(7) {
   width: 10%;
   text-align: center;
 }
@@ -159,16 +153,16 @@
   border: 1px solid #dce3ed;
 }
 
-/* Botón eliminar */
+/* Acción para devolver la persona a ingresos identificados */
 
-.tabla-observacion-eliminar {
+.tabla-observacion-quitar {
   width: 38px;
   height: 38px;
   padding: 0;
-  border: 1px solid #ff4d5a;
+  border: 1px solid #2563eb;
   border-radius: 8px;
   background: #ffffff;
-  color: #ff2638;
+  color: #1559d6;
   font-family: inherit;
   font-size: 18px;
   line-height: 1;
@@ -179,10 +173,101 @@
     transform 0.2s ease;
 }
 
-.tabla-observacion-eliminar:hover {
-  background: #fff1f2;
-  border-color: #ff2638;
+.tabla-observacion-quitar:hover:not(:disabled) {
+  background: #eef4ff;
+  border-color: #075cff;
   transform: translateY(-1px);
+}
+
+.tabla-observacion-quitar:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+.modal-quitar-observacion-fondo {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(4, 14, 38, 0.58);
+  backdrop-filter: blur(3px);
+}
+
+.modal-quitar-observacion {
+  width: min(460px, 100%);
+  padding: 28px;
+  border: 1px solid #e2e8f2;
+  border-radius: 16px;
+  background: #ffffff;
+  box-shadow: 0 24px 70px rgba(7, 20, 47, 0.28);
+  text-align: center;
+}
+
+.modal-quitar-observacion-icono {
+  width: 52px;
+  height: 52px;
+  margin: 0 auto 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9px;
+  background: #e9f1ff;
+  color: #075cff;
+  font-size: 27px;
+  font-weight: 800;
+}
+
+.modal-quitar-observacion-etiqueta {
+  margin: 0 0 7px;
+  color: #075cff;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+}
+
+.modal-quitar-observacion h2 {
+  margin: 0;
+  color: #07142f;
+  font-size: 21px;
+}
+
+.modal-quitar-observacion > p:last-of-type {
+  margin: 12px 0 24px;
+  color: #65728a;
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.modal-quitar-observacion-acciones {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.modal-quitar-observacion-acciones button {
+  min-height: 42px;
+  border: 1px solid #ccd6e5;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #22304d;
+  font-family: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.modal-quitar-observacion-acciones .confirmar {
+  border-color: #075cff;
+  background: #075cff;
+  color: #ffffff;
+}
+
+.modal-quitar-observacion-acciones button:disabled {
+  cursor: wait;
+  opacity: 0.55;
 }
 
 /* Mensaje cuando no hay registros */
