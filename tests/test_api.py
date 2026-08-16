@@ -164,6 +164,9 @@ class AutenticacionFalsa:
 
 
 class IngresosFalso:
+    def __init__(self, ruta_rostro):
+        self.ruta_rostro = ruta_rostro
+
     def listar(self, token, filtros=None):
         if token != "token-prueba":
             raise CredencialesInvalidas("La sesion no es valida")
@@ -212,7 +215,7 @@ class IngresosFalso:
             "ok": True,
             "idPersona": datos["idPersona"],
             "enListaObservacion": True,
-            "motivo": "En progreso",
+            "motivo": datos.get("motivo", ""),
         }
 
     def listar_observacion(self, token):
@@ -223,6 +226,22 @@ class IngresosFalso:
             "total": 1,
             "registros": [{"idLista": 8, "idCliente": 12}],
         }
+
+    def quitar_lista_observacion(self, token, datos):
+        if token != "token-prueba":
+            raise CredencialesInvalidas("La sesion no es valida")
+        return {
+            "ok": True,
+            "idPersona": datos["idPersona"],
+            "enListaObservacion": False,
+        }
+
+    def obtener_rostro(self, token, id_persona):
+        if token != "token-prueba":
+            raise CredencialesInvalidas("La sesion no es valida")
+        if int(id_persona) != 12:
+            raise ValueError("La persona no existe en esta cuenta")
+        return self.ruta_rostro
 
     def eliminar_persona(self, token, datos):
         if token != "token-prueba":
@@ -283,6 +302,11 @@ class PruebasApi(unittest.TestCase):
         self.repositorio.preparar()
         self._crear_galeria(config.carpeta_referencias, "Bob")
         self._crear_galeria(config.carpeta_pendientes, "Alice")
+        self.ruta_rostro = self.raiz / "rostro.jpg"
+        cv2.imwrite(
+            str(self.ruta_rostro),
+            np.zeros((20, 20, 3), dtype=np.uint8),
+        )
         self.monitoreo = MonitoreoFalso()
         handler = crear_handler(
             self.raiz,
@@ -294,7 +318,7 @@ class PruebasApi(unittest.TestCase):
                 alto_maximo_web=48,
             ),
             AutenticacionFalsa(),
-            IngresosFalso(),
+            IngresosFalso(self.ruta_rostro),
             CamarasFalso(),
         )
         self.servidor = ThreadingHTTPServer(("127.0.0.1", 0), handler)
@@ -713,15 +737,25 @@ class PruebasApi(unittest.TestCase):
         self.assertEqual(estado, 200)
         self.assertEqual(historial["persona"]["id"], 12)
 
+        estado, cabeceras, cuerpo = self._solicitar(
+            "GET",
+            "/api/ingresos/rostro?idPersona=12",
+            cabeceras_extra={"Authorization": "Bearer token-prueba"},
+        )
+        self.assertEqual(estado, 200)
+        self.assertEqual(cabeceras["Content-Type"], "image/jpeg")
+        self.assertTrue(cuerpo.startswith(b"\xff\xd8"))
+
         estado, _, cuerpo = self._solicitar(
             "POST",
             "/api/ingresos/lista-observacion",
-            {"idPersona": 12},
+            {"idPersona": 12, "motivo": "Conducta sospechosa"},
             {"Authorization": "Bearer token-prueba"},
         )
         agregado = json.loads(cuerpo)
         self.assertEqual(estado, 201)
         self.assertTrue(agregado["enListaObservacion"])
+        self.assertEqual(agregado["motivo"], "Conducta sospechosa")
 
         estado, _, cuerpo = self._solicitar(
             "GET",
@@ -731,6 +765,16 @@ class PruebasApi(unittest.TestCase):
         listado_observacion = json.loads(cuerpo)
         self.assertEqual(estado, 200)
         self.assertEqual(listado_observacion["registros"][0]["idLista"], 8)
+
+        estado, _, cuerpo = self._solicitar(
+            "POST",
+            "/api/ingresos/quitar-lista-observacion",
+            {"idPersona": 12},
+            {"Authorization": "Bearer token-prueba"},
+        )
+        quitado = json.loads(cuerpo)
+        self.assertEqual(estado, 200)
+        self.assertFalse(quitado["enListaObservacion"])
 
         estado, _, cuerpo = self._solicitar(
             "POST",

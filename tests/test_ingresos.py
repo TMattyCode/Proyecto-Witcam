@@ -73,10 +73,14 @@ class CursorIngresosFalso:
 class FabricaIngresosFalsa:
     def __init__(self):
         self.cursor = CursorIngresosFalso()
+        self.confirmada = False
 
     @contextmanager
     def conectar(self):
-        yield SimpleNamespace(cursor=lambda: self.cursor)
+        yield SimpleNamespace(
+            cursor=lambda: self.cursor,
+            commit=lambda: setattr(self, "confirmada", True),
+        )
 
 
 class AutenticacionIngresosFalsa:
@@ -117,6 +121,10 @@ class RepositorioIngresosFalso:
             "detecciones": [],
         }
 
+    def obtener_persona(self, id_cuenta, id_persona):
+        self.argumentos = (id_cuenta, id_persona)
+        return {"id": id_persona, "nombre": "Persona prueba"}
+
     def agregar_lista_observacion(
         self, id_cuenta, id_usuario, id_persona, motivo
     ):
@@ -128,6 +136,10 @@ class RepositorioIngresosFalso:
     def listar_observacion(self, id_cuenta):
         self.argumentos = (id_cuenta,)
         return []
+
+    def quitar_lista_observacion(self, id_cuenta, id_persona):
+        self.argumentos = (id_cuenta, id_persona)
+        return True
 
     def eliminar_persona(self, id_cuenta, id_persona):
         self.argumentos = (id_cuenta, id_persona)
@@ -287,6 +299,39 @@ class PruebasIngresos(unittest.TestCase):
         self.assertEqual(registros[0]["motivo"], "En progreso")
         self.assertEqual(registros[0]["registradoPor"], "Admin Prueba")
 
+    def test_reactivacion_reemplaza_el_motivo_anterior(self):
+        conexiones = FabricaIngresosFalsa()
+
+        agregado = RepositorioIngresos(
+            conexiones
+        ).agregar_lista_observacion(
+            7,
+            1,
+            12,
+            "Nuevo motivo",
+        )
+
+        consulta, parametros = conexiones.cursor.consultas[-1]
+        self.assertTrue(agregado)
+        self.assertIn("SET activa = 1", consulta)
+        self.assertIn("motivo = ?", consulta)
+        self.assertNotIn("AND activa = 0", consulta)
+        self.assertEqual(parametros, ("Nuevo motivo", 1, 12))
+        self.assertTrue(conexiones.confirmada)
+
+    def test_repositorio_quita_observacion_solo_en_la_cuenta(self):
+        conexiones = FabricaIngresosFalsa()
+        resultado = RepositorioIngresos(
+            conexiones
+        ).quitar_lista_observacion(7, 12)
+
+        consulta, parametros = conexiones.cursor.consultas[0]
+        self.assertTrue(resultado)
+        self.assertIn("SET activa = 0", consulta)
+        self.assertIn("p.id_cuenta = ?", consulta)
+        self.assertEqual(parametros, (12, 7))
+        self.assertTrue(conexiones.confirmada)
+
     def test_repositorio_historial_usa_la_misma_persona_y_cuenta(self):
         conexiones = FabricaIngresosFalsa()
         historial = RepositorioIngresos(conexiones).listar_historial(7, 12)
@@ -298,6 +343,12 @@ class PruebasIngresos(unittest.TestCase):
         self.assertIn("ORDER BY d.fecha_hora DESC", consulta_historial)
         self.assertEqual(parametros_historial, (12, 7, 7))
         self.assertEqual(historial["persona"]["id"], 12)
+
+        persona = RepositorioIngresos(conexiones).obtener_persona(7, 12)
+        consulta_persona, parametros_persona = conexiones.cursor.consultas[-1]
+        self.assertIn("id_persona = ? AND id_cuenta = ?", consulta_persona)
+        self.assertEqual(parametros_persona, (12, 7))
+        self.assertEqual(persona["nombre"], "Persona prueba")
 
     def test_servicio_usa_cuenta_autenticada_y_valida_paginacion(self):
         repositorio = RepositorioIngresosFalso()
@@ -347,14 +398,37 @@ class PruebasIngresos(unittest.TestCase):
 
         agregado = servicio.agregar_lista_observacion(
             "token-prueba",
-            {"idPersona": 12},
+            {
+                "idPersona": 12,
+                "motivo": "  Acceso a zona restringida  ",
+            },
         )
         self.assertTrue(agregado["enListaObservacion"])
-        self.assertEqual(agregado["motivo"], "En progreso")
+        self.assertEqual(agregado["motivo"], "Acceso a zona restringida")
         self.assertEqual(
             repositorio.argumentos,
-            (7, 1, 12, "En progreso"),
+            (7, 1, 12, "Acceso a zona restringida"),
         )
+
+        quitado = servicio.quitar_lista_observacion(
+            "token-prueba",
+            {"idPersona": 12},
+        )
+        self.assertFalse(quitado["enListaObservacion"])
+        self.assertEqual(repositorio.argumentos, (7, 12))
+
+        omitido = servicio.agregar_lista_observacion(
+            "token-prueba",
+            {"idPersona": 12},
+        )
+        self.assertEqual(omitido["motivo"], "")
+        self.assertEqual(repositorio.argumentos, (7, 1, 12, ""))
+
+        with self.assertRaisesRegex(ValueError, "500 caracteres"):
+            servicio.agregar_lista_observacion(
+                "token-prueba",
+                {"idPersona": 12, "motivo": "x" * 501},
+            )
 
     def test_eliminacion_anonimiza_detecciones_y_borra_identidad(self):
         conexiones = FabricaEliminacionFalsa()

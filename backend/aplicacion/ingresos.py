@@ -67,6 +67,30 @@ class ServicioIngresos:
             raise ValueError("La persona no existe en esta cuenta")
         return {"ok": True, **historial}
 
+    def obtener_rostro(self, token: str, id_persona):
+        identificador = self._validar_entero(
+            id_persona,
+            "idPersona",
+            minimo=1,
+        )
+        sesion = self.autenticacion.obtener_sesion(token)
+        id_cuenta = sesion["user"]["idCuenta"]
+        persona = self.repositorio.obtener_persona(
+            id_cuenta,
+            identificador,
+        )
+        if persona is None:
+            raise ValueError("La persona no existe en esta cuenta")
+        if self.almacenamiento is None:
+            raise FileNotFoundError("La persona no tiene una muestra facial")
+        return self.almacenamiento.obtener(
+            id_cuenta
+        ).obtener_portada_persona(
+            id_cuenta,
+            identificador,
+            persona["nombre"],
+        )
+
     def agregar_lista_observacion(self, token: str, datos) -> dict:
         if not isinstance(datos, dict):
             raise ValueError("Los datos de la lista de observacion no son validos")
@@ -75,19 +99,66 @@ class ServicioIngresos:
             "idPersona",
             minimo=1,
         )
+        motivo = datos.get("motivo", "")
+        if motivo is None:
+            motivo = ""
+        if not isinstance(motivo, str):
+            raise ValueError("El motivo de observacion no es valido")
+        motivo = motivo.strip()
+        if len(motivo) > 500:
+            raise ValueError("El motivo no puede superar los 500 caracteres")
         usuario = self.autenticacion.obtener_sesion(token)["user"]
-        if not self.repositorio.agregar_lista_observacion(
-            usuario["idCuenta"],
-            usuario["id"],
-            id_persona,
-            "En progreso",
-        ):
+        id_cuenta = usuario["idCuenta"]
+        persona = self.repositorio.obtener_persona(id_cuenta, id_persona)
+        if persona is None:
+            raise ValueError("La persona no existe en esta cuenta")
+        repositorio_galeria = (
+            self.almacenamiento.obtener(id_cuenta)
+            if self.almacenamiento is not None
+            else None
+        )
+        if repositorio_galeria is None:
+            agregado = self.repositorio.agregar_lista_observacion(
+                id_cuenta,
+                usuario["id"],
+                id_persona,
+                motivo,
+            )
+        else:
+            with repositorio_galeria.transaccion():
+                movida = repositorio_galeria.aprobar_persona(
+                    id_cuenta,
+                    id_persona,
+                    persona["nombre"],
+                )
+                try:
+                    agregado = self.repositorio.agregar_lista_observacion(
+                        id_cuenta,
+                        usuario["id"],
+                        id_persona,
+                        motivo,
+                    )
+                except Exception:
+                    if movida is not None:
+                        repositorio_galeria.devolver_persona_a_pendiente(
+                            id_cuenta,
+                            id_persona,
+                            persona["nombre"],
+                        )
+                    raise
+                if not agregado and movida is not None:
+                    repositorio_galeria.devolver_persona_a_pendiente(
+                        id_cuenta,
+                        id_persona,
+                        persona["nombre"],
+                    )
+        if not agregado:
             raise ValueError("La persona no existe en esta cuenta")
         return {
             "ok": True,
             "idPersona": id_persona,
             "enListaObservacion": True,
-            "motivo": "En progreso",
+            "motivo": motivo,
         }
 
     def listar_observacion(self, token: str) -> dict:
@@ -96,6 +167,65 @@ class ServicioIngresos:
             usuario["idCuenta"]
         )
         return {"ok": True, "registros": registros, "total": len(registros)}
+
+    def quitar_lista_observacion(self, token: str, datos) -> dict:
+        if not isinstance(datos, dict):
+            raise ValueError("Los datos de la lista de observacion no son validos")
+        id_persona = self._validar_entero(
+            datos.get("idPersona"),
+            "idPersona",
+            minimo=1,
+        )
+        usuario = self.autenticacion.obtener_sesion(token)["user"]
+        id_cuenta = usuario["idCuenta"]
+        persona = self.repositorio.obtener_persona(id_cuenta, id_persona)
+        if persona is None:
+            raise ValueError("La persona no existe en esta cuenta")
+        repositorio_galeria = (
+            self.almacenamiento.obtener(id_cuenta)
+            if self.almacenamiento is not None
+            else None
+        )
+        if repositorio_galeria is None:
+            quitada = self.repositorio.quitar_lista_observacion(
+                id_cuenta,
+                id_persona,
+            )
+        else:
+            with repositorio_galeria.transaccion():
+                movida = repositorio_galeria.devolver_persona_a_pendiente(
+                    id_cuenta,
+                    id_persona,
+                    persona["nombre"],
+                )
+                try:
+                    quitada = self.repositorio.quitar_lista_observacion(
+                        id_cuenta,
+                        id_persona,
+                    )
+                except Exception:
+                    if movida is not None:
+                        repositorio_galeria.aprobar_persona(
+                            id_cuenta,
+                            id_persona,
+                            persona["nombre"],
+                        )
+                    raise
+                if not quitada and movida is not None:
+                    repositorio_galeria.aprobar_persona(
+                        id_cuenta,
+                        id_persona,
+                        persona["nombre"],
+                    )
+        if not quitada:
+            raise ValueError(
+                "La persona no esta activa en la lista de observacion de esta cuenta"
+            )
+        return {
+            "ok": True,
+            "idPersona": id_persona,
+            "enListaObservacion": False,
+        }
 
     def eliminar_persona(self, token: str, datos) -> dict:
         if not isinstance(datos, dict):

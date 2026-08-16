@@ -212,6 +212,26 @@ def crear_handler(
                 except ValueError as error:
                     self._json({"ok": False, "error": str(error)}, estado=400)
                 return
+            if ruta == "/api/ingresos/rostro":
+                try:
+                    self._exigir_autenticacion()
+                    if ingresos is None:
+                        raise ErrorAutenticacion(
+                            "El servicio de ingresos no esta disponible"
+                        )
+                    parametros = parse_qs(url.query, keep_blank_values=True)
+                    rostro = ingresos.obtener_rostro(
+                        self._token_sesion(),
+                        parametros.get("idPersona", [""])[0],
+                    )
+                    self._servir_ruta(rostro, sin_cache=True)
+                except CredencialesInvalidas as error:
+                    self._json({"ok": False, "error": str(error)}, estado=401)
+                except ErrorAutenticacion as error:
+                    self._json({"ok": False, "error": str(error)}, estado=503)
+                except (FileNotFoundError, ValueError) as error:
+                    self._json({"ok": False, "error": str(error)}, estado=404)
+                return
             if ruta == "/api/lista-observacion":
                 try:
                     self._exigir_autenticacion()
@@ -341,6 +361,19 @@ def crear_handler(
                             datos,
                         ),
                         estado=201,
+                    )
+                    return
+                if ruta == "/api/ingresos/quitar-lista-observacion":
+                    self._exigir_autenticacion()
+                    if ingresos is None:
+                        raise ErrorAutenticacion(
+                            "El servicio de ingresos no esta disponible"
+                        )
+                    self._json(
+                        ingresos.quitar_lista_observacion(
+                            self._token_sesion(),
+                            datos,
+                        )
                     )
                     return
                 if ruta == "/api/ingresos/eliminar-persona":

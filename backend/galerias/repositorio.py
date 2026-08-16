@@ -136,6 +136,44 @@ class RepositorioGalerias:
                 ),
             )
 
+    def obtener_portada_persona(
+        self,
+        id_cuenta: int,
+        id_persona: int,
+        nombre: str,
+    ) -> Path:
+        with self._bloqueo:
+            nombre_seguro = self.nombre_seguro(nombre)
+            for carpeta in (
+                self.config.carpeta_referencias,
+                self.config.carpeta_pendientes,
+            ):
+                if not carpeta.is_dir():
+                    continue
+                for galeria in carpeta.iterdir():
+                    if not galeria.is_dir():
+                        continue
+                    asociaciones = self._leer_metadatos(galeria)
+                    if (
+                        asociaciones.get(str(id_cuenta)) != id_persona
+                        and galeria.name != nombre_seguro
+                    ):
+                        continue
+                    muestras = [
+                        archivo
+                        for archivo in galeria.iterdir()
+                        if archivo.is_file()
+                        and archivo.suffix.lower() in self.config.extensiones
+                    ]
+                    if muestras:
+                        return max(
+                            muestras,
+                            key=lambda archivo: calcular_calidad_muestra(
+                                leer_imagen(archivo)
+                            ),
+                        )
+        raise FileNotFoundError("La persona no tiene una muestra facial")
+
     def contar(self, carpeta: Path) -> int:
         with self._bloqueo:
             return len(
@@ -305,6 +343,20 @@ class RepositorioGalerias:
                 raise FileNotFoundError("La persona pendiente no existe")
             shutil.move(str(origen), str(destino))
 
+    def aprobar_persona(
+        self,
+        id_cuenta: int,
+        id_persona: int,
+        nombre: str,
+    ) -> str | None:
+        return self._mover_persona_entre_galerias(
+            self.config.carpeta_pendientes,
+            self.config.carpeta_referencias,
+            id_cuenta,
+            id_persona,
+            nombre,
+        )
+
     def devolver_a_pendiente(self, nombre: str) -> None:
         with self._bloqueo:
             origen = self.ruta_galeria(
@@ -320,6 +372,74 @@ class RepositorioGalerias:
             if not origen.is_dir():
                 raise FileNotFoundError("La persona de referencia no existe")
             shutil.move(str(origen), str(destino))
+
+    def devolver_persona_a_pendiente(
+        self,
+        id_cuenta: int,
+        id_persona: int,
+        nombre: str,
+    ) -> str | None:
+        return self._mover_persona_entre_galerias(
+            self.config.carpeta_referencias,
+            self.config.carpeta_pendientes,
+            id_cuenta,
+            id_persona,
+            nombre,
+        )
+
+    def _mover_persona_entre_galerias(
+        self,
+        origen_base: Path,
+        destino_base: Path,
+        id_cuenta: int,
+        id_persona: int,
+        nombre: str,
+    ) -> str | None:
+        with self._bloqueo:
+            if self._buscar_galeria_persona(
+                destino_base,
+                id_cuenta,
+                id_persona,
+                nombre,
+            ) is not None:
+                return None
+            origen = self._buscar_galeria_persona(
+                origen_base,
+                id_cuenta,
+                id_persona,
+                nombre,
+            )
+            if origen is None:
+                raise FileNotFoundError(
+                    "La persona no tiene una galeria facial disponible"
+                )
+            destino = self.ruta_directorio_unica(
+                destino_base / origen.name
+            )
+            shutil.move(str(origen), str(destino))
+            return destino.name
+
+    def _buscar_galeria_persona(
+        self,
+        carpeta: Path,
+        id_cuenta: int,
+        id_persona: int,
+        nombre: str,
+    ) -> Path | None:
+        if not carpeta.is_dir():
+            return None
+        for galeria in carpeta.iterdir():
+            if not galeria.is_dir():
+                continue
+            asociaciones = self._leer_metadatos(galeria)
+            if asociaciones.get(str(id_cuenta)) == id_persona:
+                return galeria
+        candidata = self.ruta_galeria(carpeta, nombre)
+        if not candidata.is_dir():
+            return None
+        asociaciones = self._leer_metadatos(candidata)
+        asociada = asociaciones.get(str(id_cuenta))
+        return candidata if asociada in (None, id_persona) else None
 
     def renombrar(self, tipo: str, nombre_actual: str, nombre_nuevo: str) -> None:
         with self._bloqueo:

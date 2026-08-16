@@ -164,6 +164,28 @@ class RepositorioIngresos:
             "detecciones": [self._serializar(fila) for fila in filas],
         }
 
+    def obtener_persona(
+        self,
+        id_cuenta: int,
+        id_persona: int,
+    ) -> dict | None:
+        with self.conexiones.conectar() as conexion:
+            fila = conexion.cursor().execute(
+                """
+                SELECT id_persona, nombre_persona
+                FROM Persona
+                WHERE id_persona = ? AND id_cuenta = ?
+                """,
+                id_persona,
+                id_cuenta,
+            ).fetchone()
+        if fila is None:
+            return None
+        return {
+            "id": int(fila.id_persona),
+            "nombre": str(fila.nombre_persona),
+        }
+
     @staticmethod
     def _serializar(fila) -> dict:
         return {
@@ -232,7 +254,7 @@ class RepositorioIngresos:
                         motivo = ?,
                         id_usuario_registro = ?,
                         fecha_ingreso_lista = GETDATE()
-                    WHERE id_persona = ? AND activa = 0
+                    WHERE id_persona = ?
                     """,
                     motivo,
                     id_usuario,
@@ -280,6 +302,29 @@ class RepositorioIngresos:
             }
             for fila in filas
         ]
+
+    def quitar_lista_observacion(
+        self,
+        id_cuenta: int,
+        id_persona: int,
+    ) -> bool:
+        with self.conexiones.conectar() as conexion:
+            fila = conexion.cursor().execute(
+                """
+                UPDATE lo
+                SET activa = 0
+                OUTPUT INSERTED.id_persona
+                FROM ListaObservacion lo
+                INNER JOIN Persona p ON p.id_persona = lo.id_persona
+                WHERE lo.id_persona = ?
+                  AND p.id_cuenta = ?
+                  AND lo.activa = 1
+                """,
+                id_persona,
+                id_cuenta,
+            ).fetchone()
+            conexion.commit()
+        return fila is not None
 
     def listar_camaras(self, id_cuenta: int) -> list[dict]:
         with self.conexiones.conectar() as conexion:
