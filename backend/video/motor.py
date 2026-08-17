@@ -456,7 +456,7 @@ class MotorReconocimiento:
             actuales[clave] = firma
             if notificadas.get(clave) == firma:
                 continue
-            bbox = identidad.get("bbox")
+            bbox = identidad.get("bbox") if origen == "rostro" else None
             if origen == "persona":
                 for rostro_id in identidad.get("rostros_asociados", set()):
                     rostro = seguimiento.historial_rostros.get(rostro_id)

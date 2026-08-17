@@ -29,34 +29,34 @@ GO
 
 CREATE TABLE Rol (
     id_rol INT IDENTITY(1,1) PRIMARY KEY,
-    nombre_rol VARCHAR(100) NOT NULL UNIQUE,
-    descripcion VARCHAR(250) NULL
+    nombre_rol NVARCHAR(100) NOT NULL UNIQUE,
+    descripcion NVARCHAR(250) NULL
 );
 GO
 
 INSERT INTO Rol (nombre_rol, descripcion)
 VALUES
-    ('Administrador', 'Administrador principal de la cuenta'),
-    ('Subusuario', 'Usuario dependiente de una cuenta administradora');
+    (N'Administrador', N'Administrador principal de la cuenta'),
+    (N'Subusuario', N'Usuario dependiente de una cuenta administradora');
 GO
 
 
 CREATE TABLE Permiso (
     id_permiso INT IDENTITY(1,1) PRIMARY KEY,
 
-    codigo_permiso VARCHAR(50) NOT NULL UNIQUE,
-    nombre_permiso VARCHAR(100) NOT NULL UNIQUE,
-    descripcion VARCHAR(250) NULL
+    codigo_permiso NVARCHAR(50) NOT NULL UNIQUE,
+    nombre_permiso NVARCHAR(100) NOT NULL UNIQUE,
+    descripcion NVARCHAR(250) NULL
 );
 GO
 
 INSERT INTO Permiso (codigo_permiso, nombre_permiso, descripcion)
 VALUES
-    ('ver', 'Ver', 'Permite visualizar información'),
-    ('anadir', 'Añadir', 'Permite añadir registros'),
-    ('editar', 'Editar', 'Permite modificar registros'),
-    ('eliminar', 'Eliminar', 'Permite eliminar o desactivar registros'),
-    ('configuracion', 'Configuración', 'Permite ingresar y realizar cambios en configuración');
+    (N'ver', N'Ver', N'Permite visualizar información'),
+    (N'anadir', N'Añadir', N'Permite añadir registros'),
+    (N'editar', N'Editar', N'Permite modificar registros'),
+    (N'eliminar', N'Eliminar', N'Permite eliminar o desactivar registros'),
+    (N'configuracion', N'Configuración', N'Permite ingresar y realizar cambios en configuración');
 GO
 
 
@@ -67,7 +67,7 @@ GO
 
 CREATE TABLE Cuenta (
     id_cuenta INT IDENTITY(1,1) PRIMARY KEY,
-    nombre_cuenta VARCHAR(150) NOT NULL,
+    nombre_cuenta NVARCHAR(150) NOT NULL,
     fecha_registro DATETIME NOT NULL DEFAULT GETDATE()
 
 );
@@ -81,8 +81,8 @@ GO
 CREATE TABLE PlanSuscripcion (
     id_plan INT IDENTITY(1,1) PRIMARY KEY,
 
-    nombre_plan VARCHAR(100) NOT NULL UNIQUE,
-    descripcion VARCHAR(500) NULL,
+    nombre_plan NVARCHAR(100) NOT NULL UNIQUE,
+    descripcion NVARCHAR(500) NULL,
 
     precio_mensual INT NOT NULL,
     max_usuarios INT NOT NULL,
@@ -111,16 +111,16 @@ GO
 
 CREATE TABLE EstadoSuscripcion (
     id_estado_suscripcion INT IDENTITY(1,1) PRIMARY KEY,
-    nombre_estado VARCHAR(100) NOT NULL UNIQUE
+    nombre_estado NVARCHAR(100) NOT NULL UNIQUE
 );
 GO
 
 INSERT INTO EstadoSuscripcion (nombre_estado)
 VALUES
-    ('Activa'),
-    ('Vencida'),
-    ('Cancelada'),
-    ('Suspendida');
+    (N'Activa'),
+    (N'Vencida'),
+    (N'Cancelada'),
+    (N'Suspendida');
 GO
 
 
@@ -168,14 +168,14 @@ GO
 
 CREATE TABLE EstadoUsuario (
     id_estado_usuario INT IDENTITY(1,1) PRIMARY KEY,
-    nombre_estado VARCHAR(100) NOT NULL UNIQUE
+    nombre_estado NVARCHAR(100) NOT NULL UNIQUE
 );
 GO
 
 INSERT INTO EstadoUsuario (nombre_estado)
 VALUES
-    ('Activo'),
-    ('Inactivo');
+    (N'Activo'),
+    (N'Inactivo');
 GO
 
 
@@ -185,15 +185,15 @@ CREATE TABLE Usuario (
     id_cuenta INT NOT NULL,
     id_rol INT NOT NULL,
 
-    nombre VARCHAR(100) NOT NULL,
-    apellido VARCHAR(100) NOT NULL,
+    nombre NVARCHAR(100) NOT NULL,
+    apellido NVARCHAR(100) NOT NULL,
 
-    nombre_usuario VARCHAR(100) NOT NULL,
-    correo VARCHAR(250) NOT NULL,
+    nombre_usuario NVARCHAR(100) NOT NULL,
+    correo NVARCHAR(250) NOT NULL,
 
-    telefono VARCHAR(20) NULL,
+    telefono NVARCHAR(20) NULL,
 
-    password_hash VARCHAR(255) NOT NULL,
+    password_hash NVARCHAR(255) NOT NULL,
 
     id_estado_usuario INT NOT NULL DEFAULT 1,
 
@@ -256,8 +256,8 @@ CREATE TABLE GrupoCamara (
 
     id_cuenta INT NOT NULL,
 
-    nombre_grupo VARCHAR(150) NOT NULL,
-    descripcion VARCHAR(250) NULL,
+    nombre_grupo NVARCHAR(150) NOT NULL,
+    descripcion NVARCHAR(250) NULL,
 
     activo BIT NOT NULL DEFAULT 1,
     fecha_creacion DATETIME NOT NULL DEFAULT GETDATE(),
@@ -306,27 +306,27 @@ CREATE TABLE Camara (
 
     id_grupo_camara INT NOT NULL,
 
-    nombre_camara VARCHAR(150) NOT NULL,
+    nombre_camara NVARCHAR(150) NOT NULL,
 
-    tipo_fuente VARCHAR(20) NOT NULL,
+    tipo_fuente NVARCHAR(20) NOT NULL,
 
-    direccion_ip VARCHAR(255) NULL,
+    direccion_ip NVARCHAR(255) NULL,
 
     puerto_onvif INT NULL,
 
-    usuario_conexion VARCHAR(150) NULL,
+    usuario_conexion NVARCHAR(150) NULL,
 
     password_conexion_cifrada VARBINARY(512) NULL,
 
     indice_dispositivo INT NULL,
 
-    escena_simulada VARCHAR(30) NULL,
+    escena_simulada NVARCHAR(30) NULL,
 
     /*
        Esta dirección puede obtenerse posteriormente
        mediante ONVIF y utilizarse para abrir el stream.
     */
-    fuente_video VARCHAR(1000) NULL,
+    fuente_video NVARCHAR(1000) NULL,
 
     activa BIT NOT NULL DEFAULT 1,
 
@@ -343,12 +343,12 @@ CREATE TABLE Camara (
         ),
 
     CONSTRAINT CK_Camara_TipoFuente
-        CHECK (tipo_fuente IN ('webcam', 'onvif', 'rtsp', 'simulada')),
+        CHECK (tipo_fuente IN (N'webcam', N'onvif', N'rtsp', N'simulada')),
 
     CONSTRAINT CK_Camara_DatosTipo
         CHECK (
             (
-                tipo_fuente = 'webcam'
+                tipo_fuente = N'webcam'
                 AND indice_dispositivo IS NOT NULL
                 AND direccion_ip IS NULL
                 AND puerto_onvif IS NULL
@@ -358,7 +358,7 @@ CREATE TABLE Camara (
                 AND fuente_video IS NULL
             )
             OR (
-                tipo_fuente = 'onvif'
+                tipo_fuente = N'onvif'
                 AND direccion_ip IS NOT NULL
                 AND puerto_onvif IS NOT NULL
                 AND usuario_conexion IS NOT NULL
@@ -367,9 +367,9 @@ CREATE TABLE Camara (
                 AND escena_simulada IS NULL
             )
             OR (
-                tipo_fuente = 'rtsp'
+                tipo_fuente = N'rtsp'
                 AND fuente_video IS NOT NULL
-                AND LTRIM(RTRIM(fuente_video)) <> ''
+                AND LTRIM(RTRIM(fuente_video)) <> N''
                 AND direccion_ip IS NULL
                 AND puerto_onvif IS NULL
                 AND usuario_conexion IS NULL
@@ -378,7 +378,7 @@ CREATE TABLE Camara (
                 AND escena_simulada IS NULL
             )
             OR (
-                tipo_fuente = 'simulada'
+                tipo_fuente = N'simulada'
                 AND escena_simulada IS NOT NULL
                 AND direccion_ip IS NULL
                 AND puerto_onvif IS NULL
@@ -404,7 +404,7 @@ CREATE TABLE Persona (
 
     id_cuenta INT NOT NULL,
 
-    nombre_persona VARCHAR(150) NOT NULL,
+    nombre_persona NVARCHAR(150) NOT NULL,
 
     fecha_registro DATETIME NOT NULL DEFAULT GETDATE(),
 
@@ -432,7 +432,7 @@ CREATE TABLE MuestraFacial (
        Ejemplo local:
        personas/persona_15/rostro_003.jpg
     */
-    ruta_archivo VARCHAR(500) NOT NULL,
+    ruta_archivo NVARCHAR(500) NOT NULL,
 
     calidad DECIMAL(5,4) NULL,
     fecha_registro DATETIME NOT NULL DEFAULT GETDATE(),
@@ -469,9 +469,9 @@ CREATE TABLE Deteccion (
 
     fecha_hora DATETIME NOT NULL DEFAULT GETDATE(),
 
-    ruta_imagen_detectada VARCHAR(500) NULL,
+    ruta_imagen_detectada NVARCHAR(500) NULL,
 
-    resultado VARCHAR(100) NOT NULL,
+    resultado NVARCHAR(100) NOT NULL,
 
     /*
        Similitud facial en la escala nativa de la IA: 0 a 1.
@@ -510,7 +510,7 @@ CREATE TABLE ListaObservacion (
     */
     id_usuario_registro INT NOT NULL,
 
-    motivo VARCHAR(500) NOT NULL,
+    motivo NVARCHAR(500) NOT NULL,
 
     fecha_ingreso_lista DATETIME NOT NULL DEFAULT GETDATE(),
 

@@ -27,6 +27,14 @@ class CursorIngresosFalso:
         return 1
 
     def fetchone(self):
+        if "SELECT d.ruta_imagen_detectada" in self.consulta:
+            return SimpleNamespace(
+                ruta_imagen_detectada=(
+                    "cuentas/cuenta_7/detecciones/2026/08/rostro.jpg"
+                )
+            )
+        if "AND id_persona <> ?" in self.consulta:
+            return None
         return SimpleNamespace(
             id_persona=12,
             nombre_persona="Persona prueba",
@@ -44,8 +52,7 @@ class CursorIngresosFalso:
                     nombre_persona="Persona prueba",
                     motivo="En progreso",
                     fecha_ingreso_lista=datetime(2026, 8, 13, 19, 20, 0),
-                    nombre="Admin",
-                    apellido="Prueba",
+                    nombre_usuario="admin_prueba",
                 )
             ]
         if "FROM Camara c" in self.consulta and "FROM Deteccion" not in self.consulta:
@@ -121,6 +128,10 @@ class RepositorioIngresosFalso:
             "detecciones": [],
         }
 
+    def obtener_ruta_imagen_deteccion(self, id_cuenta, id_deteccion):
+        self.argumentos = (id_cuenta, id_deteccion)
+        return "cuentas/cuenta_7/detecciones/2026/08/rostro.jpg"
+
     def obtener_persona(self, id_cuenta, id_persona):
         self.argumentos = (id_cuenta, id_persona)
         return {"id": id_persona, "nombre": "Persona prueba"}
@@ -133,9 +144,14 @@ class RepositorioIngresosFalso:
         )
         return True
 
-    def listar_observacion(self, id_cuenta):
-        self.argumentos = (id_cuenta,)
-        return []
+    def listar_observacion(self, id_cuenta, pagina, limite):
+        self.argumentos = (id_cuenta, pagina, limite)
+        return {
+            "total": 0,
+            "pagina": pagina,
+            "limite": limite,
+            "registros": [],
+        }
 
     def quitar_lista_observacion(self, id_cuenta, id_persona):
         self.argumentos = (id_cuenta, id_persona)
@@ -149,6 +165,10 @@ class RepositorioIngresosFalso:
             rutas_archivos=("cuentas/cuenta_7/detecciones/imagen.jpg",),
         )
 
+    def renombrar_persona(self, id_cuenta, id_persona, nombre_nuevo):
+        self.argumentos = (id_cuenta, id_persona, nombre_nuevo)
+        return "Persona prueba"
+
 
 class AlmacenamientoFalso:
     def __init__(self):
@@ -156,6 +176,10 @@ class AlmacenamientoFalso:
 
     def eliminar_archivos_persona(self, *argumentos):
         self.argumentos = argumentos
+
+    def obtener_imagen_deteccion(self, *argumentos):
+        self.argumentos = argumentos
+        return "ruta/segura/rostro.jpg"
 
     def obtener(self, id_cuenta):
         return RepositorioGaleriaFalso()
@@ -246,6 +270,8 @@ class PruebasIngresos(unittest.TestCase):
         self.assertEqual(parametros_listado, (7, 7, 25, 25))
         self.assertEqual(resultado["ingresos"][0]["idDeteccion"], 35)
         self.assertEqual(resultado["ingresos"][0]["similitud"], 0.87321)
+        self.assertFalse(resultado["ingresos"][0]["tieneRostro"])
+        self.assertNotIn("rutaImagen", resultado["ingresos"][0])
         self.assertEqual(
             resultado["ingresos"][0]["fechaHora"],
             "2026-08-07T14:30:15",
@@ -291,13 +317,24 @@ class PruebasIngresos(unittest.TestCase):
 
     def test_repositorio_lista_observacion_activa_de_la_cuenta(self):
         conexiones = FabricaIngresosFalsa()
-        registros = RepositorioIngresos(conexiones).listar_observacion(7)
+        resultado = RepositorioIngresos(conexiones).listar_observacion(7, 2, 25)
 
-        consulta, parametros = conexiones.cursor.consultas[0]
-        self.assertIn("lo.activa = 1", consulta)
-        self.assertEqual(parametros, (7, 7))
+        consulta_total, parametros_total = conexiones.cursor.consultas[0]
+        consulta, parametros = conexiones.cursor.consultas[1]
+        registros = resultado["registros"]
+        self.assertIn("lo.activa = 1", consulta_total)
+        self.assertEqual(parametros_total, (7, 7))
+        self.assertIn("OFFSET ? ROWS", consulta)
+        self.assertIn("FETCH NEXT ? ROWS ONLY", consulta)
+        self.assertEqual(parametros, (7, 7, 25, 25))
+        self.assertEqual(resultado["total"], 1)
+        self.assertEqual(resultado["pagina"], 2)
+        self.assertEqual(resultado["limite"], 25)
         self.assertEqual(registros[0]["motivo"], "En progreso")
-        self.assertEqual(registros[0]["registradoPor"], "Admin Prueba")
+        self.assertEqual(registros[0]["idPersona"], 12)
+        self.assertIn("u.nombre_usuario", consulta)
+        self.assertNotIn("u.apellido", consulta)
+        self.assertEqual(registros[0]["registradoPor"], "admin_prueba")
 
     def test_reactivacion_reemplaza_el_motivo_anterior(self):
         conexiones = FabricaIngresosFalsa()
@@ -350,6 +387,35 @@ class PruebasIngresos(unittest.TestCase):
         self.assertEqual(parametros_persona, (12, 7))
         self.assertEqual(persona["nombre"], "Persona prueba")
 
+        ruta = RepositorioIngresos(
+            conexiones
+        ).obtener_ruta_imagen_deteccion(7, 35)
+        consulta_ruta, parametros_ruta = conexiones.cursor.consultas[-1]
+        self.assertIn("d.id_deteccion = ?", consulta_ruta)
+        self.assertIn("p.id_cuenta = ?", consulta_ruta)
+        self.assertIn("gc.id_cuenta = ?", consulta_ruta)
+        self.assertEqual(parametros_ruta, (35, 7, 7))
+        self.assertTrue(ruta.endswith("rostro.jpg"))
+
+    def test_repositorio_renombra_persona_solo_dentro_de_su_cuenta(self):
+        conexiones = FabricaIngresosFalsa()
+
+        anterior = RepositorioIngresos(conexiones).renombrar_persona(
+            7,
+            12,
+            "Nombre nuevo",
+        )
+
+        consultas = conexiones.cursor.consultas
+        self.assertEqual(anterior, "Persona prueba")
+        self.assertIn("UPDLOCK, HOLDLOCK", consultas[0][0])
+        self.assertEqual(consultas[0][1], (12, 7))
+        self.assertIn("id_persona <> ?", consultas[1][0])
+        self.assertEqual(consultas[1][1], (7, "Nombre nuevo", 12))
+        self.assertIn("UPDATE Persona", consultas[2][0])
+        self.assertEqual(consultas[2][1], ("Nombre nuevo", 12, 7))
+        self.assertTrue(conexiones.confirmada)
+
     def test_servicio_usa_cuenta_autenticada_y_valida_paginacion(self):
         repositorio = RepositorioIngresosFalso()
         servicio = ServicioIngresos(
@@ -396,6 +462,26 @@ class PruebasIngresos(unittest.TestCase):
         self.assertEqual(historial["persona"]["id"], 12)
         self.assertEqual(repositorio.argumentos, (7, 12))
 
+        observacion = servicio.listar_observacion(
+            "token-prueba",
+            {"pagina": "2", "limite": "10"},
+        )
+        self.assertTrue(observacion["ok"])
+        self.assertEqual(observacion["pagina"], 2)
+        self.assertEqual(observacion["limite"], 10)
+        self.assertEqual(repositorio.argumentos, (7, 2, 10))
+
+        for parametros_invalidos in (
+            {"pagina": "0"},
+            {"pagina": "texto"},
+            {"limite": "101"},
+        ):
+            with self.assertRaises(ValueError):
+                servicio.listar_observacion(
+                    "token-prueba",
+                    parametros_invalidos,
+                )
+
         agregado = servicio.agregar_lista_observacion(
             "token-prueba",
             {
@@ -416,6 +502,36 @@ class PruebasIngresos(unittest.TestCase):
         )
         self.assertFalse(quitado["enListaObservacion"])
         self.assertEqual(repositorio.argumentos, (7, 12))
+
+        renombrada = servicio.renombrar_persona(
+            "token-prueba",
+            {"idPersona": 12, "nombre": "  Nombre nuevo  "},
+        )
+        self.assertEqual(renombrada["nombrePersona"], "Nombre nuevo")
+        self.assertEqual(repositorio.argumentos, (7, 12, "Nombre nuevo"))
+
+        for nombre_invalido in ("", " ", None, "x" * 151, "Nombre/invalido"):
+            with self.assertRaises(ValueError):
+                servicio.renombrar_persona(
+                    "token-prueba",
+                    {"idPersona": 12, "nombre": nombre_invalido},
+                )
+
+        almacenamiento = AlmacenamientoFalso()
+        servicio_con_imagenes = ServicioIngresos(
+            repositorio,
+            AutenticacionIngresosFalsa(),
+            almacenamiento,
+        )
+        rostro = servicio_con_imagenes.obtener_rostro_deteccion(
+            "token-prueba",
+            "35",
+        )
+        self.assertEqual(rostro, "ruta/segura/rostro.jpg")
+        self.assertEqual(
+            almacenamiento.argumentos,
+            (7, "cuentas/cuenta_7/detecciones/2026/08/rostro.jpg"),
+        )
 
         omitido = servicio.agregar_lista_observacion(
             "token-prueba",

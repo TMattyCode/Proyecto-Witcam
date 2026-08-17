@@ -184,7 +184,7 @@ class IngresosFalso:
                     "idCamara": 4,
                     "nombreCamara": "Acceso principal",
                     "fechaHora": "2026-08-07T14:30:15",
-                    "rutaImagen": None,
+                    "tieneRostro": False,
                     "resultado": "Identificado",
                     "similitud": 0.87321,
                 }
@@ -218,13 +218,18 @@ class IngresosFalso:
             "motivo": datos.get("motivo", ""),
         }
 
-    def listar_observacion(self, token):
+    def listar_observacion(self, token, parametros=None):
         if token != "token-prueba":
             raise CredencialesInvalidas("La sesion no es valida")
+        parametros = parametros or {}
         return {
             "ok": True,
             "total": 1,
-            "registros": [{"idLista": 8, "idCliente": 12}],
+            "pagina": int(parametros.get("pagina", 1)),
+            "limite": int(parametros.get("limite", 25)),
+            "registros": [
+                {"idLista": 8, "idPersona": 12, "idCliente": 12}
+            ],
         }
 
     def quitar_lista_observacion(self, token, datos):
@@ -243,6 +248,13 @@ class IngresosFalso:
             raise ValueError("La persona no existe en esta cuenta")
         return self.ruta_rostro
 
+    def obtener_rostro_deteccion(self, token, id_deteccion):
+        if token != "token-prueba":
+            raise CredencialesInvalidas("La sesion no es valida")
+        if int(id_deteccion) != 35:
+            raise ValueError("La deteccion no existe en esta cuenta")
+        return self.ruta_rostro
+
     def eliminar_persona(self, token, datos):
         if token != "token-prueba":
             raise CredencialesInvalidas("La sesion no es valida")
@@ -250,6 +262,15 @@ class IngresosFalso:
             "ok": True,
             "idPersona": datos["idPersona"],
             "nombrePersona": "Persona prueba",
+        }
+
+    def renombrar_persona(self, token, datos):
+        if token != "token-prueba":
+            raise CredencialesInvalidas("La sesion no es valida")
+        return {
+            "ok": True,
+            "idPersona": datos["idPersona"],
+            "nombrePersona": datos["nombre"].strip(),
         }
 
 
@@ -739,6 +760,15 @@ class PruebasApi(unittest.TestCase):
 
         estado, cabeceras, cuerpo = self._solicitar(
             "GET",
+            "/api/ingresos/deteccion-rostro?idDeteccion=35",
+            cabeceras_extra={"Authorization": "Bearer token-prueba"},
+        )
+        self.assertEqual(estado, 200)
+        self.assertEqual(cabeceras["Content-Type"], "image/jpeg")
+        self.assertTrue(cuerpo.startswith(b"\xff\xd8"))
+
+        estado, cabeceras, cuerpo = self._solicitar(
+            "GET",
             "/api/ingresos/rostro?idPersona=12",
             cabeceras_extra={"Authorization": "Bearer token-prueba"},
         )
@@ -759,12 +789,14 @@ class PruebasApi(unittest.TestCase):
 
         estado, _, cuerpo = self._solicitar(
             "GET",
-            "/api/lista-observacion",
+            "/api/lista-observacion?pagina=2&limite=10",
             cabeceras_extra={"Authorization": "Bearer token-prueba"},
         )
         listado_observacion = json.loads(cuerpo)
         self.assertEqual(estado, 200)
         self.assertEqual(listado_observacion["registros"][0]["idLista"], 8)
+        self.assertEqual(listado_observacion["pagina"], 2)
+        self.assertEqual(listado_observacion["limite"], 10)
 
         estado, _, cuerpo = self._solicitar(
             "POST",
@@ -775,6 +807,16 @@ class PruebasApi(unittest.TestCase):
         quitado = json.loads(cuerpo)
         self.assertEqual(estado, 200)
         self.assertFalse(quitado["enListaObservacion"])
+
+        estado, _, cuerpo = self._solicitar(
+            "POST",
+            "/api/ingresos/renombrar-persona",
+            {"idPersona": 12, "nombre": "Matias"},
+            {"Authorization": "Bearer token-prueba"},
+        )
+        renombrada = json.loads(cuerpo)
+        self.assertEqual(estado, 200)
+        self.assertEqual(renombrada["nombrePersona"], "Matias")
 
         estado, _, cuerpo = self._solicitar(
             "POST",

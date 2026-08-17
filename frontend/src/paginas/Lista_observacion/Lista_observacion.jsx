@@ -3,23 +3,35 @@
 import { useEffect, useState } from "react";
 import Layout from "../../componentes/layout/Layout";
 import {
+  obtenerHistorialIngresos,
   obtenerListaObservacion,
   quitarPersonaListaObservacion,
+  renombrarPersona,
 } from "../../servicios/api";
 import TablaListaObservacion from "./componentes/TablaListaObservacion";
 
+const LIMITE_PAGINA = 25;
+
 export default function ListaObservacion() {
   const [registros, setRegistros] = useState([]);
+  const [pagina, setPagina] = useState(1);
+  const [total, setTotal] = useState(0);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
   const [personaQuitar, setPersonaQuitar] = useState(null);
   const [personaQuitando, setPersonaQuitando] = useState(null);
+  const [historial, setHistorial] = useState(null);
+  const [cargandoHistorial, setCargandoHistorial] = useState(false);
+  const [errorHistorial, setErrorHistorial] = useState("");
 
   useEffect(() => {
     let activo = true;
-    obtenerListaObservacion()
+    obtenerListaObservacion(pagina, LIMITE_PAGINA)
       .then((respuesta) => {
-        if (activo) setRegistros(respuesta.registros || []);
+        if (!activo) return;
+        setRegistros(respuesta.registros || []);
+        setTotal(respuesta.total || 0);
+        setError("");
       })
       .catch((errorSolicitud) => {
         if (activo) setError(errorSolicitud.message);
@@ -28,18 +40,33 @@ export default function ListaObservacion() {
         if (activo) setCargando(false);
       });
     return () => { activo = false; };
-  }, []);
+  }, [pagina]);
+
+  const cambiarPagina = (nuevaPagina) => {
+    setCargando(true);
+    setError("");
+    setPagina(nuevaPagina);
+  };
 
   const confirmarQuitar = async () => {
     if (!personaQuitar || personaQuitando !== null) return;
-    const idPersona = personaQuitar.idCliente;
+    const idPersona = personaQuitar.idPersona ?? personaQuitar.idCliente;
     setPersonaQuitando(idPersona);
     setError("");
     try {
       await quitarPersonaListaObservacion(idPersona);
-      setRegistros((actuales) => actuales.filter(
-        (registro) => registro.idCliente !== idPersona,
-      ));
+      setTotal((actual) => Math.max(0, actual - 1));
+      if (registros.length === 1 && pagina > 1) {
+        setCargando(true);
+        setPagina((actual) => actual - 1);
+      } else {
+        setRegistros((actuales) => actuales.filter(
+          (registro) => (
+            registro.idPersona ?? registro.idCliente
+          ) !== idPersona,
+        ));
+      }
+      if (historial?.persona?.id === idPersona) setHistorial(null);
       setPersonaQuitar(null);
     } catch (errorSolicitud) {
       setError(errorSolicitud.message);
@@ -48,18 +75,69 @@ export default function ListaObservacion() {
     }
   };
 
+  const confirmarRenombrado = async (idPersona, nombre) => {
+    const respuesta = await renombrarPersona(idPersona, nombre);
+    const nombrePersona = respuesta.nombrePersona;
+    setRegistros((actuales) => actuales.map((registro) => (
+      (registro.idPersona ?? registro.idCliente) === idPersona
+        ? { ...registro, nombrePersona }
+        : registro
+    )));
+    setHistorial((actual) => (
+      actual?.persona?.id === idPersona
+        ? {
+            ...actual,
+            persona: { ...actual.persona, nombre: nombrePersona },
+          }
+        : actual
+    ));
+    setPersonaQuitar((actual) => (
+      (actual?.idPersona ?? actual?.idCliente) === idPersona
+        ? { ...actual, nombrePersona }
+        : actual
+    ));
+    return nombrePersona;
+  };
+
+  const abrirHistorial = async (registro) => {
+    const idPersona = registro.idPersona ?? registro.idCliente;
+    setHistorial({
+      persona: { id: idPersona, nombre: registro.nombrePersona },
+      detecciones: [],
+    });
+    setCargandoHistorial(true);
+    setErrorHistorial("");
+    try {
+      setHistorial(await obtenerHistorialIngresos(idPersona));
+    } catch (errorSolicitud) {
+      setErrorHistorial(errorSolicitud.message);
+    } finally {
+      setCargandoHistorial(false);
+    }
+  };
+
   return (
     <Layout
       titulo="Lista de observación"
-      subtitulo="Consulta y gestiona todos los clientes agregados a la lista de observación."
+      subtitulo="Consulta y gestiona las personas agregadas a la lista de observación."
     >
       <section className="lista-observacion">
         <TablaListaObservacion
           registros={registros}
+          total={total}
+          pagina={pagina}
+          limite={LIMITE_PAGINA}
           cargando={cargando}
           error={error}
           onQuitar={setPersonaQuitar}
+          onCambiarPagina={cambiarPagina}
+          onRenombrar={confirmarRenombrado}
+          onVerHistorial={abrirHistorial}
           personaQuitando={personaQuitando}
+          historial={historial}
+          cargandoHistorial={cargandoHistorial}
+          errorHistorial={errorHistorial}
+          onCerrarHistorial={() => setHistorial(null)}
         />
 
         {personaQuitar && (

@@ -168,10 +168,54 @@
   min-width: 0;
 }
 
-.tabla-ingresos-persona strong {
+.tabla-ingresos-persona strong,
+.tabla-ingresos-nombre-boton {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.tabla-ingresos-nombre-boton {
+  display: block;
+  width: 100%;
+  padding: 5px 7px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: #07142f;
+  font: inherit;
+  font-weight: 700;
+  text-align: left;
+  cursor: text;
+}
+
+.tabla-ingresos-nombre-boton:hover,
+.tabla-ingresos-nombre-boton:focus-visible {
+  border-color: #b9cdfd;
+  background: #f3f7ff;
+  outline: none;
+}
+
+.tabla-ingresos-nombre-edicion input {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 130px;
+  padding: 7px 8px;
+  border: 1px solid #075bff;
+  border-radius: 6px;
+  color: #07142f;
+  font: inherit;
+  font-weight: 700;
+  outline: 2px solid rgb(7 91 255 / 12%);
+}
+
+.tabla-ingresos td .tabla-ingresos-nombre-edicion small {
+  display: block;
+  margin-top: 4px;
+  color: #b42318;
+  font-size: 11px;
+  line-height: 1.25;
+  white-space: normal;
 }
 
 .tabla-ingresos td small {

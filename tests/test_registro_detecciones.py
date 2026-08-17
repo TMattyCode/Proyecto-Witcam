@@ -168,6 +168,7 @@ class PruebasRegistroDetecciones(unittest.TestCase):
                     "nombre": "Matias",
                     "tipo": "pendiente",
                     "similitud": 0.82,
+                    "bbox": (20, 20, 220, 220),
                 }
             }
         )
@@ -183,9 +184,43 @@ class PruebasRegistroDetecciones(unittest.TestCase):
             notificadas,
         )
         self.assertEqual(len(eventos), 1)
+        self.assertIsNone(eventos[0].imagen)
 
         motor._notificar_identidades_estables(frame, seguimiento, {})
         self.assertEqual(len(eventos), 2)
+
+    def test_motor_guarda_el_recorte_del_rostro_asociado(self):
+        eventos = []
+        motor = MotorReconocimiento(
+            ConfiguracionApp(),
+            RepositorioGaleriasFalso(),
+            FabricaPipelineFalsa(),
+            eventos.append,
+        )
+        motor.estado.id_camara = 4
+        motor.estado.id_cuenta = 7
+        frame = np.zeros((240, 240, 3), dtype=np.uint8)
+        seguimiento = EstadoSeguimiento(
+            historial_personas={
+                8: {
+                    "nombre": "Matias",
+                    "tipo": "pendiente",
+                    "similitud": 0.82,
+                    "bbox": (10, 10, 230, 230),
+                    "rostros_asociados": {3},
+                }
+            },
+            historial_rostros={
+                3: {"bbox": (80, 70, 140, 150)},
+            },
+        )
+
+        motor._notificar_identidades_estables(frame, seguimiento, {})
+
+        self.assertEqual(len(eventos), 1)
+        self.assertIsNotNone(eventos[0].imagen)
+        self.assertLess(eventos[0].imagen.shape[0], frame.shape[0])
+        self.assertLess(eventos[0].imagen.shape[1], frame.shape[1])
 
     def test_metadato_acompana_renombrado_y_aprobacion(self):
         with tempfile.TemporaryDirectory() as temporal:

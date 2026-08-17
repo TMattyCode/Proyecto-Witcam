@@ -2,7 +2,9 @@ from datetime import datetime
 
 from backend.aplicacion.autenticacion import ServicioAutenticacion
 from backend.database.ingresos import RepositorioIngresos
+from backend.exceptions import ErrorGaleria
 from backend.galerias.almacenamiento import AlmacenamientoPorCuenta
+from backend.galerias.repositorio import RepositorioGalerias
 
 
 class ServicioIngresos:
@@ -67,6 +69,27 @@ class ServicioIngresos:
             raise ValueError("La persona no existe en esta cuenta")
         return {"ok": True, **historial}
 
+    def obtener_rostro_deteccion(self, token: str, id_deteccion):
+        identificador = self._validar_entero(
+            id_deteccion,
+            "idDeteccion",
+            minimo=1,
+        )
+        sesion = self.autenticacion.obtener_sesion(token)
+        id_cuenta = sesion["user"]["idCuenta"]
+        ruta = self.repositorio.obtener_ruta_imagen_deteccion(
+            id_cuenta,
+            identificador,
+        )
+        if ruta is None or self.almacenamiento is None:
+            raise FileNotFoundError(
+                "La deteccion no tiene un rostro disponible"
+            )
+        return self.almacenamiento.obtener_imagen_deteccion(
+            id_cuenta,
+            ruta,
+        )
+
     def obtener_rostro(self, token: str, id_persona):
         identificador = self._validar_entero(
             id_persona,
@@ -90,6 +113,98 @@ class ServicioIngresos:
             identificador,
             persona["nombre"],
         )
+
+    def renombrar_persona(self, token: str, datos) -> dict:
+        if not isinstance(datos, dict):
+            raise ValueError("Los datos de la persona no son validos")
+        id_persona = self._validar_entero(
+            datos.get("idPersona"),
+            "idPersona",
+            minimo=1,
+        )
+        nombre_nuevo = datos.get("nombre")
+        if not isinstance(nombre_nuevo, str):
+            raise ValueError("El nombre de la persona no es valido")
+        nombre_nuevo = nombre_nuevo.strip()
+        if not nombre_nuevo:
+            raise ValueError("El nombre de la persona no puede estar vacio")
+        if len(nombre_nuevo) > 150:
+            raise ValueError("El nombre no puede superar los 150 caracteres")
+        try:
+            nombre_seguro = RepositorioGalerias.nombre_persona_seguro(
+                nombre_nuevo
+            )
+        except ErrorGaleria as error:
+            raise ValueError("El nombre de la persona no es valido") from error
+        if nombre_seguro != nombre_nuevo:
+            raise ValueError(
+                "El nombre solo puede contener letras, numeros, espacios, "
+                "guiones y guiones bajos"
+            )
+
+        usuario = self.autenticacion.exigir_permiso(token, "editar")
+        id_cuenta = usuario["idCuenta"]
+        persona = self.repositorio.obtener_persona(id_cuenta, id_persona)
+        if persona is None:
+            raise ValueError("La persona no existe en esta cuenta")
+        if persona["nombre"] == nombre_nuevo:
+            return {
+                "ok": True,
+                "idPersona": id_persona,
+                "nombrePersona": nombre_nuevo,
+            }
+
+        repositorio_galeria = (
+            self.almacenamiento.obtener(id_cuenta)
+            if self.almacenamiento is not None
+            else None
+        )
+        renombrada = None
+        if repositorio_galeria is None:
+            anterior = self.repositorio.renombrar_persona(
+                id_cuenta,
+                id_persona,
+                nombre_nuevo,
+            )
+        else:
+            with repositorio_galeria.transaccion():
+                renombrada = repositorio_galeria.renombrar_persona(
+                    id_cuenta,
+                    id_persona,
+                    persona["nombre"],
+                    nombre_nuevo,
+                )
+                try:
+                    anterior = self.repositorio.renombrar_persona(
+                        id_cuenta,
+                        id_persona,
+                        nombre_nuevo,
+                    )
+                except Exception:
+                    if renombrada is not None:
+                        tipo, nombre_anterior, nombre_actual = renombrada
+                        repositorio_galeria.renombrar_persona(
+                            id_cuenta,
+                            id_persona,
+                            nombre_actual,
+                            nombre_anterior,
+                        )
+                    raise
+        if anterior is None:
+            if renombrada is not None:
+                tipo, nombre_anterior, nombre_actual = renombrada
+                repositorio_galeria.renombrar_persona(
+                    id_cuenta,
+                    id_persona,
+                    nombre_actual,
+                    nombre_anterior,
+                )
+            raise ValueError("La persona no existe en esta cuenta")
+        return {
+            "ok": True,
+            "idPersona": id_persona,
+            "nombrePersona": nombre_nuevo,
+        }
 
     def agregar_lista_observacion(self, token: str, datos) -> dict:
         if not isinstance(datos, dict):
@@ -161,12 +276,30 @@ class ServicioIngresos:
             "motivo": motivo,
         }
 
-    def listar_observacion(self, token: str) -> dict:
-        usuario = self.autenticacion.obtener_sesion(token)["user"]
-        registros = self.repositorio.listar_observacion(
-            usuario["idCuenta"]
+    def listar_observacion(
+        self,
+        token: str,
+        parametros: dict | None = None,
+    ) -> dict:
+        parametros = parametros or {}
+        pagina = self._validar_entero(
+            parametros.get("pagina", 1),
+            "pagina",
+            minimo=1,
         )
-        return {"ok": True, "registros": registros, "total": len(registros)}
+        limite = self._validar_entero(
+            parametros.get("limite", 25),
+            "limite",
+            minimo=1,
+            maximo=100,
+        )
+        usuario = self.autenticacion.obtener_sesion(token)["user"]
+        resultado = self.repositorio.listar_observacion(
+            usuario["idCuenta"],
+            pagina,
+            limite,
+        )
+        return {"ok": True, **resultado}
 
     def quitar_lista_observacion(self, token: str, datos) -> dict:
         if not isinstance(datos, dict):

@@ -104,6 +104,29 @@ export function obtenerHistorialIngresos(idPersona) {
   return solicitar(`/api/ingresos/historial?${parametros.toString()}`);
 }
 
+export async function obtenerRostroDeteccion(idDeteccion) {
+  const ruta = (
+    `/api/ingresos/deteccion-rostro?idDeteccion=${encodeURIComponent(idDeteccion)}`
+  );
+  let respuesta;
+  try {
+    respuesta = await fetch(ruta, {
+      headers: {
+        ...(obtenerToken()
+          ? { Authorization: `Bearer ${obtenerToken()}` }
+          : {}),
+      },
+    });
+  } catch {
+    throw new Error("No se pudo cargar el rostro de la detección.");
+  }
+  notificarSesionExpirada(ruta, respuesta);
+  if (!respuesta.ok) {
+    throw new Error("La detección no tiene un rostro disponible.");
+  }
+  return respuesta.blob();
+}
+
 export function agregarPersonaListaObservacion(idPersona, motivo = "") {
   return solicitar("/api/ingresos/lista-observacion", {
     method: "POST",
@@ -153,8 +176,19 @@ export function eliminarPersona(idPersona) {
   });
 }
 
-export function obtenerListaObservacion() {
-  return solicitar("/api/lista-observacion");
+export function renombrarPersona(idPersona, nombre) {
+  return solicitar("/api/ingresos/renombrar-persona", {
+    method: "POST",
+    body: JSON.stringify({ idPersona, nombre }),
+  });
+}
+
+export function obtenerListaObservacion(pagina = 1, limite = 25) {
+  const parametros = new URLSearchParams({
+    pagina: String(pagina),
+    limite: String(limite),
+  });
+  return solicitar(`/api/lista-observacion?${parametros.toString()}`);
 }
 
 export function obtenerCamarasConfiguradas() {

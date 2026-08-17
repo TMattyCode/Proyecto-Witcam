@@ -2,6 +2,7 @@ import "./TablaIngresos.css";
 import iconoObservacion from "../../../assets/iconos/013 icono-ojo-blanco.png";
 import iconoBasurero from "../../../assets/iconos/028 icono-basurero.png";
 import iconoHistorial from "../../../assets/iconos/031 icono-historial.png";
+import NombrePersonaEditable from "./NombrePersonaEditable";
 import RostroPersona from "./RostroPersona";
 
 const FORMATEADOR_FECHA = new Intl.DateTimeFormat("es-CL", {
@@ -32,6 +33,7 @@ export default function TablaIngresos({
   onVerHistorial,
   onAgregarObservacion,
   onEliminarPersona,
+  onRenombrarPersona,
   personaAgregando = null,
   personaEliminando = null,
 }) {
@@ -92,9 +94,11 @@ export default function TablaIngresos({
               ingresos.map((ingreso) => (
                 <tr key={ingreso.idDeteccion}>
                   <td className="tabla-ingresos-persona">
-                    <strong title={ingreso.nombrePersona}>
-                      {ingreso.nombrePersona || "Persona sin nombre"}
-                    </strong>
+                    <NombrePersonaEditable
+                      idPersona={ingreso.idPersona}
+                      nombre={ingreso.nombrePersona}
+                      onConfirmar={onRenombrarPersona}
+                    />
                   </td>
                   <td>
                     <strong>{ingreso.nombreCamara}</strong>

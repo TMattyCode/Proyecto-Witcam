@@ -1,4 +1,5 @@
 import "./HistorialIngresos.css";
+import RostroDeteccion from "./RostroDeteccion";
 
 const FORMATEADOR_FECHA = new Intl.DateTimeFormat("es-CL", {
   day: "2-digit",
@@ -41,24 +42,28 @@ export default function HistorialIngresos({ historial, cargando, error, onCerrar
           <table>
             <thead>
               <tr>
-                <th>Fecha y hora</th>
                 <th>Camara</th>
-                <th>Resultado</th>
-                <th>Similitud</th>
+                <th>Fecha y hora</th>
+                <th>Rostro detectado</th>
               </tr>
             </thead>
             <tbody>
               {cargando ? (
-                <tr><td colSpan="4">Cargando historial...</td></tr>
+                <tr><td colSpan="3">Cargando historial...</td></tr>
               ) : detecciones.length ? detecciones.map((deteccion) => (
                 <tr key={deteccion.idDeteccion}>
-                  <td>{formatearFecha(deteccion.fechaHora)}</td>
                   <td>{deteccion.nombreCamara}</td>
-                  <td>{deteccion.resultado}</td>
-                  <td>{deteccion.similitud == null ? "Sin dato" : `${(deteccion.similitud * 100).toFixed(1)}%`}</td>
+                  <td>{formatearFecha(deteccion.fechaHora)}</td>
+                  <td>
+                    <RostroDeteccion
+                      idDeteccion={deteccion.idDeteccion}
+                      nombrePersona={persona.nombre}
+                      disponible={deteccion.tieneRostro}
+                    />
+                  </td>
                 </tr>
               )) : (
-                <tr><td colSpan="4">No hay detecciones para esta persona.</td></tr>
+                <tr><td colSpan="3">No hay detecciones para esta persona.</td></tr>
               )}
             </tbody>
           </table>

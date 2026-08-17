@@ -82,6 +82,35 @@ class AlmacenamientoPorCuenta:
         with self._bloqueo:
             ruta.unlink(missing_ok=True)
 
+    def obtener_imagen_deteccion(
+        self,
+        id_cuenta: int,
+        valor_ruta: str,
+    ) -> Path:
+        if not valor_ruta:
+            raise FileNotFoundError("La deteccion no tiene un rostro disponible")
+        ruta = Path(valor_ruta)
+        if not ruta.is_absolute():
+            ruta = self.config.directorio_datos / ruta
+        raiz_detecciones = (
+            self.raiz_cuenta(id_cuenta) / "detecciones"
+        ).resolve()
+        try:
+            resuelta = ruta.resolve()
+        except OSError as error:
+            raise FileNotFoundError(
+                "No se pudo localizar la imagen de la deteccion"
+            ) from error
+        if not resuelta.is_relative_to(raiz_detecciones):
+            raise FileNotFoundError(
+                "La imagen de la deteccion no pertenece a esta cuenta"
+            )
+        if not resuelta.is_file():
+            raise FileNotFoundError(
+                "La deteccion no tiene un rostro disponible"
+            )
+        return resuelta
+
     def eliminar_archivos_persona(
         self,
         id_cuenta: int,

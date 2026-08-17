@@ -164,6 +164,32 @@ class RepositorioIngresos:
             "detecciones": [self._serializar(fila) for fila in filas],
         }
 
+    def obtener_ruta_imagen_deteccion(
+        self,
+        id_cuenta: int,
+        id_deteccion: int,
+    ) -> str | None:
+        with self.conexiones.conectar() as conexion:
+            fila = conexion.cursor().execute(
+                """
+                SELECT d.ruta_imagen_detectada
+                FROM Deteccion d
+                INNER JOIN Persona p ON p.id_persona = d.id_persona
+                INNER JOIN Camara c ON c.id_camara = d.id_camara
+                INNER JOIN GrupoCamara gc
+                    ON gc.id_grupo_camara = c.id_grupo_camara
+                WHERE d.id_deteccion = ?
+                  AND p.id_cuenta = ?
+                  AND gc.id_cuenta = ?
+                """,
+                id_deteccion,
+                id_cuenta,
+                id_cuenta,
+            ).fetchone()
+        if fila is None or fila.ruta_imagen_detectada is None:
+            return None
+        return str(fila.ruta_imagen_detectada)
+
     def obtener_persona(
         self,
         id_cuenta: int,
@@ -186,6 +212,54 @@ class RepositorioIngresos:
             "nombre": str(fila.nombre_persona),
         }
 
+    def renombrar_persona(
+        self,
+        id_cuenta: int,
+        id_persona: int,
+        nombre_nuevo: str,
+    ) -> str | None:
+        with self.conexiones.conectar() as conexion:
+            cursor = conexion.cursor()
+            persona = cursor.execute(
+                """
+                SELECT id_persona, nombre_persona
+                FROM Persona WITH (UPDLOCK, HOLDLOCK)
+                WHERE id_persona = ? AND id_cuenta = ?
+                """,
+                id_persona,
+                id_cuenta,
+            ).fetchone()
+            if persona is None:
+                return None
+            duplicada = cursor.execute(
+                """
+                SELECT id_persona
+                FROM Persona WITH (UPDLOCK, HOLDLOCK)
+                WHERE id_cuenta = ?
+                  AND nombre_persona = ?
+                  AND id_persona <> ?
+                """,
+                id_cuenta,
+                nombre_nuevo,
+                id_persona,
+            ).fetchone()
+            if duplicada is not None:
+                raise ValueError(
+                    "Ya existe una persona con ese nombre en esta cuenta"
+                )
+            cursor.execute(
+                """
+                UPDATE Persona
+                SET nombre_persona = ?
+                WHERE id_persona = ? AND id_cuenta = ?
+                """,
+                nombre_nuevo,
+                id_persona,
+                id_cuenta,
+            )
+            conexion.commit()
+        return str(persona.nombre_persona)
+
     @staticmethod
     def _serializar(fila) -> dict:
         return {
@@ -195,7 +269,7 @@ class RepositorioIngresos:
             "idCamara": fila.id_camara,
             "nombreCamara": fila.nombre_camara,
             "fechaHora": fila.fecha_hora.isoformat(timespec="seconds"),
-            "rutaImagen": fila.ruta_imagen_detectada,
+            "tieneRostro": bool(fila.ruta_imagen_detectada),
             "resultado": fila.resultado,
             "similitud": (
                 float(fila.similitud)
@@ -263,9 +337,30 @@ class RepositorioIngresos:
             conexion.commit()
             return True
 
-    def listar_observacion(self, id_cuenta: int) -> list[dict]:
+    def listar_observacion(
+        self,
+        id_cuenta: int,
+        pagina: int,
+        limite: int,
+    ) -> dict:
+        desplazamiento = (pagina - 1) * limite
         with self.conexiones.conectar() as conexion:
-            filas = conexion.cursor().execute(
+            cursor = conexion.cursor()
+            total = cursor.execute(
+                """
+                SELECT COUNT(*)
+                FROM ListaObservacion lo
+                INNER JOIN Persona p ON p.id_persona = lo.id_persona
+                INNER JOIN Usuario u
+                    ON u.id_usuario = lo.id_usuario_registro
+                WHERE p.id_cuenta = ?
+                  AND u.id_cuenta = ?
+                  AND lo.activa = 1
+                """,
+                id_cuenta,
+                id_cuenta,
+            ).fetchval()
+            filas = cursor.execute(
                 """
                 SELECT
                     lo.id_lista_observacion,
@@ -273,8 +368,7 @@ class RepositorioIngresos:
                     p.nombre_persona,
                     lo.motivo,
                     lo.fecha_ingreso_lista,
-                    u.nombre,
-                    u.apellido
+                    u.nombre_usuario
                 FROM ListaObservacion lo
                 INNER JOIN Persona p ON p.id_persona = lo.id_persona
                 INNER JOIN Usuario u
@@ -284,24 +378,33 @@ class RepositorioIngresos:
                   AND lo.activa = 1
                 ORDER BY lo.fecha_ingreso_lista DESC,
                          lo.id_lista_observacion DESC
+                OFFSET ? ROWS FETCH NEXT ? ROWS ONLY
                 """,
                 id_cuenta,
                 id_cuenta,
+                desplazamiento,
+                limite,
             ).fetchall()
-        return [
-            {
-                "idLista": fila.id_lista_observacion,
-                "idCliente": fila.id_persona,
-                "nombrePersona": fila.nombre_persona,
-                "motivo": fila.motivo,
-                "fechaIngreso": fila.fecha_ingreso_lista.isoformat(
-                    timespec="seconds"
-                ),
-                "registradoPor": f"{fila.nombre} {fila.apellido}".strip(),
-                "imagen": None,
-            }
-            for fila in filas
-        ]
+        return {
+            "total": int(total or 0),
+            "pagina": pagina,
+            "limite": limite,
+            "registros": [
+                {
+                    "idLista": fila.id_lista_observacion,
+                    "idPersona": fila.id_persona,
+                    "idCliente": fila.id_persona,
+                    "nombrePersona": fila.nombre_persona,
+                    "motivo": fila.motivo,
+                    "fechaIngreso": fila.fecha_ingreso_lista.isoformat(
+                        timespec="seconds"
+                    ),
+                    "registradoPor": fila.nombre_usuario,
+                    "imagen": None,
+                }
+                for fila in filas
+            ],
+        }
 
     def quitar_lista_observacion(
         self,

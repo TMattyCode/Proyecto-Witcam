@@ -11,6 +11,7 @@ from backend.config import ConfiguracionGalerias, ConfiguracionRostro
 from backend.dominio.modelos import ReferenciaFacial
 from backend.galerias.reconciliacion import evaluar_coincidencia
 from backend.galerias.referencias import comparar_con_referencias
+from backend.galerias.almacenamiento import AlmacenamientoPorCuenta
 from backend.galerias.repositorio import RepositorioGalerias
 from backend.utilidades.imagenes import escribir_jpg
 
@@ -19,8 +20,10 @@ class PruebasGalerias(unittest.TestCase):
     def setUp(self):
         self.temporal = tempfile.TemporaryDirectory()
         raiz = Path(self.temporal.name)
+        self.raiz = raiz
         self.config = replace(
             ConfiguracionGalerias(),
+            directorio_datos=raiz,
             carpeta_referencias=raiz / "referencias",
             carpeta_pendientes=raiz / "pendientes",
         )
@@ -82,6 +85,34 @@ class PruebasGalerias(unittest.TestCase):
             (self.config.carpeta_pendientes / "Nombre_nuevo").exists()
         )
 
+    def test_renombra_galeria_por_id_persistente(self):
+        ruta = self.config.carpeta_pendientes / "Nombre_antiguo" / "muestra.jpg"
+        self._crear_imagen(ruta)
+        self.repositorio.guardar_id_persona(
+            "pendiente",
+            "Nombre_antiguo",
+            7,
+            12,
+        )
+
+        resultado = self.repositorio.renombrar_persona(
+            7,
+            12,
+            "Nombre que no coincide",
+            "Matias Perez",
+        )
+
+        self.assertEqual(
+            resultado,
+            ("pendiente", "Nombre_antiguo", "Matias Perez"),
+        )
+        self.assertFalse(
+            (self.config.carpeta_pendientes / "Nombre_antiguo").exists()
+        )
+        self.assertTrue(
+            (self.config.carpeta_pendientes / "Matias Perez").is_dir()
+        )
+
     def test_mueve_persona_entre_pendientes_y_reconocimiento_por_id(self):
         ruta = self.config.carpeta_pendientes / "Nombre_antiguo" / "muestra.jpg"
         self._crear_imagen(ruta)
@@ -140,6 +171,31 @@ class PruebasGalerias(unittest.TestCase):
         )
 
         self.assertEqual(portada.name, "muestra_nitida.jpg")
+
+    def test_imagen_deteccion_debe_permanecer_dentro_de_la_cuenta(self):
+        almacenamiento = AlmacenamientoPorCuenta(self.config)
+        rostro = (
+            self.raiz
+            / "cuentas"
+            / "cuenta_7"
+            / "detecciones"
+            / "2026"
+            / "08"
+            / "rostro.jpg"
+        )
+        self._crear_imagen(rostro)
+
+        encontrada = almacenamiento.obtener_imagen_deteccion(
+            7,
+            "cuentas/cuenta_7/detecciones/2026/08/rostro.jpg",
+        )
+
+        self.assertEqual(encontrada, rostro.resolve())
+        with self.assertRaisesRegex(FileNotFoundError, "no pertenece"):
+            almacenamiento.obtener_imagen_deteccion(
+                7,
+                "cuentas/cuenta_8/detecciones/rostro.jpg",
+            )
 
     def test_bloqueo_permite_lecturas_y_renombrados_concurrentes(self):
         self._crear_imagen(

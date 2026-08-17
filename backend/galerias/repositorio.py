@@ -219,6 +219,22 @@ class RepositorioGalerias:
             raise ErrorGaleria("El nombre debe tener letras o numeros")
         return limpio
 
+    @staticmethod
+    def nombre_persona_seguro(nombre: str) -> str:
+        base = Path(str(nombre)).name.strip()
+        if not base:
+            raise ErrorGaleria("El nombre no puede estar vacio")
+        caracteres = []
+        for caracter in base:
+            if caracter.isalnum() or caracter in ("-", "_"):
+                caracteres.append(caracter)
+            elif caracter.isspace():
+                caracteres.append(" ")
+        limpio = "".join(caracteres).strip(" _")
+        if not limpio:
+            raise ErrorGaleria("El nombre debe tener letras o numeros")
+        return limpio
+
     def ruta_galeria(self, carpeta: Path, nombre: str) -> Path:
         return carpeta / self.nombre_seguro(nombre)
 
@@ -458,6 +474,46 @@ class RepositorioGalerias:
                 temporal.rename(destino)
                 return
             origen.rename(self.ruta_directorio_unica(destino))
+
+    def renombrar_persona(
+        self,
+        id_cuenta: int,
+        id_persona: int,
+        nombre_actual: str,
+        nombre_nuevo: str,
+    ) -> tuple[str, str, str] | None:
+        """Renombra por metadata y devuelve datos suficientes para revertir."""
+        with self._bloqueo:
+            for tipo, carpeta in (
+                ("referencia", self.config.carpeta_referencias),
+                ("pendiente", self.config.carpeta_pendientes),
+            ):
+                origen = self._buscar_galeria_persona(
+                    carpeta,
+                    id_cuenta,
+                    id_persona,
+                    nombre_actual,
+                )
+                if origen is None:
+                    continue
+                destino = carpeta / self.nombre_persona_seguro(nombre_nuevo)
+                if origen.name == destino.name:
+                    return None
+                if destino.exists() and origen.resolve() != destino.resolve():
+                    raise ErrorGaleria(
+                        "Ya existe una galeria con ese nombre"
+                    )
+                nombre_origen = origen.name
+                if origen.resolve() == destino.resolve():
+                    temporal = self.ruta_directorio_unica(
+                        origen.with_name(f"__renombrando__{origen.name}")
+                    )
+                    origen.rename(temporal)
+                    temporal.rename(destino)
+                else:
+                    origen.rename(destino)
+                return tipo, nombre_origen, destino.name
+        return None
 
     def rechazar(self, nombre: str) -> None:
         with self._bloqueo:

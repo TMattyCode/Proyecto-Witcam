@@ -13,11 +13,11 @@ class PruebasEsquemaAutenticacion(unittest.TestCase):
         self.assertIn("ON Usuario(nombre_usuario)\nWHERE id_estado_usuario = 1", self.sql)
         self.assertIn("CREATE UNIQUE INDEX UX_Usuario_Correo_Activo", self.sql)
         self.assertIn("ON Usuario(correo)\nWHERE id_estado_usuario = 1", self.sql)
-        self.assertNotIn("nombre_usuario VARCHAR(100) NOT NULL UNIQUE", self.sql)
-        self.assertNotIn("correo VARCHAR(250) NOT NULL UNIQUE", self.sql)
+        self.assertNotIn("nombre_usuario NVARCHAR(100) NOT NULL UNIQUE", self.sql)
+        self.assertNotIn("correo NVARCHAR(250) NOT NULL UNIQUE", self.sql)
 
     def test_password_se_guarda_como_hash(self):
-        self.assertIn("password_hash VARCHAR(255) NOT NULL", self.sql)
+        self.assertIn("password_hash NVARCHAR(255) NOT NULL", self.sql)
 
 
 if __name__ == "__main__":

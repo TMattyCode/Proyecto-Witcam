@@ -37,3 +37,112 @@
 .historial-ingresos-modal th { position: sticky; top: 0; background: #f7f9fc; color: #535f7b; font-size: 12px; text-transform: uppercase; }
 .historial-ingresos-modal td { color: #07142f; font-size: 14px; }
 .historial-ingresos-error { margin: 16px 28px 0; padding: 10px 12px; border-radius: 8px; background: #fff0f0; color: #a51616; }
+
+.historial-ingresos-modal th:nth-child(1),
+.historial-ingresos-modal td:nth-child(1) {
+  width: 38%;
+}
+
+.historial-ingresos-modal th:nth-child(2),
+.historial-ingresos-modal td:nth-child(2) {
+  width: 38%;
+}
+
+.historial-ingresos-modal th:nth-child(3),
+.historial-ingresos-modal td:nth-child(3) {
+  width: 24%;
+  text-align: center;
+}
+
+.historial-rostro-boton {
+  padding: 0;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  cursor: zoom-in;
+}
+
+.historial-rostro-boton img {
+  width: 58px;
+  height: 58px;
+  display: block;
+  border: 1px solid #dce3ed;
+  border-radius: 50%;
+  background: #eaeaea;
+  object-fit: cover;
+}
+
+.historial-rostro-boton:hover img,
+.historial-rostro-boton:focus-visible img {
+  border-color: #075cff;
+  box-shadow: 0 0 0 3px rgba(7, 92, 255, 0.16);
+}
+
+.historial-rostro-boton:focus-visible {
+  outline: none;
+}
+
+.historial-sin-rostro {
+  color: #7b879c;
+  font-size: 13px;
+}
+
+.historial-rostro-ampliado-fondo {
+  position: fixed;
+  inset: 0;
+  z-index: 1400;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(3, 12, 32, 0.78);
+  backdrop-filter: blur(3px);
+}
+
+.historial-ingresos-modal .historial-rostro-ampliado {
+  width: min(560px, 100%);
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 16px;
+  background: #ffffff;
+  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.38);
+}
+
+.historial-ingresos-modal .historial-rostro-ampliado header {
+  min-height: 58px;
+  padding: 10px 14px 10px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.historial-ingresos-modal .historial-rostro-ampliado header h2 {
+  margin: 0;
+  overflow: hidden;
+  color: #07142f;
+  font-size: 18px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.historial-ingresos-modal .historial-rostro-ampliado header button {
+  width: 36px;
+  height: 36px;
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: 8px;
+  background: #eef3fb;
+  color: #24324e;
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.historial-rostro-ampliado > img {
+  width: 100%;
+  max-height: min(70vh, 650px);
+  display: block;
+  background: #07101f;
+  object-fit: contain;
+}

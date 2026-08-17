@@ -8,6 +8,7 @@ import {
   obtenerCamarasIngresos,
   obtenerHistorialIngresos,
   obtenerIngresos,
+  renombrarPersona,
 } from "../../servicios/api";
 import FiltrosIngresos from "./componentes/FiltrosIngresos";
 import HistorialIngresos from "./componentes/HistorialIngresos";
@@ -184,6 +185,35 @@ export default function IngresosIdentificados() {
     }
   };
 
+  const confirmarRenombrado = async (idPersona, nombre) => {
+    const respuesta = await renombrarPersona(idPersona, nombre);
+    const nombrePersona = respuesta.nombrePersona;
+    setIngresos((actuales) => actuales.map((ingreso) => (
+      ingreso.idPersona === idPersona
+        ? { ...ingreso, nombrePersona }
+        : ingreso
+    )));
+    setHistorial((actual) => (
+      actual?.persona?.id === idPersona
+        ? {
+            ...actual,
+            persona: { ...actual.persona, nombre: nombrePersona },
+          }
+        : actual
+    ));
+    setPersonaObservacion((actual) => (
+      actual?.idPersona === idPersona
+        ? { ...actual, nombrePersona }
+        : actual
+    ));
+    setPersonaEliminar((actual) => (
+      actual?.idPersona === idPersona
+        ? { ...actual, nombrePersona }
+        : actual
+    ));
+    return nombrePersona;
+  };
+
   return (
     <Layout
       titulo="Ingresos identificados"
@@ -207,6 +237,7 @@ export default function IngresosIdentificados() {
           onVerHistorial={abrirHistorial}
           onAgregarObservacion={abrirMotivoObservacion}
           onEliminarPersona={setPersonaEliminar}
+          onRenombrarPersona={confirmarRenombrado}
           personaAgregando={personaAgregando}
           personaEliminando={personaEliminando}
         />
