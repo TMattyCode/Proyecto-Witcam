@@ -59,6 +59,7 @@ function IconoFlechaFiltro() {
 export default function InterfazCamaras() {
   const { usuario } = useAutenticacion();
   const esAdministrador = usuario?.rol === "Administrador";
+  const puedeControlar = esAdministrador || usuario?.permisos?.includes("controlar_camaras");
   const [camaras, setCamaras] = useState([]);
   const [estado, setEstado] = useState(ESTADO_DETENIDO);
   const [modalAbierto, setModalAbierto] = useState(false);
@@ -509,6 +510,7 @@ export default function InterfazCamaras() {
                 onEditar={() => abrirEdicion(camara)}
                 onEliminar={() => eliminar(camara)}
                 gestionHabilitada={esAdministrador}
+                controlHabilitado={puedeControlar}
               />
             ))
           ) : cargandoConfiguracion ? (

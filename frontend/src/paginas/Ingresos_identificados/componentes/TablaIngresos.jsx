@@ -94,11 +94,9 @@ export default function TablaIngresos({
               ingresos.map((ingreso) => (
                 <tr key={ingreso.idDeteccion}>
                   <td className="tabla-ingresos-persona">
-                    <NombrePersonaEditable
-                      idPersona={ingreso.idPersona}
-                      nombre={ingreso.nombrePersona}
-                      onConfirmar={onRenombrarPersona}
-                    />
+                    {onRenombrarPersona ? (
+                      <NombrePersonaEditable idPersona={ingreso.idPersona} nombre={ingreso.nombrePersona} onConfirmar={onRenombrarPersona} />
+                    ) : <strong>{ingreso.nombrePersona}</strong>}
                   </td>
                   <td>
                     <strong>{ingreso.nombreCamara}</strong>
@@ -114,7 +112,7 @@ export default function TablaIngresos({
                   </td>
                   <td>
                     <div className="tabla-ingresos-celda-acciones">
-                      <button
+                      {onAgregarObservacion && <button
                         className="tabla-ingresos-accion historial"
                         type="button"
                         onClick={() => onVerHistorial?.(ingreso)}
@@ -122,8 +120,8 @@ export default function TablaIngresos({
                         title="Ver historial de ingresos"
                       >
                         <img src={iconoHistorial} alt="" aria-hidden="true" />
-                      </button>
-                      <button
+                      </button>}
+                      {onEliminarPersona && <button
                         className={`tabla-ingresos-accion observar${ingreso.enListaObservacion ? " agregado" : ""}`}
                         type="button"
                         disabled={ingreso.enListaObservacion || personaAgregando === ingreso.idPersona}
@@ -136,7 +134,7 @@ export default function TablaIngresos({
                         }
                       >
                         <img src={iconoObservacion} alt="" aria-hidden="true" />
-                      </button>
+                      </button>}
                       <button
                         className="tabla-ingresos-accion eliminar"
                         type="button"

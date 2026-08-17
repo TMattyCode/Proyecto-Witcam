@@ -13,11 +13,16 @@ import {
 import FiltrosIngresos from "./componentes/FiltrosIngresos";
 import HistorialIngresos from "./componentes/HistorialIngresos";
 import TablaIngresos from "./componentes/TablaIngresos";
+import { useAutenticacion } from "../../contextos/AutenticacionContext";
 
 const LIMITE_PAGINA = 25;
 const INTERVALO_ACTUALIZACION = 7000;
 
 export default function IngresosIdentificados() {
+  const { usuario } = useAutenticacion();
+  const esAdministrador = usuario?.rol === "Administrador";
+  const puedeGestionar = esAdministrador || usuario?.permisos?.includes("gestionar_identidades");
+  const puedeEliminar = esAdministrador || usuario?.permisos?.includes("eliminar_identidades");
   const [ingresos, setIngresos] = useState([]);
   const [pagina, setPagina] = useState(1);
   const [total, setTotal] = useState(0);
@@ -235,9 +240,9 @@ export default function IngresosIdentificados() {
           error={error}
           onCambiarPagina={cambiarPagina}
           onVerHistorial={abrirHistorial}
-          onAgregarObservacion={abrirMotivoObservacion}
-          onEliminarPersona={setPersonaEliminar}
-          onRenombrarPersona={confirmarRenombrado}
+          onAgregarObservacion={puedeGestionar ? abrirMotivoObservacion : null}
+          onEliminarPersona={puedeEliminar ? setPersonaEliminar : null}
+          onRenombrarPersona={puedeGestionar ? confirmarRenombrado : null}
           personaAgregando={personaAgregando}
           personaEliminando={personaEliminando}
         />

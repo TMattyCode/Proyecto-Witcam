@@ -5,11 +5,15 @@ import {
   crearSubusuario,
   actualizarPermisosSubusuario,
   obtenerSubusuarios,
+  obtenerSubusuariosEliminados,
 } from "../../../servicios/api";
 import {
   validarSubusuario,
 } from "../../../utilidades/validacionAutenticacion";
 import iconoOjo from "../../../assets/iconos/008 icono-ojo-sinrelleno.png";
+import iconoHistorial from "../../../assets/iconos/031 icono-historial.png";
+import iconoBasurero from "../../../assets/iconos/028 icono-basurero.png";
+import iconoEditar from "../../../assets/iconos/029 icono-editar.blanco.png";
 import "./TablaSubcuentas.css";
 
 const FORMULARIO_INICIAL = {
@@ -32,6 +36,28 @@ const FILTROS_INICIALES = {
   accesoHasta: "",
   sinAcceso: false,
 };
+
+const DEPENDENCIAS_PERMISOS = {
+  controlar_camaras: "ver_camaras",
+  gestionar_identidades: "ver_ingresos",
+  eliminar_identidades: "ver_ingresos",
+  gestionar_observacion: "ver_observacion",
+};
+
+function alternarPermisoConDependencias(permisos, codigo) {
+  const seleccionados = new Set(permisos);
+  if (seleccionados.has(codigo)) {
+    seleccionados.delete(codigo);
+    Object.entries(DEPENDENCIAS_PERMISOS).forEach(([dependiente, base]) => {
+      if (base === codigo) seleccionados.delete(dependiente);
+    });
+  } else {
+    seleccionados.add(codigo);
+    const dependencia = DEPENDENCIAS_PERMISOS[codigo];
+    if (dependencia) seleccionados.add(dependencia);
+  }
+  return [...seleccionados];
+}
 
 const FORMATEADOR_FECHA = new Intl.DateTimeFormat("es-CL", {
   day: "2-digit",
@@ -56,26 +82,52 @@ function formatearFechaFiltro(fecha) {
   return `${dia}-${mes}-${anio}`;
 }
 
-function IconoEliminar() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M4 7h16" />
-      <path d="M9 7V4h6v3" />
-      <path d="m6 7 1 13h10l1-13" />
-      <path d="M10 11v5M14 11v5" />
-    </svg>
-  );
-}
+function ModalHistorialSubusuarios({ onCerrar }) {
+  const [subusuarios, setSubusuarios] = useState([]);
+  const [cargando, setCargando] = useState(true);
+  const [error, setError] = useState("");
 
-function IndicadorPermiso({ activo, nombre }) {
+  useEffect(() => {
+    let vigente = true;
+    obtenerSubusuariosEliminados()
+      .then((datos) => vigente && setSubusuarios(datos.subusuarios || []))
+      .catch((errorSolicitud) => vigente && setError(errorSolicitud.message))
+      .finally(() => vigente && setCargando(false));
+    return () => { vigente = false; };
+  }, []);
+
   return (
-    <span
-      className={`permiso ${activo ? "permiso-activo" : "permiso-inactivo"}`}
-      aria-label={`${nombre}: ${activo ? "permitido" : "no permitido"}`}
-      title={`${nombre}: ${activo ? "permitido" : "no permitido"}`}
-    >
-      {activo ? "✓" : "×"}
-    </span>
+    <div className="modal-subusuario-fondo" role="presentation" onMouseDown={(evento) => evento.target === evento.currentTarget && onCerrar()}>
+      <section className="modal-subusuario historial-subusuarios-modal" role="dialog" aria-modal="true" aria-labelledby="titulo-historial-subusuarios">
+        <div className="modal-subusuario-cabecera">
+          <div>
+            <span>Historial</span>
+            <h2 id="titulo-historial-subusuarios">Subusuarios eliminados</h2>
+            <p>Consulta las cuentas que perdieron el acceso y la fecha de eliminación.</p>
+          </div>
+          <button type="button" onClick={onCerrar} aria-label="Cerrar historial">×</button>
+        </div>
+        {error && <div className="subusuarios-error" role="alert">{error}</div>}
+        <div className="subcuentas-tabla-contenedor historial-subusuarios-tabla">
+          <table className="subcuentas-tabla">
+            <thead><tr><th>Usuario</th><th>Correo electrónico</th><th>Fecha de eliminación</th></tr></thead>
+            <tbody>
+              {cargando ? (
+                <tr><td colSpan="3" className="subcuentas-vacia">Cargando historial...</td></tr>
+              ) : subusuarios.length === 0 ? (
+                <tr><td colSpan="3" className="subcuentas-vacia">No hay subusuarios eliminados.</td></tr>
+              ) : subusuarios.map((subusuario) => (
+                <tr key={subusuario.id}>
+                  <td>{subusuario.nombreUsuario}</td>
+                  <td>{subusuario.correo}</td>
+                  <td className="subusuario-fecha">{formatearFecha(subusuario.fechaEliminacion, "No disponible")}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
   );
 }
 
@@ -125,9 +177,7 @@ function ModalSubusuario({ permisos, onCerrar, onGuardado }) {
   const alternarPermiso = (codigo) => {
     setFormulario((actual) => ({
       ...actual,
-      permisos: actual.permisos.includes(codigo)
-        ? actual.permisos.filter((permiso) => permiso !== codigo)
-        : [...actual.permisos, codigo],
+      permisos: alternarPermisoConDependencias(actual.permisos, codigo),
     }));
   };
 
@@ -343,7 +393,6 @@ function ModalAdministracionSubusuario({
   subusuario,
   onCerrar,
   onGuardado,
-  onEliminar,
 }) {
   const [seleccionados, setSeleccionados] = useState(
     () => [...subusuario.permisos],
@@ -352,11 +401,7 @@ function ModalAdministracionSubusuario({
   const [guardando, setGuardando] = useState(false);
 
   const alternarPermiso = (codigo) => {
-    setSeleccionados((actuales) =>
-      actuales.includes(codigo)
-        ? actuales.filter((permiso) => permiso !== codigo)
-        : [...actuales, codigo],
-    );
+    setSeleccionados((actuales) => alternarPermisoConDependencias(actuales, codigo));
   };
 
   const guardar = async (evento) => {
@@ -432,20 +477,6 @@ function ModalAdministracionSubusuario({
           </button>
         </div>
 
-        <section className="zona-eliminar-subusuario">
-          <div>
-            <strong>Eliminar subusuario</strong>
-            <p>Perderá el acceso, pero su historial se conservará.</p>
-          </div>
-          <button
-            type="button"
-            onClick={() => onEliminar(subusuario)}
-            disabled={guardando}
-          >
-            <IconoEliminar />
-            Eliminar subusuario
-          </button>
-        </section>
       </form>
     </div>
   );
@@ -453,6 +484,7 @@ function ModalAdministracionSubusuario({
 
 function TablaSubusuarios({ onSubusuariosCambiaron }) {
   const [subusuarios, setSubusuarios] = useState([]);
+  const [historialAbierto, setHistorialAbierto] = useState(false);
   const [permisos, setPermisos] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [cargaInicialCompletada, setCargaInicialCompletada] = useState(false);
@@ -498,6 +530,14 @@ function TablaSubusuarios({ onSubusuariosCambiaron }) {
       activo = false;
     };
   }, [filtrosDiferidos, pagina, versionConsulta]);
+
+  useEffect(() => {
+    const intervalo = globalThis.setInterval(
+      () => setVersionConsulta((version) => version + 1),
+      15000,
+    );
+    return () => globalThis.clearInterval(intervalo);
+  }, []);
 
   const actualizarFiltro = (evento) => {
     const { name, type, checked, value } = evento.target;
@@ -630,6 +670,16 @@ function TablaSubusuarios({ onSubusuariosCambiaron }) {
             <p>Administra los subusuarios y asigna los permisos disponibles.</p>
           </div>
         </div>
+        <div className="subcuentas-acciones-encabezado">
+        <button
+          className="boton-historial-subcuenta"
+          type="button"
+          onClick={() => setHistorialAbierto(true)}
+          aria-label="Ver historial de subusuarios eliminados"
+          title="Ver historial de subusuarios eliminados"
+        >
+          <img src={iconoHistorial} alt="" aria-hidden="true" />
+        </button>
         <button
           className="boton-anadir-subcuenta"
           type="button"
@@ -639,6 +689,7 @@ function TablaSubusuarios({ onSubusuariosCambiaron }) {
           <span>+</span>
           Añadir subusuario
         </button>
+        </div>
       </div>
 
       <div className="subusuarios-filtros-principales">
@@ -772,21 +823,16 @@ function TablaSubusuarios({ onSubusuariosCambiaron }) {
               <th>Correo electrónico</th>
               <th>Fecha de registro</th>
               <th>Última conexión</th>
-              <th>Estado</th>
-              {permisos.map((permiso) => (
-                <th key={permiso.codigo} title={permiso.descripcion || ""}>
-                  {permiso.nombre}
-                </th>
-              ))}
+              <th>Conexión</th>
               <th>Acciones</th>
             </tr>
           </thead>
           <tbody className={cargando && cargaInicialCompletada ? "actualizando" : ""}>
             {!cargaInicialCompletada ? (
-              <tr><td colSpan={6 + permisos.length} className="subcuentas-vacia">Cargando subusuarios...</td></tr>
+              <tr><td colSpan="6" className="subcuentas-vacia">Cargando subusuarios...</td></tr>
             ) : subusuarios.length === 0 ? (
               <tr>
-                <td colSpan={6 + permisos.length} className="subcuentas-vacia">
+                <td colSpan="6" className="subcuentas-vacia">
                   No hay subusuarios activos.
                 </td>
               </tr>
@@ -801,25 +847,31 @@ function TablaSubusuarios({ onSubusuariosCambiaron }) {
                   <td className="subusuario-fecha">
                     {formatearFecha(subusuario.ultimoAcceso, "Nunca")}
                   </td>
-                  <td><span className={`estado-subusuario ${subusuario.estado === "Activo" ? "activo" : "inactivo"}`}>{subusuario.estado}</span></td>
-                  {permisos.map((permiso) => (
-                    <td key={permiso.codigo}>
-                      <IndicadorPermiso
-                        activo={subusuario.permisos.includes(permiso.codigo)}
-                        nombre={permiso.nombre}
-                      />
-                    </td>
-                  ))}
+                  <td>
+                    <span className={`conexion-subusuario ${subusuario.conectado ? "conectado" : "desconectado"}`}>
+                      <i aria-hidden="true" />
+                      {subusuario.conectado ? "Conectado" : "Desconectado"}
+                    </span>
+                  </td>
                   <td>
                     <div className="subcuenta-acciones">
                       <button
-                        className="boton-accion boton-accion-editar"
+                        className="boton-accion boton-accion-administrar"
                         type="button"
                         onClick={() => setSubusuarioAdministracion(subusuario)}
                         aria-label={`Administrar al usuario ${subusuario.nombreUsuario}`}
-                        title="Administrar permisos y eliminar"
+                        title="Administrar permisos"
                       >
-                        ⋯
+                        <img src={iconoEditar} alt="" aria-hidden="true" />
+                      </button>
+                      <button
+                        className="boton-accion boton-accion-eliminar"
+                        type="button"
+                        onClick={() => solicitarEliminacion(subusuario)}
+                        aria-label={`Eliminar al usuario ${subusuario.nombreUsuario}`}
+                        title="Eliminar subusuario"
+                      >
+                        <img src={iconoBasurero} alt="" aria-hidden="true" />
                       </button>
                     </div>
                   </td>
@@ -869,7 +921,6 @@ function TablaSubusuarios({ onSubusuariosCambiaron }) {
           subusuario={subusuarioAdministracion}
           onCerrar={() => setSubusuarioAdministracion(null)}
           onGuardado={incorporarPermisos}
-          onEliminar={solicitarEliminacion}
         />
       )}
 
@@ -881,6 +932,7 @@ function TablaSubusuarios({ onSubusuariosCambiaron }) {
           onConfirmar={() => cambiarEstado(subusuarioConfirmacion)}
         />
       )}
+      {historialAbierto && <ModalHistorialSubusuarios onCerrar={() => setHistorialAbierto(false)} />}
     </section>
   );
 }

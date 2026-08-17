@@ -104,11 +104,9 @@ export default function TablaListaObservacion({
                 return (
                   <tr key={registro.idLista}>
                     <td className="tabla-observacion-persona">
-                      <NombrePersonaEditable
-                        idPersona={idPersona}
-                        nombre={registro.nombrePersona}
-                        onConfirmar={onRenombrar}
-                      />
+                      {onRenombrar ? (
+                        <NombrePersonaEditable idPersona={idPersona} nombre={registro.nombrePersona} onConfirmar={onRenombrar} />
+                      ) : <strong>{registro.nombrePersona}</strong>}
                     </td>
                     <td>
                       <span className="tabla-observacion-motivo">
@@ -127,7 +125,7 @@ export default function TablaListaObservacion({
                     </td>
                     <td>
                       <div className="tabla-observacion-acciones">
-                        <button
+                        {onQuitar && <button
                           className="tabla-ingresos-accion historial"
                           type="button"
                           onClick={() => onVerHistorial?.(registro)}
@@ -135,7 +133,7 @@ export default function TablaListaObservacion({
                           title="Ver historial de ingresos"
                         >
                           <img src={iconoHistorial} alt="" aria-hidden="true" />
-                        </button>
+                        </button>}
                         <button
                           className="tabla-observacion-quitar"
                           type="button"

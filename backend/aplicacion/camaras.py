@@ -22,7 +22,7 @@ class ServicioCamaras:
         )
 
     def listar(self, token: str) -> dict:
-        usuario = self._usuario(token)
+        usuario = self.autenticacion.exigir_permiso(token, "ver_camaras")
         datos = self.repositorio.listar(
             usuario["idCuenta"],
             usuario["id"],
@@ -66,7 +66,7 @@ class ServicioCamaras:
         id_camara: int,
         fuente: int | str | None,
     ) -> int:
-        usuario = self._usuario(token)
+        usuario = self.autenticacion.exigir_permiso(token, "controlar_camaras")
         camaras = self.repositorio.listar(
             usuario["idCuenta"],
             usuario["id"],

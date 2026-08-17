@@ -9,10 +9,15 @@ import {
   renombrarPersona,
 } from "../../servicios/api";
 import TablaListaObservacion from "./componentes/TablaListaObservacion";
+import { useAutenticacion } from "../../contextos/AutenticacionContext";
 
 const LIMITE_PAGINA = 25;
 
 export default function ListaObservacion() {
+  const { usuario } = useAutenticacion();
+  const esAdministrador = usuario?.rol === "Administrador";
+  const puedeGestionar = esAdministrador || usuario?.permisos?.includes("gestionar_observacion");
+  const puedeRenombrar = esAdministrador || usuario?.permisos?.includes("gestionar_identidades");
   const [registros, setRegistros] = useState([]);
   const [pagina, setPagina] = useState(1);
   const [total, setTotal] = useState(0);
@@ -129,9 +134,9 @@ export default function ListaObservacion() {
           limite={LIMITE_PAGINA}
           cargando={cargando}
           error={error}
-          onQuitar={setPersonaQuitar}
+          onQuitar={puedeGestionar ? setPersonaQuitar : null}
           onCambiarPagina={cambiarPagina}
-          onRenombrar={confirmarRenombrado}
+          onRenombrar={puedeRenombrar ? confirmarRenombrado : null}
           onVerHistorial={abrirHistorial}
           personaQuitando={personaQuitando}
           historial={historial}

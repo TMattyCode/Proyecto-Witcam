@@ -231,6 +231,7 @@ class RepositorioUsuarios:
                     u.correo,
                     u.telefono,
                     u.fecha_creacion,
+                    u.fecha_eliminacion,
                     u.ultimo_acceso,
                     eu.nombre_estado
                 FROM Usuario u
@@ -283,6 +284,11 @@ class RepositorioUsuarios:
                     "ultimoAcceso": (
                         fila.ultimo_acceso.isoformat(timespec="seconds")
                         if fila.ultimo_acceso
+                        else None
+                    ),
+                    "fechaEliminacion": (
+                        fila.fecha_eliminacion.isoformat(timespec="seconds")
+                        if fila.fecha_eliminacion
                         else None
                     ),
                     "permisos": permisos_por_usuario[fila.id_usuario],
@@ -395,7 +401,11 @@ class RepositorioUsuarios:
             cursor.execute(
                 """
                 UPDATE u
-                SET u.id_estado_usuario = eu.id_estado_usuario
+                SET u.id_estado_usuario = eu.id_estado_usuario,
+                    u.fecha_eliminacion = CASE
+                        WHEN eu.nombre_estado = 'Inactivo' THEN GETDATE()
+                        ELSE NULL
+                    END
                 FROM Usuario u
                 INNER JOIN Rol r ON r.id_rol = u.id_rol
                 CROSS JOIN EstadoUsuario eu
@@ -514,3 +524,17 @@ class RepositorioUsuarios:
                 id_usuario,
             ).fetchval()
         return bool(valor)
+
+    def obtener_permisos_usuario(self, id_usuario: int) -> list[str]:
+        with self.conexiones.conectar() as conexion:
+            filas = conexion.cursor().execute(
+                """
+                SELECT p.codigo_permiso
+                FROM Usuario_Permiso up
+                INNER JOIN Permiso p ON p.id_permiso = up.id_permiso
+                WHERE up.id_usuario = ? AND up.permitido = 1
+                ORDER BY p.id_permiso
+                """,
+                id_usuario,
+            ).fetchall()
+        return [fila.codigo_permiso for fila in filas]

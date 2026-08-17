@@ -26,6 +26,20 @@ function RutaProtegida() {
   return usuario ? <Outlet /> : <Navigate to="/inicio-sesion" replace />;
 }
 
+function RutaConPermiso({ permiso, soloAdministrador = false, children }) {
+  const { usuario } = useAutenticacion();
+  const autorizado = usuario?.rol === "Administrador" || (
+    !soloAdministrador && usuario?.permisos?.includes(permiso)
+  );
+  if (autorizado) return children;
+  const destinos = [
+    ["ver_resumen", "/resumen"], ["ver_camaras", "/camaras"],
+    ["ver_ingresos", "/ingresos"], ["ver_observacion", "/observacion"],
+  ];
+  const destino = destinos.find(([codigo]) => usuario?.permisos?.includes(codigo))?.[1];
+  return <Navigate to={destino || "/inicio-sesion"} replace />;
+}
+
 function RutaPublica({ children }) {
   const { usuario, cargando } = useAutenticacion();
   if (cargando) {
@@ -55,11 +69,11 @@ function App() {
       />
 
       <Route element={<RutaProtegida />}>
-        <Route path="/resumen" element={<ResumenSistema />} />
-        <Route path="/camaras" element={<InterfazCamaras />} />
-        <Route path="/ingresos" element={<IngresosIdentificados />} />
-        <Route path="/observacion" element={<ListaObservacion />} />
-        <Route path="/configuracion" element={<Configuracion />} />
+        <Route path="/resumen" element={<RutaConPermiso permiso="ver_resumen"><ResumenSistema /></RutaConPermiso>} />
+        <Route path="/camaras" element={<RutaConPermiso permiso="ver_camaras"><InterfazCamaras /></RutaConPermiso>} />
+        <Route path="/ingresos" element={<RutaConPermiso permiso="ver_ingresos"><IngresosIdentificados /></RutaConPermiso>} />
+        <Route path="/observacion" element={<RutaConPermiso permiso="ver_observacion"><ListaObservacion /></RutaConPermiso>} />
+        <Route path="/configuracion" element={<RutaConPermiso soloAdministrador><Configuracion /></RutaConPermiso>} />
       </Route>
 
       <Route path="/" element={<Navigate to="/inicio-sesion" replace />} />

@@ -24,6 +24,7 @@ export default function TarjetaCamara({
   onEditar,
   onEliminar,
   gestionHabilitada = true,
+  controlHabilitado = true,
 }) {
   const simulada = camara.tipo === "simulada";
   const onvif = camara.tipo === "onvif";
@@ -92,7 +93,7 @@ export default function TarjetaCamara({
       {error && <p className="tarjeta-camara-error">{error}</p>}
 
       <footer className="tarjeta-camara-acciones">
-        {!simulada && !fuenteRed && (
+        {controlHabilitado && !simulada && !fuenteRed && (
           estado.running ? (
             <button className="boton-camara detener" type="button" disabled={operando} onClick={onDetener}>
               Detener transmisión
