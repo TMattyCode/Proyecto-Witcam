@@ -14,6 +14,7 @@ El repositorio tambien contiene la interfaz definitiva desarrollada con React y 
 - Los grupos y camaras se persisten por cuenta en SQL Server. La interfaz permite crear, editar, filtrar y desactivar camaras `webcam`, `RTSP`, `ONVIF` y simuladas, con un maximo visual actual de nueve camaras.
 - La webcam local puede iniciarse y detenerse desde React con el pipeline de IA habilitado. Las fuentes RTSP y ONVIF ya se registran de forma segura, pero su conexion al motor de video por `id_camara` sigue pendiente; las camaras simuladas muestran una imagen estatica para probar la cuadricula.
 - La vista de ingresos identificados consulta SQL Server, admite filtros acumulables y pagina 25 personas por vez. El pipeline de IA registra automaticamente las identidades estables y React actualiza la tabla en segundo plano sin recargar la pagina ni borrar los filtros. Una persona que no este en observacion puede eliminarse manualmente junto con sus imagenes; sus detecciones se conservan anonimizadas.
+- La lista de observacion esta conectada al backend y SQL Server. Muestra 25 personas por pagina, el motivo, fecha, usuario que la registro y su mejor rostro. Permite renombrar la identidad, consultar el historial de detecciones y devolverla a ingresos identificados sin borrar sus muestras ni su historial.
 - En desarrollo local, SQL Server se conecta mediante memoria compartida (`lpc:localhost`) y autenticacion de Windows, sin exponer un puerto TCP.
 - Actualmente el motor de IA procesa una sola fuente global configurable en `backend/config.py`. Las detecciones de la webcam quedan vinculadas a su camara, cuenta y grupo; el siguiente paso de integracion es crear un motor por camara activa y habilitar el mismo flujo para RTSP y ONVIF.
 
@@ -82,7 +83,9 @@ referencias_reconocimiento/   Rostros aprobados (se crea automaticamente)
 referencias_pendientes/       Capturas por revisar (se crea automaticamente)
 ```
 
-Dentro de `frontend/src/` se encuentran las paginas de inicio de sesion, registro, resumen del sistema, camaras, ingresos identificados, lista de observacion y configuracion. React Router administra las rutas internas con `HashRouter`, adecuado para la futura ventana de escritorio. La lista de observacion y parte del resumen del sistema conservan contenido de interfaz pendiente de conectar al backend.
+Las carpetas `referencias_reconocimiento/` y `referencias_pendientes/` de la raiz corresponden solamente a la interfaz anterior de respaldo. El backend modular usa las galerias por cuenta ubicadas fuera del repositorio, descritas en la siguiente seccion.
+
+Dentro de `frontend/src/` se encuentran las paginas de inicio de sesion, registro, resumen del sistema, camaras, ingresos identificados, lista de observacion y configuracion. React Router administra las rutas internas con `HashRouter`, adecuado para la futura ventana de escritorio. Las vistas de ingresos y observacion ya consumen el backend; algunos datos generales del resumen todavia pueden mantenerse como contenido provisional.
 
 ## Carpetas de reconocimiento
 
@@ -247,9 +250,12 @@ La interfaz de `frontend/` incluye actualmente:
 - Registro de fuentes `webcam`, `RTSP`, `ONVIF` y simuladas, filtros por camara y grupo, seleccion de cuadricula y vista en pantalla completa.
 - Visualizacion en vivo de una webcam local mediante el MJPEG procesado por YOLO, SCRFD, InsightFace y ByteTrack. RTSP y ONVIF muestran por ahora el estado de fuente registrada hasta completar su conexion al motor.
 - Consulta paginada de ingresos identificados, con filtros por texto, fecha, hora y camara. Se puede enviar una persona a observacion o eliminarla mediante una confirmacion irreversible.
+- Consulta paginada de la lista de observacion, con 25 personas por pagina, mejor muestra facial, motivo, fecha y usuario responsable del registro.
+- Edicion del nombre de una persona sincronizada entre React, SQL Server y su galeria local, junto con historial de detecciones y ampliacion segura de los rostros capturados.
+- Retorno de una persona desde observacion a ingresos identificados. La operacion desactiva su entrada de observacion y mueve su galeria a pendientes, pero conserva la identidad, las muestras y las detecciones.
 - Diseno adaptable y navegacion con `HashRouter`, pensado para empaquetarse posteriormente como aplicacion de escritorio.
 
-La lista de observacion y varios datos del resumen general todavia conservan elementos pendientes de integracion. El backend rechaza la eliminacion de una persona mientras permanezca activa en observacion.
+Varios datos del resumen general todavia conservan elementos pendientes de integracion. El backend rechaza la eliminacion de una persona mientras permanezca activa en observacion; primero debe volver a ingresos identificados.
 
 ## Interfaz anterior de respaldo
 
@@ -294,7 +300,8 @@ La v2 conserva las rutas originales de la version estable y agrega los contratos
 - Autenticacion: `GET /api/auth/session` y `POST /api/auth/register`, `/api/auth/login`, `/api/auth/logout`.
 - Cuenta y subusuarios: `GET /api/cuenta/resumen`, `GET/POST /api/subusuarios`, `POST /api/subusuarios/editar` para administrar exclusivamente permisos y `POST /api/subusuarios/estado` para la eliminacion logica.
 - Camaras y grupos: `GET /api/camaras`, `POST /api/camaras/crear`, `/api/camaras/editar`, `/api/camaras/eliminar` y `/api/grupos-camara/guardar`.
-- Ingresos: `GET /api/ingresos`, `GET /api/ingresos/camaras`, `GET /api/ingresos/historial`, `POST /api/ingresos/lista-observacion` y `POST /api/ingresos/eliminar-persona`.
+- Ingresos: `GET /api/ingresos`, `GET /api/ingresos/camaras`, `GET /api/ingresos/historial`, `GET /api/ingresos/rostro`, `GET /api/ingresos/deteccion-rostro`, `POST /api/ingresos/lista-observacion`, `POST /api/ingresos/renombrar-persona` y `POST /api/ingresos/eliminar-persona`.
+- Lista de observacion: `GET /api/lista-observacion`, con `pagina` y `limite`, y `POST /api/ingresos/quitar-lista-observacion` para devolver una persona a ingresos identificados.
 - Motor y galerias: `POST /api/start`, `/api/stop`, `/api/approve`, `/api/unapprove`, `/api/rename` y `/api/reject`.
 
 `POST /api/start` acepta `source`, el booleano `analysis` y `cameraId`; React envia `analysis: true` y el ID de la webcam para cargar exclusivamente la galeria de la cuenta propietaria. Las rutas de cuenta, subusuarios, camaras, ingresos, galerias y sus imagenes validan la sesion. El backend comprueba pertenencia a la cuenta para impedir consultar o modificar recursos de otro administrador. Las operaciones de galerias mantienen los campos `file`, `newName` y `type`, junto con las respuestas `ok/error`.
@@ -316,7 +323,7 @@ cd frontend
 npm test
 ```
 
-Actualmente existen 75 pruebas automaticas de Python y 10 pruebas de Node. Tambien se completo una reproduccion real de diez minutos, 1920x1080 a 30 FPS, con InsightFace/SCRFD, YOLO y ByteTrack usando galerias temporales. El pipeline llego al final del video sin cortes y la firma de galerias permanecio valida. Webcam, escritura real en SQL Server y RTSP quedan como pruebas manuales dependientes de tener esas fuentes disponibles.
+Actualmente existen 87 pruebas automaticas de Python y 10 pruebas de Node. Tambien se completo una reproduccion real de diez minutos, 1920x1080 a 30 FPS, con InsightFace/SCRFD, YOLO y ByteTrack usando galerias temporales. El pipeline llego al final del video sin cortes y la firma de galerias permanecio valida. La webcam y la escritura en SQL Server ya forman parte del flujo integrado probado durante el desarrollo; RTSP y ONVIF siguen requiriendo pruebas manuales con fuentes disponibles.
 
 ## Oclusion
 
@@ -430,14 +437,15 @@ Las galerias pendientes admiten hasta `ConfiguracionGalerias.max_muestras_por_pe
 
 ## Privacidad
 
-Las carpetas con imagenes personales estan ignoradas por git en `.gitignore`:
+El backend modular no guarda las imagenes personales dentro del repositorio. En Windows se almacenan por cuenta en:
 
 ```text
-referencias_reconocimiento/
-referencias_pendientes/
+C:\ProgramData\Witcam\data\cuentas\cuenta_<id_cuenta>\
 ```
 
-Esto evita subir fotos privadas al repositorio por accidente.
+Esta separacion impide que las galerias y capturas se incluyan accidentalmente al hacer `git add` o `git push`, y evita mezclar los datos de distintos administradores. Las galerias faciales se ubican en `galerias/` y las capturas historicas en `detecciones/`.
+
+Durante esta etapa, los archivos siguen siendo locales y un usuario con permisos suficientes sobre el computador podria acceder a ellos. El endurecimiento de permisos del directorio, cifrado y politicas definitivas de retencion debe completarse antes de distribuir la aplicacion a clientes.
 
 ## Notas
 
