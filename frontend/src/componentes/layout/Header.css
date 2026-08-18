@@ -46,6 +46,25 @@
   align-items: center;
 }
 
+.header-notifications { position: relative; display: flex; align-items: center; }
+.header-notifications-button { position: relative; display: grid; place-items: center; width: 42px; height: 42px; padding: 0; border: 0; border-radius: 50%; background: transparent; cursor: pointer; }
+.header-notifications-button:hover,
+.header-notifications-button:focus-visible { background: #eef4ff; outline: none; }
+.header-notifications-button img { width: 30px; height: 30px; object-fit: contain; }
+.header-notifications-count { position: absolute; top: 0; right: -3px; min-width: 17px; height: 17px; padding: 0 4px; border: 2px solid white; border-radius: 10px; background: #ef3340; color: white; font-size: 10px; font-weight: 700; line-height: 17px; text-align: center; box-sizing: content-box; }
+.header-alerts-panel { position: absolute; z-index: 1000; top: calc(100% + 14px); right: -54px; width: min(390px, calc(100vw - 24px)); overflow: hidden; border: 1px solid #e1e6ef; border-radius: 14px; background: white; box-shadow: 0 14px 38px rgba(7, 21, 52, 0.18); }
+.header-alerts-title { display: flex; align-items: center; justify-content: space-between; padding: 17px 19px; border-bottom: 1px solid #e8ebf1; color: #071534; }
+.header-alerts-title span { color: #014dfd; font-size: 13px; }
+.header-alerts-list { max-height: 430px; overflow-y: auto; }
+.header-alerts-message { margin: 0; padding: 28px 20px; color: #667085; text-align: center; }
+.header-alert-item { display: flex; gap: 12px; padding: 15px 18px; border-bottom: 1px solid #eef0f4; }
+.header-alert-item:last-child { border-bottom: 0; }
+.header-alert-item > div { min-width: 0; }
+.header-alert-item strong { color: #071534; font-size: 14px; }
+.header-alert-item p { margin: 3px 0; color: #344054; font-size: 13px; }
+.header-alert-item small { color: #667085; font-size: 12px; }
+.header-alert-dot { flex: 0 0 auto; width: 9px; height: 9px; margin-top: 5px; border-radius: 50%; background: #014dfd; }
+
 .header-date img{
   width: 30px;
   height: 30px;
@@ -126,6 +145,9 @@
   height: 28px;
 }
 
+.header-compacto .header-notifications-button { width: 36px; height: 36px; }
+.header-compacto .header-notifications-button img { width: 25px; height: 25px; }
+
 @media (max-width: 900px) {
   .header.header-compacto {
     height: 58px;
@@ -152,4 +174,6 @@
   .header-compacto .header-separator {
     display: none;
   }
+
+  .header-alerts-panel { position: fixed; top: 64px; right: 12px; }
 }

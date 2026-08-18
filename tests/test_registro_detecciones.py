@@ -22,9 +22,17 @@ from backend.video.motor import MotorReconocimiento
 
 
 class ConexionRegistroFalsa:
-    def __init__(self, persona_existente=False, deteccion_reciente=False):
+    def __init__(
+        self,
+        persona_existente=False,
+        deteccion_reciente=False,
+        persona_en_observacion=False,
+        alerta_reciente=False,
+    ):
         self.persona_existente = persona_existente
         self.deteccion_reciente = deteccion_reciente
+        self.persona_en_observacion = persona_en_observacion
+        self.alerta_reciente = alerta_reciente
         self.consulta = ""
         self.parametros = ()
         self.consultas = []
@@ -40,6 +48,17 @@ class ConexionRegistroFalsa:
         return self
 
     def fetchone(self):
+        if "FROM Alerta a" in self.consulta:
+            return SimpleNamespace(id_alerta=20) if self.alerta_reciente else None
+        if "FROM ListaObservacion" in self.consulta:
+            return (
+                SimpleNamespace(
+                    id_lista_observacion=8,
+                    fecha_ingreso_lista=datetime(2026, 8, 14, 11, 59, 0),
+                )
+                if self.persona_en_observacion
+                else None
+            )
         if "FROM Camara c" in self.consulta:
             return SimpleNamespace(id_cuenta=7, id_grupo_camara=3)
         if "FROM Persona WITH" in self.consulta:
@@ -156,6 +175,55 @@ class PruebasRegistroDetecciones(unittest.TestCase):
         self.assertIn("c.id_grupo_camara = ?", consultas)
         self.assertNotIn("INSERT INTO Deteccion", consultas)
         self.assertFalse(resultado.insertada)
+
+    def test_alerta_respeta_cooldown_global_de_persona(self):
+        conexion = ConexionRegistroFalsa(
+            persona_existente=True,
+            persona_en_observacion=True,
+            alerta_reciente=True,
+        )
+        repositorio = RepositorioRegistroDetecciones(
+            FabricaRegistroFalsa(conexion)
+        )
+
+        repositorio.registrar(self.evento, {"7": 12}, None, 1800)
+
+        consultas = "\n".join(consulta for consulta, _ in conexion.consultas)
+        self.assertIn("FROM Alerta a", consultas)
+        self.assertNotIn("INSERT INTO Alerta", consultas)
+
+    def test_crea_alerta_si_termino_el_cooldown(self):
+        conexion = ConexionRegistroFalsa(
+            persona_existente=True,
+            persona_en_observacion=True,
+        )
+        repositorio = RepositorioRegistroDetecciones(
+            FabricaRegistroFalsa(conexion)
+        )
+
+        repositorio.registrar(self.evento, {"7": 12}, None, 1800)
+
+        consultas = "\n".join(consulta for consulta, _ in conexion.consultas)
+        self.assertIn("INSERT INTO Alerta", consultas)
+
+    def test_nueva_observacion_ignora_cooldown_del_ingreso(self):
+        conexion = ConexionRegistroFalsa(
+            persona_existente=True,
+            deteccion_reciente=True,
+            persona_en_observacion=True,
+        )
+        repositorio = RepositorioRegistroDetecciones(
+            FabricaRegistroFalsa(conexion)
+        )
+
+        resultado = repositorio.registrar(
+            self.evento, {"7": 12}, None, 1800
+        )
+
+        consultas = "\n".join(consulta for consulta, _ in conexion.consultas)
+        self.assertIn("INSERT INTO Deteccion", consultas)
+        self.assertIn("INSERT INTO Alerta", consultas)
+        self.assertTrue(resultado.insertada)
 
     def test_motor_notifica_una_vez_por_identidad_estable(self):
         eventos = []

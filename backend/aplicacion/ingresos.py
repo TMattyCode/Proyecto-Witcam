@@ -54,6 +54,34 @@ class ServicioIngresos:
             "camaras": self.repositorio.listar_camaras(id_cuenta),
         }
 
+    def listar_alertas(self, token: str, limite=50) -> dict:
+        limite_validado = self._validar_entero(
+            limite, "limite", minimo=1, maximo=100
+        )
+        usuario = self.autenticacion.exigir_algun_permiso(
+            token, {"ver_resumen", "ver_ingresos", "ver_observacion"}
+        )
+        return {
+            "ok": True,
+            "alertas": self.repositorio.listar_alertas(
+                usuario["idCuenta"], limite_validado
+            ),
+        }
+
+    def listar_ultimos(self, token: str, limite=5) -> dict:
+        limite_validado = self._validar_entero(
+            limite, "limite", minimo=1, maximo=20
+        )
+        usuario = self.autenticacion.exigir_algun_permiso(
+            token, {"ver_resumen", "ver_ingresos"}
+        )
+        return {
+            "ok": True,
+            "ingresos": self.repositorio.listar_ultimos_ingresos(
+                usuario["idCuenta"], limite_validado
+            ),
+        }
+
     def listar_historial(self, token: str, id_persona) -> dict:
         identificador = self._validar_entero(
             id_persona,

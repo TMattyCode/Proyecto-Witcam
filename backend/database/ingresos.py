@@ -164,6 +164,65 @@ class RepositorioIngresos:
             "detecciones": [self._serializar(fila) for fila in filas],
         }
 
+    def listar_alertas(self, id_cuenta: int, limite: int = 50) -> list[dict]:
+        with self.conexiones.conectar() as conexion:
+            filas = conexion.cursor().execute(
+                """
+                SELECT TOP (?)
+                    a.id_alerta, d.id_deteccion, p.id_persona,
+                    p.nombre_persona, c.nombre_camara, a.fecha_hora,
+                    d.similitud, d.ruta_imagen_detectada, a.atendida,
+                    lo.motivo
+                FROM Alerta a
+                INNER JOIN Deteccion d ON d.id_deteccion = a.id_deteccion
+                INNER JOIN ListaObservacion lo
+                    ON lo.id_lista_observacion = a.id_lista_observacion
+                INNER JOIN Persona p ON p.id_persona = d.id_persona
+                INNER JOIN Camara c ON c.id_camara = d.id_camara
+                INNER JOIN GrupoCamara gc
+                    ON gc.id_grupo_camara = c.id_grupo_camara
+                WHERE p.id_cuenta = ? AND gc.id_cuenta = ?
+                ORDER BY a.fecha_hora DESC, a.id_alerta DESC
+                """,
+                limite, id_cuenta, id_cuenta,
+            ).fetchall()
+        return [{
+            "idAlerta": fila.id_alerta,
+            "idDeteccion": fila.id_deteccion,
+            "idPersona": fila.id_persona,
+            "nombrePersona": fila.nombre_persona,
+            "nombreCamara": fila.nombre_camara,
+            "motivo": fila.motivo,
+            "fechaHora": fila.fecha_hora.isoformat(timespec="seconds"),
+            "tieneRostro": bool(fila.ruta_imagen_detectada),
+            "similitud": float(fila.similitud) if fila.similitud is not None else None,
+            "atendida": bool(fila.atendida),
+        } for fila in filas]
+
+    def listar_ultimos_ingresos(
+        self, id_cuenta: int, limite: int = 5
+    ) -> list[dict]:
+        with self.conexiones.conectar() as conexion:
+            filas = conexion.cursor().execute(
+                """
+                SELECT TOP (?)
+                    d.id_deteccion, d.id_persona, p.nombre_persona,
+                    d.id_camara, c.nombre_camara, d.fecha_hora,
+                    d.ruta_imagen_detectada, d.resultado, d.similitud
+                FROM Deteccion d
+                INNER JOIN Persona p ON p.id_persona = d.id_persona
+                INNER JOIN Camara c ON c.id_camara = d.id_camara
+                INNER JOIN GrupoCamara gc
+                    ON gc.id_grupo_camara = c.id_grupo_camara
+                WHERE p.id_cuenta = ?
+                  AND gc.id_cuenta = ?
+                  AND d.id_persona IS NOT NULL
+                ORDER BY d.fecha_hora DESC, d.id_deteccion DESC
+                """,
+                limite, id_cuenta, id_cuenta,
+            ).fetchall()
+        return [self._serializar(fila) for fila in filas]
+
     def obtener_ruta_imagen_deteccion(
         self,
         id_cuenta: int,

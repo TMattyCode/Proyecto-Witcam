@@ -97,13 +97,44 @@ class RepositorioRegistroDetecciones:
                 camara.id_grupo_camara,
                 limite,
             ).fetchone()
-            if reciente is None:
-                cursor.execute(
+
+            lista = cursor.execute(
+                """
+                SELECT id_lista_observacion, fecha_ingreso_lista
+                FROM ListaObservacion
+                WHERE id_persona = ? AND activa = 1
+                """,
+                id_persona,
+            ).fetchone()
+            alerta_reciente = None
+            if lista is not None:
+                alerta_reciente = cursor.execute(
+                    """
+                    SELECT TOP 1 a.id_alerta
+                    FROM Alerta a WITH (UPDLOCK, HOLDLOCK)
+                    INNER JOIN Deteccion anterior
+                        ON anterior.id_deteccion = a.id_deteccion
+                    WHERE anterior.id_persona = ?
+                      AND a.fecha_hora >= ?
+                      AND a.fecha_hora >= ?
+                    ORDER BY a.fecha_hora DESC, a.id_alerta DESC
+                    """,
+                    id_persona,
+                    limite,
+                    lista.fecha_ingreso_lista,
+                ).fetchone()
+
+            debe_alertar = lista is not None and alerta_reciente is None
+            debe_insertar = reciente is None or debe_alertar
+            if debe_insertar:
+                id_deteccion = cursor.execute(
                     """
                     INSERT INTO Deteccion (
                         id_camara, id_persona, fecha_hora,
                         ruta_imagen_detectada, resultado, similitud
-                    ) VALUES (?, ?, ?, ?, ?, ?)
+                    )
+                    OUTPUT INSERTED.id_deteccion
+                    VALUES (?, ?, ?, ?, ?, ?)
                     """,
                     evento.id_camara,
                     id_persona,
@@ -111,10 +142,22 @@ class RepositorioRegistroDetecciones:
                     ruta_imagen,
                     "Identificado",
                     max(0.0, min(1.0, evento.similitud)),
-                )
+                ).fetchval()
+                if debe_alertar:
+                    cursor.execute(
+                        """
+                        INSERT INTO Alerta (
+                            id_deteccion, id_lista_observacion,
+                            fecha_hora, atendida
+                        ) VALUES (?, ?, ?, 0)
+                        """,
+                        id_deteccion,
+                        lista.id_lista_observacion,
+                        evento.fecha_hora,
+                    )
             conexion.commit()
             return ResultadoRegistroDeteccion(
                 id_cuenta=id_cuenta,
                 id_persona=id_persona,
-                insertada=reciente is None,
+                insertada=debe_insertar,
             )

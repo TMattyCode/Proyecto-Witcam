@@ -107,6 +107,14 @@ export function obtenerCamarasIngresos() {
   return solicitar("/api/ingresos/camaras");
 }
 
+export function obtenerAlertas(limite = 50) {
+  return solicitar(`/api/alertas?limite=${encodeURIComponent(limite)}`);
+}
+
+export function obtenerUltimosIngresos(limite = 5) {
+  return solicitar(`/api/ingresos/ultimos?limite=${encodeURIComponent(limite)}`);
+}
+
 export function obtenerHistorialIngresos(idPersona) {
   const parametros = new URLSearchParams({ idPersona: String(idPersona) });
   return solicitar(`/api/ingresos/historial?${parametros.toString()}`);

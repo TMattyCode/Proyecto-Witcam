@@ -214,6 +214,30 @@ def crear_handler(
                         estado=503,
                     )
                 return
+            if ruta == "/api/alertas":
+                self._exigir_autenticacion()
+                if ingresos is None:
+                    raise ErrorAutenticacion(
+                        "El servicio de ingresos no esta disponible"
+                    )
+                parametros = parse_qs(url.query, keep_blank_values=True)
+                self._json(ingresos.listar_alertas(
+                    self._token_sesion(),
+                    parametros.get("limite", [50])[0],
+                ))
+                return
+            if ruta == "/api/ingresos/ultimos":
+                self._exigir_autenticacion()
+                if ingresos is None:
+                    raise ErrorAutenticacion(
+                        "El servicio de ingresos no esta disponible"
+                    )
+                parametros = parse_qs(url.query, keep_blank_values=True)
+                self._json(ingresos.listar_ultimos(
+                    self._token_sesion(),
+                    parametros.get("limite", [5])[0],
+                ))
+                return
             if ruta == "/api/ingresos/historial":
                 try:
                     self._exigir_autenticacion()

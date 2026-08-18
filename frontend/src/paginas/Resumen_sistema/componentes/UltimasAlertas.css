@@ -11,7 +11,7 @@
 }
 
 .tabla-alertas th {
-  padding: 8px 1px;
+  padding: 8px 16px;
   text-align: left;
   font-size: 13px;
   font-weight: 600;
@@ -20,34 +20,15 @@
 }
 
 .tabla-alertas td {
-  padding: 60px 10px;
+  padding: 9px 16px;
   font-size: 14px;
   color: #1d2433;
   border-top: 1px solid #edf0f5;
+  vertical-align: middle;
 }
 
-.tabla-alertas th:nth-child(1),
-.tabla-alertas td:nth-child(1){
-    padding-left: 10px;
-}
-
-/* Hora */
-.tabla-alertas th:nth-child(3),
-.tabla-alertas td:nth-child(3){
-    text-align: center;
-}
-
-/* Coincidencia */
-.tabla-alertas th:nth-child(4),
-.tabla-alertas td:nth-child(4){
-    text-align: center;
-}
-
-/* Cámara */
-.tabla-alertas th:nth-child(5),
-.tabla-alertas td:nth-child(5){
-    text-align: center;
-}
-
-
+.ultima-alerta-persona { font-weight: 600; color: #071534; }
+.ultima-alerta-motivo { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ultima-alerta-rostro { display: block; width: 48px; height: 48px; border-radius: 9px; object-fit: cover; background: #eef1f5; }
+.ultima-alerta-sin-rostro { color: #8a94a6; font-size: 13px; }
 

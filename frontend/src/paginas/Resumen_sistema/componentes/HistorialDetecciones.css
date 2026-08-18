@@ -66,11 +66,16 @@
 }
 
 .tabla-detecciones td {
-  padding:60px 12px;
+  padding: 9px 16px;
   font-size: 15px;
   color: #1d2433;
   border-top: 1px solid #edf0f5;
+  vertical-align: middle;
 }
+
+.ultimo-ingreso-persona { font-weight: 600; color: #071534; }
+.ultimo-ingreso-rostro { display: block; width: 48px; height: 48px; border-radius: 9px; object-fit: cover; background: #eef1f5; }
+.ultimo-ingreso-sin-rostro { color: #8a94a6; font-size: 13px; }
 
 .tabla-vacia {
   text-align: center;
