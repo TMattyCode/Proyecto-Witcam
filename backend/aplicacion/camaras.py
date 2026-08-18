@@ -22,8 +22,17 @@ class ServicioCamaras:
         )
 
     def listar(self, token: str) -> dict:
+<<<<<<< HEAD
         usuario = self.autenticacion.exigir_permiso(token, "ver")
         datos = self._listar_disponibles(usuario)
+=======
+        usuario = self.autenticacion.exigir_permiso(token, "ver_camaras")
+        datos = self.repositorio.listar(
+            usuario["idCuenta"],
+            usuario["id"],
+            usuario.get("rol") == "Administrador",
+        )
+>>>>>>> 10d0c3dcda1141aa5c15e11ed78790cc56564e68
         return {"ok": True, **datos}
 
     def guardar_grupos(self, token: str, datos: dict) -> dict:
@@ -67,8 +76,17 @@ class ServicioCamaras:
         id_camara: int,
         fuente: int | str | None,
     ) -> int:
+<<<<<<< HEAD
         usuario = self.autenticacion.exigir_permiso(token, "ver")
         camaras = self._listar_disponibles(usuario)["camaras"]
+=======
+        usuario = self.autenticacion.exigir_permiso(token, "controlar_camaras")
+        camaras = self.repositorio.listar(
+            usuario["idCuenta"],
+            usuario["id"],
+            usuario.get("rol") == "Administrador",
+        )["camaras"]
+>>>>>>> 10d0c3dcda1141aa5c15e11ed78790cc56564e68
         camara = next(
             (
                 actual

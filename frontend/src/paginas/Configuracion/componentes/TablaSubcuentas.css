@@ -62,6 +62,31 @@
   gap: 8px;
 }
 
+.subcuentas-acciones-encabezado {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.boton-historial-subcuenta {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: 7px;
+  background: #075cff;
+  cursor: pointer;
+}
+
+.boton-historial-subcuenta:hover { background: #0049d8; }
+.boton-historial-subcuenta img { width: 26px; height: 26px; object-fit: contain; }
+
+.historial-subusuarios-modal { width: min(100%, 820px); }
+.historial-subusuarios-tabla { max-height: 430px; margin-top: 0; border: 1px solid #c7d3e5; }
+.historial-subusuarios-tabla .subcuentas-tabla { min-width: 620px; }
+
 .subcuentas-tabla-contenedor {
   width: 100%;
   min-height: 0;
@@ -267,12 +292,26 @@
   justify-content: center;
 }
 
-.boton-accion-editar {
-  border: 1.5px solid #014dfd;
-  color: #014dfd;
-  font-size: 20px;
-  font-weight: 800;
-  line-height: 1;
+.boton-accion-administrar,
+.boton-accion-eliminar {
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 5px;
+  transition: background 0.2s ease;
+}
+
+.boton-accion-administrar { background: #075cff; }
+.boton-accion-administrar:hover:not(:disabled) { background: #0049d8; }
+.boton-accion-eliminar { background: #fe0c0c; }
+.boton-accion-eliminar:hover:not(:disabled) { background: #d90000; }
+
+.boton-accion-administrar img,
+.boton-accion-eliminar img {
+  width: 25px;
+  height: 25px;
+  display: block;
+  object-fit: contain;
 }
 
 .subcuentas-tabla thead tr:nth-child(2) th:last-child {
@@ -624,7 +663,7 @@
 }
 
 .tabla-subusuarios-dinamica {
-  min-width: 1040px;
+  min-width: 850px;
   table-layout: auto;
 }
 
@@ -656,22 +695,31 @@
   white-space: nowrap;
 }
 
-.estado-subusuario {
+.conexion-subusuario {
   display: inline-flex;
+  align-items: center;
+  gap: 6px;
   padding: 5px 9px;
   border-radius: 999px;
   font-size: 11px;
   font-weight: 700;
 }
 
-.estado-subusuario.activo {
+.conexion-subusuario i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.conexion-subusuario.conectado {
   color: #08764a;
   background: #dcf7e9;
 }
 
-.estado-subusuario.inactivo {
-  color: #9a2727;
-  background: #ffe8e8;
+.conexion-subusuario.desconectado {
+  color: #66758d;
+  background: #edf1f6;
 }
 
 .modal-subusuario-fondo {

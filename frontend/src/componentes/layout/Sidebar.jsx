@@ -17,15 +17,26 @@ const itemsSidebar = [
     icono: iconoCasa,
     alt: "Resumen del sistema",
     className: "icono-casa",
+    permiso: "ver_resumen",
   },
+<<<<<<< HEAD
   { ruta: "/camaras", icono: iconoCamara, alt: "Interfaz de cámaras", permiso: PERMISOS.VER },
+=======
+  { ruta: "/camaras", icono: iconoCamara, alt: "Interfaz de cámaras", permiso: "ver_camaras" },
+>>>>>>> 10d0c3dcda1141aa5c15e11ed78790cc56564e68
   {
     ruta: "/ingresos",
     icono: iconoPersonas,
     alt: "Ingresos identificados",
+<<<<<<< HEAD
     permiso: PERMISOS.VER,
   },
   { ruta: "/observacion", icono: iconoOjo, alt: "Lista de observación", permiso: PERMISOS.VER },
+=======
+    permiso: "ver_ingresos",
+  },
+  { ruta: "/observacion", icono: iconoOjo, alt: "Lista de observación", permiso: "ver_observacion" },
+>>>>>>> 10d0c3dcda1141aa5c15e11ed78790cc56564e68
   {
     ruta: "/configuracion",
     icono: iconoConfiguracion,
@@ -36,11 +47,18 @@ const itemsSidebar = [
 
 function Sidebar() {
   const navigate = useNavigate();
+<<<<<<< HEAD
   const { cerrarSesion, usuario } = useAutenticacion();
   const itemsVisibles = itemsSidebar.filter((item) => (
     item.soloAdministrador
       ? usuario?.rol === "Administrador"
       : !item.permiso || tienePermiso(usuario, item.permiso)
+=======
+  const { usuario, cerrarSesion } = useAutenticacion();
+  const itemsVisibles = itemsSidebar.filter((item) => (
+    usuario?.rol === "Administrador"
+    || (!item.soloAdministrador && usuario?.permisos?.includes(item.permiso))
+>>>>>>> 10d0c3dcda1141aa5c15e11ed78790cc56564e68
   ));
 
   const salir = async () => {

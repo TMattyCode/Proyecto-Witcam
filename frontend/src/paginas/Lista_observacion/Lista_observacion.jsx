@@ -10,13 +10,22 @@ import {
 } from "../../servicios/api";
 import TablaListaObservacion from "./componentes/TablaListaObservacion";
 import { useAutenticacion } from "../../contextos/AutenticacionContext";
+<<<<<<< HEAD
 import { PERMISOS, tienePermiso } from "../../utilidades/permisos";
+=======
+>>>>>>> 10d0c3dcda1141aa5c15e11ed78790cc56564e68
 
 const LIMITE_PAGINA = 25;
 
 export default function ListaObservacion() {
   const { usuario } = useAutenticacion();
+<<<<<<< HEAD
   const puedeEditar = tienePermiso(usuario, PERMISOS.EDITAR);
+=======
+  const esAdministrador = usuario?.rol === "Administrador";
+  const puedeGestionar = esAdministrador || usuario?.permisos?.includes("gestionar_observacion");
+  const puedeRenombrar = esAdministrador || usuario?.permisos?.includes("gestionar_identidades");
+>>>>>>> 10d0c3dcda1141aa5c15e11ed78790cc56564e68
   const [registros, setRegistros] = useState([]);
   const [pagina, setPagina] = useState(1);
   const [total, setTotal] = useState(0);
@@ -133,9 +142,9 @@ export default function ListaObservacion() {
           limite={LIMITE_PAGINA}
           cargando={cargando}
           error={error}
-          onQuitar={setPersonaQuitar}
+          onQuitar={puedeGestionar ? setPersonaQuitar : null}
           onCambiarPagina={cambiarPagina}
-          onRenombrar={confirmarRenombrado}
+          onRenombrar={puedeRenombrar ? confirmarRenombrado : null}
           onVerHistorial={abrirHistorial}
           personaQuitando={personaQuitando}
           historial={historial}

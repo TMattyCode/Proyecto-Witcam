@@ -34,7 +34,11 @@ class ServicioIngresos:
             maximo=100,
         )
         filtros_validados = self._validar_filtros(filtros)
+<<<<<<< HEAD
         usuario = self.autenticacion.exigir_permiso(token, "ver")
+=======
+        usuario = self.autenticacion.exigir_permiso(token, "ver_ingresos")
+>>>>>>> 10d0c3dcda1141aa5c15e11ed78790cc56564e68
         id_cuenta = usuario["idCuenta"]
         return {
             "ok": True,
@@ -47,7 +51,11 @@ class ServicioIngresos:
         }
 
     def listar_camaras(self, token: str) -> dict:
+<<<<<<< HEAD
         usuario = self.autenticacion.exigir_permiso(token, "ver")
+=======
+        usuario = self.autenticacion.exigir_permiso(token, "ver_ingresos")
+>>>>>>> 10d0c3dcda1141aa5c15e11ed78790cc56564e68
         id_cuenta = usuario["idCuenta"]
         return {
             "ok": True,
@@ -60,7 +68,13 @@ class ServicioIngresos:
             "idPersona",
             minimo=1,
         )
+<<<<<<< HEAD
         usuario = self.autenticacion.exigir_permiso(token, "ver")
+=======
+        usuario = self.autenticacion.exigir_algun_permiso(
+            token, {"ver_ingresos", "ver_observacion"}
+        )
+>>>>>>> 10d0c3dcda1141aa5c15e11ed78790cc56564e68
         historial = self.repositorio.listar_historial(
             usuario["idCuenta"],
             identificador,
@@ -75,7 +89,13 @@ class ServicioIngresos:
             "idDeteccion",
             minimo=1,
         )
+<<<<<<< HEAD
         usuario = self.autenticacion.exigir_permiso(token, "ver")
+=======
+        usuario = self.autenticacion.exigir_algun_permiso(
+            token, {"ver_ingresos", "ver_observacion"}
+        )
+>>>>>>> 10d0c3dcda1141aa5c15e11ed78790cc56564e68
         id_cuenta = usuario["idCuenta"]
         ruta = self.repositorio.obtener_ruta_imagen_deteccion(
             id_cuenta,
@@ -96,7 +116,13 @@ class ServicioIngresos:
             "idPersona",
             minimo=1,
         )
+<<<<<<< HEAD
         usuario = self.autenticacion.exigir_permiso(token, "ver")
+=======
+        usuario = self.autenticacion.exigir_algun_permiso(
+            token, {"ver_ingresos", "ver_observacion"}
+        )
+>>>>>>> 10d0c3dcda1141aa5c15e11ed78790cc56564e68
         id_cuenta = usuario["idCuenta"]
         persona = self.repositorio.obtener_persona(
             id_cuenta,
@@ -142,7 +168,7 @@ class ServicioIngresos:
                 "guiones y guiones bajos"
             )
 
-        usuario = self.autenticacion.exigir_permiso(token, "editar")
+        usuario = self.autenticacion.exigir_permiso(token, "gestionar_identidades")
         id_cuenta = usuario["idCuenta"]
         persona = self.repositorio.obtener_persona(id_cuenta, id_persona)
         if persona is None:
@@ -222,7 +248,11 @@ class ServicioIngresos:
         motivo = motivo.strip()
         if len(motivo) > 500:
             raise ValueError("El motivo no puede superar los 500 caracteres")
+<<<<<<< HEAD
         usuario = self.autenticacion.exigir_permiso(token, "anadir")
+=======
+        usuario = self.autenticacion.exigir_permiso(token, "gestionar_identidades")
+>>>>>>> 10d0c3dcda1141aa5c15e11ed78790cc56564e68
         id_cuenta = usuario["idCuenta"]
         persona = self.repositorio.obtener_persona(id_cuenta, id_persona)
         if persona is None:
@@ -293,7 +323,11 @@ class ServicioIngresos:
             minimo=1,
             maximo=100,
         )
+<<<<<<< HEAD
         usuario = self.autenticacion.exigir_permiso(token, "ver")
+=======
+        usuario = self.autenticacion.exigir_permiso(token, "ver_observacion")
+>>>>>>> 10d0c3dcda1141aa5c15e11ed78790cc56564e68
         resultado = self.repositorio.listar_observacion(
             usuario["idCuenta"],
             pagina,
@@ -309,7 +343,11 @@ class ServicioIngresos:
             "idPersona",
             minimo=1,
         )
+<<<<<<< HEAD
         usuario = self.autenticacion.exigir_permiso(token, "editar")
+=======
+        usuario = self.autenticacion.exigir_permiso(token, "gestionar_observacion")
+>>>>>>> 10d0c3dcda1141aa5c15e11ed78790cc56564e68
         id_cuenta = usuario["idCuenta"]
         persona = self.repositorio.obtener_persona(id_cuenta, id_persona)
         if persona is None:
@@ -368,7 +406,7 @@ class ServicioIngresos:
             "idPersona",
             minimo=1,
         )
-        usuario = self.autenticacion.exigir_permiso(token, "eliminar")
+        usuario = self.autenticacion.exigir_permiso(token, "eliminar_identidades")
         id_cuenta = usuario["idCuenta"]
         if self.almacenamiento is None:
             resultado = self.repositorio.eliminar_persona(

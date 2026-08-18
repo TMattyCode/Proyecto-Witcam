@@ -18,6 +18,17 @@ ITERACIONES_PBKDF2 = 310_000
 PATRON_CORREO = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
 PATRON_USUARIO = re.compile(r"^[\w.-]+$", re.UNICODE)
 PATRON_TELEFONO = re.compile(r"^[+\d\s().-]+$")
+PERMISOS_SUBUSUARIO = (
+    "ver_resumen", "ver_camaras", "controlar_camaras", "ver_ingresos",
+    "gestionar_identidades", "eliminar_identidades", "ver_observacion",
+    "gestionar_observacion",
+)
+DEPENDENCIAS_PERMISOS = {
+    "controlar_camaras": "ver_camaras",
+    "gestionar_identidades": "ver_ingresos",
+    "eliminar_identidades": "ver_ingresos",
+    "gestionar_observacion": "ver_observacion",
+}
 
 
 def crear_hash_password(password: str) -> str:
@@ -96,7 +107,15 @@ class ServicioAutenticacion:
             "apellido": fila.apellido,
             "correo": fila.correo,
             "rol": fila.nombre_rol,
+<<<<<<< HEAD
             "permisos": self.usuarios.obtener_permisos(fila.id_usuario),
+=======
+            "permisos": (
+                list(PERMISOS_SUBUSUARIO)
+                if fila.nombre_rol == "Administrador"
+                else self.usuarios.obtener_permisos_usuario(fila.id_usuario)
+            ),
+>>>>>>> 10d0c3dcda1141aa5c15e11ed78790cc56564e68
         }
         self.usuarios.registrar_acceso(fila.id_usuario)
         token = secrets.token_urlsafe(32)
@@ -110,10 +129,23 @@ class ServicioAutenticacion:
 
     def exigir_permiso(self, token: str, codigo_permiso: str) -> dict:
         usuario = self._obtener_usuario_sesion(token)
+<<<<<<< HEAD
         if codigo_permiso not in usuario.get("permisos", []):
             raise PermisoDenegado(
+=======
+        if usuario.get("rol") != "Administrador" and codigo_permiso not in usuario.get("permisos", []):
+            raise ErrorAutenticacion(
+>>>>>>> 10d0c3dcda1141aa5c15e11ed78790cc56564e68
                 "No tienes permiso para realizar esta operacion"
             )
+        return usuario
+
+    def exigir_algun_permiso(self, token: str, codigos: set[str]) -> dict:
+        usuario = self._obtener_usuario_sesion(token)
+        if usuario.get("rol") != "Administrador" and not (
+            set(usuario.get("permisos", [])) & codigos
+        ):
+            raise ErrorAutenticacion("No tienes permiso para realizar esta operacion")
         return usuario
 
     def obtener_resumen_cuenta(self, token: str) -> dict:
@@ -185,7 +217,35 @@ class ServicioAutenticacion:
             administrador["idCuenta"],
             filtros_normalizados,
         )
+        with self._bloqueo:
+            usuarios_conectados = {
+                sesion.get("id")
+                for sesion in self._sesiones.values()
+                if sesion.get("idCuenta") == administrador["idCuenta"]
+                and sesion.get("rol") == "Subusuario"
+            }
+        for subusuario in resultado["subusuarios"]:
+            subusuario["conectado"] = subusuario["id"] in usuarios_conectados
         return {"ok": True, "filtroEstado": estado_normalizado, **resultado}
+
+    def listar_subusuarios_eliminados(self, token: str) -> dict:
+        administrador = self._obtener_administrador(token)
+        resultado = self.usuarios.listar_subusuarios(
+            administrador["idCuenta"],
+            {
+                "estado": "Inactivo",
+                "usuario": "",
+                "permiso": "",
+                "registro_desde": "",
+                "registro_hasta": "",
+                "acceso_desde": "",
+                "acceso_hasta": "",
+                "sin_acceso": False,
+                "pagina": 1,
+                "limite": 100,
+            },
+        )
+        return {"ok": True, **resultado}
 
     @staticmethod
     def _validar_filtro_texto(valor, maximo: int) -> str:
@@ -292,7 +352,10 @@ class ServicioAutenticacion:
             raise ErrorAutenticacion(
                 "El subusuario activo no existe o no pertenece a esta cuenta"
             )
-        self._cerrar_sesiones_usuario(id_usuario)
+        with self._bloqueo:
+            for usuario_sesion in self._sesiones.values():
+                if usuario_sesion.get("id") == id_usuario:
+                    usuario_sesion["permisos"] = permisos
         return {
             "ok": True,
             "subusuario": {
@@ -469,7 +532,13 @@ class ServicioAutenticacion:
         )
         if any(len(codigo) > 50 for codigo in permisos):
             raise ErrorAutenticacion("Uno o mas permisos no son validos")
-        return permisos
+        if set(permisos) - set(PERMISOS_SUBUSUARIO):
+            raise ErrorAutenticacion("Uno o mas permisos no existen")
+        normalizados = set(permisos)
+        for permiso, dependencia in DEPENDENCIAS_PERMISOS.items():
+            if permiso in normalizados:
+                normalizados.add(dependencia)
+        return [codigo for codigo in PERMISOS_SUBUSUARIO if codigo in normalizados]
 
     @staticmethod
     def _leer_texto(

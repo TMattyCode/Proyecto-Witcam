@@ -14,16 +14,25 @@ import FiltrosIngresos from "./componentes/FiltrosIngresos";
 import HistorialIngresos from "./componentes/HistorialIngresos";
 import TablaIngresos from "./componentes/TablaIngresos";
 import { useAutenticacion } from "../../contextos/AutenticacionContext";
+<<<<<<< HEAD
 import { PERMISOS, tienePermiso } from "../../utilidades/permisos";
+=======
+>>>>>>> 10d0c3dcda1141aa5c15e11ed78790cc56564e68
 
 const LIMITE_PAGINA = 25;
 const INTERVALO_ACTUALIZACION = 7000;
 
 export default function IngresosIdentificados() {
   const { usuario } = useAutenticacion();
+<<<<<<< HEAD
   const puedeAnadir = tienePermiso(usuario, PERMISOS.ANADIR);
   const puedeEditar = tienePermiso(usuario, PERMISOS.EDITAR);
   const puedeEliminar = tienePermiso(usuario, PERMISOS.ELIMINAR);
+=======
+  const esAdministrador = usuario?.rol === "Administrador";
+  const puedeGestionar = esAdministrador || usuario?.permisos?.includes("gestionar_identidades");
+  const puedeEliminar = esAdministrador || usuario?.permisos?.includes("eliminar_identidades");
+>>>>>>> 10d0c3dcda1141aa5c15e11ed78790cc56564e68
   const [ingresos, setIngresos] = useState([]);
   const [pagina, setPagina] = useState(1);
   const [total, setTotal] = useState(0);
@@ -241,9 +250,9 @@ export default function IngresosIdentificados() {
           error={error}
           onCambiarPagina={cambiarPagina}
           onVerHistorial={abrirHistorial}
-          onAgregarObservacion={abrirMotivoObservacion}
-          onEliminarPersona={setPersonaEliminar}
-          onRenombrarPersona={confirmarRenombrado}
+          onAgregarObservacion={puedeGestionar ? abrirMotivoObservacion : null}
+          onEliminarPersona={puedeEliminar ? setPersonaEliminar : null}
+          onRenombrarPersona={puedeGestionar ? confirmarRenombrado : null}
           personaAgregando={personaAgregando}
           personaEliminando={personaEliminando}
           puedeAnadir={puedeAnadir}

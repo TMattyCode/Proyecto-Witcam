@@ -52,11 +52,14 @@ GO
 
 INSERT INTO Permiso (codigo_permiso, nombre_permiso, descripcion)
 VALUES
-    (N'ver', N'Ver', N'Permite visualizar información'),
-    (N'anadir', N'Añadir', N'Permite añadir registros'),
-    (N'editar', N'Editar', N'Permite modificar registros'),
-    (N'eliminar', N'Eliminar', N'Permite eliminar o desactivar registros'),
-    (N'configuracion', N'Configuración', N'Permite ingresar y realizar cambios en configuración');
+    (N'ver_resumen', N'Ver resumen', N'Permite acceder al resumen del sistema'),
+    (N'ver_camaras', N'Ver cámaras', N'Permite consultar cámaras asignadas y su estado'),
+    (N'controlar_camaras', N'Controlar cámaras', N'Permite iniciar y detener transmisiones'),
+    (N'ver_ingresos', N'Ver ingresos', N'Permite consultar ingresos e historiales'),
+    (N'gestionar_identidades', N'Gestionar identidades', N'Permite renombrar personas y enviarlas a observación'),
+    (N'eliminar_identidades', N'Eliminar identidades', N'Permite eliminar identidades registradas'),
+    (N'ver_observacion', N'Ver lista de observación', N'Permite consultar personas observadas'),
+    (N'gestionar_observacion', N'Gestionar lista de observación', N'Permite quitar y modificar personas observadas');
 GO
 
 
@@ -198,6 +201,7 @@ CREATE TABLE Usuario (
     id_estado_usuario INT NOT NULL DEFAULT 1,
 
     fecha_creacion DATETIME NOT NULL DEFAULT GETDATE(),
+    fecha_eliminacion DATETIME NULL,
     ultimo_acceso DATETIME NULL,
 
     CONSTRAINT FK_Usuario_Cuenta

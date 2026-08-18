@@ -86,6 +86,10 @@ export function obtenerSubusuarios(filtros = {}) {
   return solicitar(`/api/subusuarios?${parametros.toString()}`);
 }
 
+export function obtenerSubusuariosEliminados() {
+  return solicitar("/api/subusuarios/historial");
+}
+
 export function obtenerIngresos(pagina = 1, limite = 25, filtros = {}) {
   const parametros = new URLSearchParams({
     pagina: String(pagina),
