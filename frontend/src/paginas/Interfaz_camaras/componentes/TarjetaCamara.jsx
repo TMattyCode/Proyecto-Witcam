@@ -24,13 +24,8 @@ export default function TarjetaCamara({
   onDetener,
   onEditar,
   onEliminar,
-<<<<<<< HEAD
-  edicionHabilitada = true,
-  eliminacionHabilitada = true,
-=======
   gestionHabilitada = true,
   controlHabilitado = true,
->>>>>>> 10d0c3dcda1141aa5c15e11ed78790cc56564e68
 }) {
   const simulada = camara.tipo === "simulada";
   const onvif = camara.tipo === "onvif";
@@ -113,8 +108,7 @@ export default function TarjetaCamara({
           )
         )}
 
-        {(edicionHabilitada || eliminacionHabilitada) && <div className="tarjeta-camara-acciones-iconos">
-          {edicionHabilitada && (
+        {gestionHabilitada && <div className="tarjeta-camara-acciones-iconos">
           <button
             className="boton-camara editar"
             type="button"
@@ -125,9 +119,6 @@ export default function TarjetaCamara({
           >
             <img src={iconoEditar} alt="" aria-hidden="true" />
           </button>
-          )}
-
-          {eliminacionHabilitada && (
           <button
             className="boton-camara eliminar"
             type="button"
@@ -138,7 +129,6 @@ export default function TarjetaCamara({
           >
             <img src={iconoBasurero} alt="" aria-hidden="true" />
           </button>
-          )}
         </div>}
       </footer>
     </article>

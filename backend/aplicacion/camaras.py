@@ -2,7 +2,7 @@ from collections.abc import Callable
 
 from backend.aplicacion.autenticacion import ServicioAutenticacion
 from backend.database.camaras import RepositorioCamaras
-from backend.exceptions import ErrorCamara
+from backend.exceptions import ErrorCamara, PermisoDenegado
 
 
 class ServicioCamaras:
@@ -22,23 +22,12 @@ class ServicioCamaras:
         )
 
     def listar(self, token: str) -> dict:
-<<<<<<< HEAD
-        usuario = self.autenticacion.exigir_permiso(token, "ver")
-        datos = self._listar_disponibles(usuario)
-=======
         usuario = self.autenticacion.exigir_permiso(token, "ver_camaras")
-        datos = self.repositorio.listar(
-            usuario["idCuenta"],
-            usuario["id"],
-            usuario.get("rol") == "Administrador",
-        )
->>>>>>> 10d0c3dcda1141aa5c15e11ed78790cc56564e68
+        datos = self._listar_disponibles(usuario)
         return {"ok": True, **datos}
 
     def guardar_grupos(self, token: str, datos: dict) -> dict:
-        administrador = self.autenticacion.exigir_permiso(
-            token, "configuracion"
-        )
+        administrador = self._exigir_administrador(token)
         if not isinstance(datos, dict) or not isinstance(
             datos.get("grupos"), list
         ):
@@ -59,7 +48,7 @@ class ServicioCamaras:
         return self.listar(token)
 
     def crear(self, token: str, datos: dict) -> dict:
-        administrador = self.autenticacion.exigir_permiso(token, "anadir")
+        administrador = self._exigir_administrador(token)
         normalizados = self._validar_camara(datos, creando=True)
         self._exigir_grupo_disponible(
             administrador, normalizados["id_grupo"]
@@ -76,17 +65,10 @@ class ServicioCamaras:
         id_camara: int,
         fuente: int | str | None,
     ) -> int:
-<<<<<<< HEAD
-        usuario = self.autenticacion.exigir_permiso(token, "ver")
+        usuario = self.autenticacion.exigir_permiso(
+            token, "controlar_camaras"
+        )
         camaras = self._listar_disponibles(usuario)["camaras"]
-=======
-        usuario = self.autenticacion.exigir_permiso(token, "controlar_camaras")
-        camaras = self.repositorio.listar(
-            usuario["idCuenta"],
-            usuario["id"],
-            usuario.get("rol") == "Administrador",
-        )["camaras"]
->>>>>>> 10d0c3dcda1141aa5c15e11ed78790cc56564e68
         camara = next(
             (
                 actual
@@ -112,7 +94,9 @@ class ServicioCamaras:
         token: str,
         id_camara: int | None,
     ) -> None:
-        usuario = self.autenticacion.exigir_permiso(token, "ver")
+        usuario = self.autenticacion.exigir_permiso(
+            token, "controlar_camaras"
+        )
         if id_camara is None:
             return
         camaras = self._listar_disponibles(usuario)["camaras"]
@@ -122,7 +106,7 @@ class ServicioCamaras:
             )
 
     def editar(self, token: str, datos: dict) -> dict:
-        administrador = self.autenticacion.exigir_permiso(token, "editar")
+        administrador = self._exigir_administrador(token)
         id_camara = self._id_positivo(datos, "id")
         self._exigir_camara_detenida(id_camara)
         self._exigir_camara_disponible(administrador, id_camara)
@@ -141,7 +125,7 @@ class ServicioCamaras:
         return {"ok": True, **self.listar(token)}
 
     def eliminar(self, token: str, datos: dict) -> dict:
-        administrador = self.autenticacion.exigir_permiso(token, "eliminar")
+        administrador = self._exigir_administrador(token)
         id_camara = self._id_positivo(datos, "id")
         self._exigir_camara_detenida(id_camara)
         self._exigir_camara_disponible(administrador, id_camara)
@@ -161,15 +145,20 @@ class ServicioCamaras:
             )
 
     def _listar_disponibles(self, usuario: dict) -> dict:
-        acceso_total = (
-            usuario.get("rol") == "Administrador"
-            or "configuracion" in usuario.get("permisos", [])
-        )
+        acceso_total = usuario.get("rol") == "Administrador"
         return self.repositorio.listar(
             usuario["idCuenta"],
             usuario["id"],
             acceso_total,
         )
+
+    def _exigir_administrador(self, token: str) -> dict:
+        usuario = self.autenticacion.obtener_sesion(token)["user"]
+        if usuario.get("rol") != "Administrador":
+            raise PermisoDenegado(
+                "Solo un administrador puede gestionar camaras y grupos"
+            )
+        return usuario
 
     def _exigir_grupo_disponible(
         self,

@@ -8,7 +8,7 @@ import IngresosIdentificados from "./paginas/Ingresos_identificados/Ingresos_ide
 import ListaObservacion from "./paginas/Lista_observacion/Lista_observacion";
 import Configuracion from "./paginas/Configuracion/Configuracion";
 import { useAutenticacion } from "./contextos/AutenticacionContext";
-import { PERMISOS, tienePermiso } from "./utilidades/permisos";
+import { PERMISOS } from "./utilidades/permisos";
 
 function PantallaCarga() {
   return (
@@ -49,14 +49,6 @@ function RutaPublica({ children }) {
   return usuario ? <Navigate to="/resumen" replace /> : children;
 }
 
-function RutaAutorizada({ permiso, soloAdministrador = false, children }) {
-  const { usuario } = useAutenticacion();
-  const autorizado = soloAdministrador
-    ? usuario?.rol === "Administrador"
-    : tienePermiso(usuario, permiso);
-  return autorizado ? children : <Navigate to="/resumen" replace />;
-}
-
 function App() {
   return (
     <Routes>
@@ -78,19 +70,11 @@ function App() {
       />
 
       <Route element={<RutaProtegida />}>
-<<<<<<< HEAD
-        <Route path="/resumen" element={<ResumenSistema />} />
-        <Route path="/camaras" element={<RutaAutorizada permiso={PERMISOS.VER}><InterfazCamaras /></RutaAutorizada>} />
-        <Route path="/ingresos" element={<RutaAutorizada permiso={PERMISOS.VER}><IngresosIdentificados /></RutaAutorizada>} />
-        <Route path="/observacion" element={<RutaAutorizada permiso={PERMISOS.VER}><ListaObservacion /></RutaAutorizada>} />
-        <Route path="/configuracion" element={<RutaAutorizada soloAdministrador><Configuracion /></RutaAutorizada>} />
-=======
-        <Route path="/resumen" element={<RutaConPermiso permiso="ver_resumen"><ResumenSistema /></RutaConPermiso>} />
-        <Route path="/camaras" element={<RutaConPermiso permiso="ver_camaras"><InterfazCamaras /></RutaConPermiso>} />
-        <Route path="/ingresos" element={<RutaConPermiso permiso="ver_ingresos"><IngresosIdentificados /></RutaConPermiso>} />
-        <Route path="/observacion" element={<RutaConPermiso permiso="ver_observacion"><ListaObservacion /></RutaConPermiso>} />
+        <Route path="/resumen" element={<RutaConPermiso permiso={PERMISOS.VER_RESUMEN}><ResumenSistema /></RutaConPermiso>} />
+        <Route path="/camaras" element={<RutaConPermiso permiso={PERMISOS.VER_CAMARAS}><InterfazCamaras /></RutaConPermiso>} />
+        <Route path="/ingresos" element={<RutaConPermiso permiso={PERMISOS.VER_INGRESOS}><IngresosIdentificados /></RutaConPermiso>} />
+        <Route path="/observacion" element={<RutaConPermiso permiso={PERMISOS.VER_OBSERVACION}><ListaObservacion /></RutaConPermiso>} />
         <Route path="/configuracion" element={<RutaConPermiso soloAdministrador><Configuracion /></RutaConPermiso>} />
->>>>>>> 10d0c3dcda1141aa5c15e11ed78790cc56564e68
       </Route>
 
       <Route path="/" element={<Navigate to="/inicio-sesion" replace />} />

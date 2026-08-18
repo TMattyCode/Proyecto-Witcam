@@ -59,15 +59,11 @@ function IconoFlechaFiltro() {
 
 export default function InterfazCamaras() {
   const { usuario } = useAutenticacion();
-<<<<<<< HEAD
-  const puedeAnadir = tienePermiso(usuario, PERMISOS.ANADIR);
-  const puedeEditar = tienePermiso(usuario, PERMISOS.EDITAR);
-  const puedeEliminar = tienePermiso(usuario, PERMISOS.ELIMINAR);
-  const puedeConfigurar = tienePermiso(usuario, PERMISOS.CONFIGURACION);
-=======
   const esAdministrador = usuario?.rol === "Administrador";
-  const puedeControlar = esAdministrador || usuario?.permisos?.includes("controlar_camaras");
->>>>>>> 10d0c3dcda1141aa5c15e11ed78790cc56564e68
+  const puedeControlar = tienePermiso(
+    usuario,
+    PERMISOS.CONTROLAR_CAMARAS,
+  );
   const [camaras, setCamaras] = useState([]);
   const [estado, setEstado] = useState(ESTADO_DETENIDO);
   const [modalAbierto, setModalAbierto] = useState(false);
@@ -471,14 +467,14 @@ export default function InterfazCamaras() {
                 />
               )}
             </div>
-            {puedeConfigurar && <button
+            {esAdministrador && <button
               className="boton-anadir-camara"
               type="button"
               onClick={abrirEditorGrupos}
             >
               Editor de grupos
             </button>}
-            {puedeAnadir && <button
+            {esAdministrador && <button
               className="boton-anadir-camara"
               type="button"
               disabled={camaras.length >= LIMITE_CAMARAS}
@@ -517,13 +513,8 @@ export default function InterfazCamaras() {
                 onDetener={() => detener(camara)}
                 onEditar={() => abrirEdicion(camara)}
                 onEliminar={() => eliminar(camara)}
-<<<<<<< HEAD
-                edicionHabilitada={puedeEditar}
-                eliminacionHabilitada={puedeEliminar}
-=======
                 gestionHabilitada={esAdministrador}
                 controlHabilitado={puedeControlar}
->>>>>>> 10d0c3dcda1141aa5c15e11ed78790cc56564e68
               />
             ))
           ) : cargandoConfiguracion ? (
@@ -713,7 +704,7 @@ export default function InterfazCamaras() {
         </div>
       )}
 
-      {editorGruposAbierto && puedeConfigurar && (
+      {editorGruposAbierto && esAdministrador && (
         <EditorGruposCamara
           grupos={gruposCamaras}
           camaras={camaras}

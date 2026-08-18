@@ -2,6 +2,7 @@ import unittest
 from types import SimpleNamespace
 
 from backend.aplicacion.autenticacion import (
+    PERMISOS_SUBUSUARIO,
     ServicioAutenticacion,
     crear_hash_password,
     verificar_password,
@@ -63,8 +64,8 @@ class RepositorioUsuariosFalso:
     def registrar_acceso(self, id_usuario):
         self.ultimo_acceso = id_usuario
 
-    def obtener_permisos(self, id_usuario):
-        return ["ver", "anadir", "editar", "eliminar", "configuracion"]
+    def obtener_permisos_usuario(self, id_usuario):
+        return ["ver_ingresos"]
 
     def obtener_resumen_cuenta(self, id_cuenta):
         self.cuenta_resumen_solicitada = id_cuenta
@@ -82,7 +83,12 @@ class RepositorioUsuariosFalso:
             "pagina": filtros["pagina"],
             "limite": filtros["limite"],
             "permisos": [
-                {"id": 1, "codigo": "ver", "nombre": "Ver", "descripcion": None}
+                {
+                    "id": 1,
+                    "codigo": "ver_ingresos",
+                    "nombre": "Ver ingresos",
+                    "descripcion": None,
+                }
             ],
             "subusuarios": [],
         }
@@ -164,7 +170,7 @@ class PruebasAutenticacion(unittest.TestCase):
         self.assertEqual(login["user"]["rol"], "Administrador")
         self.assertEqual(
             login["user"]["permisos"],
-            ["ver", "anadir", "editar", "eliminar", "configuracion"],
+            list(PERMISOS_SUBUSUARIO),
         )
         self.assertEqual(self.repositorio.ultimo_acceso, 1)
         self.assertEqual(
@@ -247,14 +253,14 @@ class PruebasAutenticacion(unittest.TestCase):
         listado = self.servicio.listar_subusuarios(login["token"])
         self.assertEqual(self.repositorio.subusuarios_cuenta_solicitada, 1)
         self.assertEqual(self.repositorio.subusuarios_estado_solicitado, "Activo")
-        self.assertEqual(listado["permisos"][0]["codigo"], "ver")
+        self.assertEqual(listado["permisos"][0]["codigo"], "ver_ingresos")
 
         self.servicio.listar_subusuarios(
             login["token"],
             {
                 "estado": "activo",
                 "usuario": "ana",
-                "permiso": "ver",
+                "permiso": "ver_ingresos",
                 "registroDesde": "2026-08-01",
                 "sinAcceso": "true",
                 "pagina": "2",
@@ -263,7 +269,7 @@ class PruebasAutenticacion(unittest.TestCase):
         )
         filtros = self.repositorio.filtros_subusuarios
         self.assertEqual(filtros["usuario"], "ana")
-        self.assertEqual(filtros["permiso"], "ver")
+        self.assertEqual(filtros["permiso"], "ver_ingresos")
         self.assertTrue(filtros["sin_acceso"])
         self.assertEqual(filtros["pagina"], 2)
 
@@ -275,7 +281,7 @@ class PruebasAutenticacion(unittest.TestCase):
             "telefono": "",
             "contrasena": "segura123",
             "confirmarContrasena": "segura123",
-            "permisos": ["ver", "ver"],
+            "permisos": ["ver_ingresos", "ver_ingresos"],
             "idCuenta": 999,
             "rol": "Administrador",
         }
@@ -285,7 +291,7 @@ class PruebasAutenticacion(unittest.TestCase):
         )
         guardado = self.repositorio.subusuario_registrado
         self.assertEqual(guardado["idCuenta"], 1)
-        self.assertEqual(guardado["permisos"], ["ver"])
+        self.assertEqual(guardado["permisos"], ["ver_ingresos"])
         self.assertEqual(guardado["datos"]["correo"], "ana@example.com")
         self.assertNotIn("segura123", guardado["password_hash"])
         self.assertEqual(resultado["subusuario"]["estado"], "Activo")
@@ -305,12 +311,14 @@ class PruebasAutenticacion(unittest.TestCase):
             {"nombreUsuario": "matias", "contrasena": "segura123"}
         )
         self.servicio._sesiones[login["token"]]["rol"] = "Subusuario"
-        self.servicio._sesiones[login["token"]]["permisos"] = ["ver"]
+        self.servicio._sesiones[login["token"]]["permisos"] = ["ver_ingresos"]
 
-        usuario = self.servicio.exigir_permiso(login["token"], "ver")
+        usuario = self.servicio.exigir_permiso(login["token"], "ver_ingresos")
         self.assertEqual(usuario["id"], 1)
         with self.assertRaises(PermisoDenegado):
-            self.servicio.exigir_permiso(login["token"], "eliminar")
+            self.servicio.exigir_permiso(
+                login["token"], "eliminar_identidades"
+            )
 
     def test_rechaza_filtro_de_subusuarios_desconocido(self):
         self.servicio.registrar(self.datos)
@@ -386,13 +394,15 @@ class PruebasAutenticacion(unittest.TestCase):
         )
         datos = {
             "id": 2,
-            "permisos": ["ver"],
+            "permisos": ["ver_ingresos"],
         }
         resultado = self.servicio.editar_subusuario(login["token"], datos)
         guardado = self.repositorio.edicion_solicitada
         self.assertEqual(guardado["idCuenta"], 1)
-        self.assertEqual(guardado["permisos"], ["ver"])
-        self.assertEqual(resultado["subusuario"]["permisos"], ["ver"])
+        self.assertEqual(guardado["permisos"], ["ver_ingresos"])
+        self.assertEqual(
+            resultado["subusuario"]["permisos"], ["ver_ingresos"]
+        )
 
         with self.assertRaisesRegex(ErrorAutenticacion, "solo puede modificar"):
             self.servicio.editar_subusuario(

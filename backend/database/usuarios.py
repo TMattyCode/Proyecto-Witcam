@@ -525,38 +525,14 @@ class RepositorioUsuarios:
             ).fetchval()
         return bool(valor)
 
-<<<<<<< HEAD
-    def obtener_permisos(self, id_usuario: int) -> list[str]:
-=======
     def obtener_permisos_usuario(self, id_usuario: int) -> list[str]:
->>>>>>> 10d0c3dcda1141aa5c15e11ed78790cc56564e68
         with self.conexiones.conectar() as conexion:
             filas = conexion.cursor().execute(
                 """
                 SELECT p.codigo_permiso
-<<<<<<< HEAD
-                FROM Usuario u
-                INNER JOIN Rol r ON r.id_rol = u.id_rol
-                INNER JOIN EstadoUsuario eu
-                    ON eu.id_estado_usuario = u.id_estado_usuario
-                CROSS JOIN Permiso p
-                WHERE u.id_usuario = ?
-                  AND eu.nombre_estado = 'Activo'
-                  AND (
-                      r.nombre_rol = 'Administrador'
-                      OR EXISTS (
-                          SELECT 1
-                          FROM Usuario_Permiso up
-                          WHERE up.id_usuario = u.id_usuario
-                            AND up.id_permiso = p.id_permiso
-                            AND up.permitido = 1
-                      )
-                  )
-=======
                 FROM Usuario_Permiso up
                 INNER JOIN Permiso p ON p.id_permiso = up.id_permiso
                 WHERE up.id_usuario = ? AND up.permitido = 1
->>>>>>> 10d0c3dcda1141aa5c15e11ed78790cc56564e68
                 ORDER BY p.id_permiso
                 """,
                 id_usuario,

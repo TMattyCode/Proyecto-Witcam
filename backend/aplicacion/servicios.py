@@ -59,13 +59,20 @@ class ServicioGalerias:
     def _obtener_repositorio(
         self,
         token: str | None = None,
-        permiso: str = "ver",
+        permisos: str | set[str] = frozenset(
+            {"ver_ingresos", "ver_observacion"}
+        ),
     ) -> RepositorioGalerias:
         if isinstance(self.repositorio, RepositorioGalerias):
             return self.repositorio
         if self.autenticacion is None or token is None:
             raise ValueError("La sesion es necesaria para acceder a galerias")
-        usuario = self.autenticacion.exigir_permiso(token, permiso)
+        if isinstance(permisos, str):
+            usuario = self.autenticacion.exigir_permiso(token, permisos)
+        else:
+            usuario = self.autenticacion.exigir_algun_permiso(
+                token, set(permisos)
+            )
         return self.repositorio.obtener(usuario["idCuenta"])
 
     def listar(self, token: str | None = None) -> dict:
@@ -82,14 +89,18 @@ class ServicioGalerias:
         }
 
     def aprobar(self, nombre: str, token: str | None = None) -> None:
-        self._obtener_repositorio(token, "anadir").aprobar(nombre)
+        self._obtener_repositorio(
+            token, "gestionar_identidades"
+        ).aprobar(nombre)
 
     def devolver_a_pendiente(
         self,
         nombre: str,
         token: str | None = None,
     ) -> None:
-        self._obtener_repositorio(token, "editar").devolver_a_pendiente(nombre)
+        self._obtener_repositorio(
+            token, "gestionar_observacion"
+        ).devolver_a_pendiente(nombre)
 
     def renombrar(
         self,
@@ -99,14 +110,16 @@ class ServicioGalerias:
         token: str | None = None,
     ) -> None:
         tipo = "pendiente" if tipo_externo == "pending" else "oficial"
-        self._obtener_repositorio(token, "editar").renombrar(
+        self._obtener_repositorio(token, "gestionar_identidades").renombrar(
             tipo,
             nombre,
             nuevo_nombre,
         )
 
     def rechazar(self, nombre: str, token: str | None = None) -> None:
-        self._obtener_repositorio(token, "eliminar").rechazar(nombre)
+        self._obtener_repositorio(token, "eliminar_identidades").rechazar(
+            nombre
+        )
 
     def obtener_imagen(
         self,

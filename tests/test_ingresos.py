@@ -103,6 +103,10 @@ class AutenticacionIngresosFalsa:
         self.ultimo_permiso = codigo_permiso
         return self.obtener_sesion(token)["user"]
 
+    def exigir_algun_permiso(self, token, codigos_permiso):
+        self.ultimo_permiso = codigos_permiso
+        return self.obtener_sesion(token)["user"]
+
 
 class RepositorioIngresosFalso:
     def __init__(self):

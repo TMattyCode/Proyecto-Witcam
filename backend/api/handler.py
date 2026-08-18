@@ -80,7 +80,7 @@ def crear_handler(
             if ruta == "/video_feed":
                 self._exigir_autenticacion()
                 token = self._token_consulta(url)
-                autenticacion.exigir_permiso(token, "ver")
+                autenticacion.exigir_permiso(token, "ver_camaras")
                 self._servir_video()
                 return
             if ruta == "/placeholder":
@@ -93,7 +93,9 @@ def crear_handler(
                 return
             if ruta == "/api/status":
                 self._exigir_autenticacion()
-                autenticacion.exigir_permiso(self._token_sesion(), "ver")
+                autenticacion.exigir_permiso(
+                    self._token_sesion(), "ver_camaras"
+                )
                 self._json(monitoreo.estado())
                 return
             if ruta == "/api/list":
@@ -534,7 +536,6 @@ def crear_handler(
                     self._json({"ok": True})
                     return
                 if ruta == "/api/stop":
-<<<<<<< HEAD
                     self._exigir_autenticacion()
                     if camaras is None:
                         raise ErrorCamara(
@@ -543,11 +544,6 @@ def crear_handler(
                     camaras.validar_detencion(
                         self._token_sesion(),
                         monitoreo.estado().get("camera_id"),
-=======
-                    autenticacion.exigir_permiso(
-                        self._token_sesion(),
-                        "controlar_camaras",
->>>>>>> 10d0c3dcda1141aa5c15e11ed78790cc56564e68
                     )
                     monitoreo.detener()
                     self._json({"ok": True})

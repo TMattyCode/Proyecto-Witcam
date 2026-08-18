@@ -97,18 +97,12 @@ export default function TablaIngresos({
               ingresos.map((ingreso) => (
                 <tr key={ingreso.idDeteccion}>
                   <td className="tabla-ingresos-persona">
-<<<<<<< HEAD
                     <NombrePersonaEditable
                       idPersona={ingreso.idPersona}
                       nombre={ingreso.nombrePersona}
                       onConfirmar={onRenombrarPersona}
                       editable={puedeEditar}
                     />
-=======
-                    {onRenombrarPersona ? (
-                      <NombrePersonaEditable idPersona={ingreso.idPersona} nombre={ingreso.nombrePersona} onConfirmar={onRenombrarPersona} />
-                    ) : <strong>{ingreso.nombrePersona}</strong>}
->>>>>>> 10d0c3dcda1141aa5c15e11ed78790cc56564e68
                   </td>
                   <td>
                     <strong>{ingreso.nombreCamara}</strong>

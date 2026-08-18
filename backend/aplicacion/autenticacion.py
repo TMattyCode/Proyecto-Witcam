@@ -107,15 +107,11 @@ class ServicioAutenticacion:
             "apellido": fila.apellido,
             "correo": fila.correo,
             "rol": fila.nombre_rol,
-<<<<<<< HEAD
-            "permisos": self.usuarios.obtener_permisos(fila.id_usuario),
-=======
             "permisos": (
                 list(PERMISOS_SUBUSUARIO)
                 if fila.nombre_rol == "Administrador"
                 else self.usuarios.obtener_permisos_usuario(fila.id_usuario)
             ),
->>>>>>> 10d0c3dcda1141aa5c15e11ed78790cc56564e68
         }
         self.usuarios.registrar_acceso(fila.id_usuario)
         token = secrets.token_urlsafe(32)
@@ -129,13 +125,11 @@ class ServicioAutenticacion:
 
     def exigir_permiso(self, token: str, codigo_permiso: str) -> dict:
         usuario = self._obtener_usuario_sesion(token)
-<<<<<<< HEAD
-        if codigo_permiso not in usuario.get("permisos", []):
+        if (
+            usuario.get("rol") != "Administrador"
+            and codigo_permiso not in usuario.get("permisos", [])
+        ):
             raise PermisoDenegado(
-=======
-        if usuario.get("rol") != "Administrador" and codigo_permiso not in usuario.get("permisos", []):
-            raise ErrorAutenticacion(
->>>>>>> 10d0c3dcda1141aa5c15e11ed78790cc56564e68
                 "No tienes permiso para realizar esta operacion"
             )
         return usuario
@@ -145,7 +139,9 @@ class ServicioAutenticacion:
         if usuario.get("rol") != "Administrador" and not (
             set(usuario.get("permisos", [])) & codigos
         ):
-            raise ErrorAutenticacion("No tienes permiso para realizar esta operacion")
+            raise PermisoDenegado(
+                "No tienes permiso para realizar esta operacion"
+            )
         return usuario
 
     def obtener_resumen_cuenta(self, token: str) -> dict:

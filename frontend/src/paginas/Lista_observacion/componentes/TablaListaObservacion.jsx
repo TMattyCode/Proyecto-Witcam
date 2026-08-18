@@ -43,7 +43,8 @@ export default function TablaListaObservacion({
   cargandoHistorial = false,
   errorHistorial = "",
   onCerrarHistorial,
-  puedeEditar = false,
+  puedeRenombrar = false,
+  puedeGestionar = false,
 }) {
   const totalRegistros = registros.length;
   const totalPaginas = Math.max(1, Math.ceil(total / limite));
@@ -105,18 +106,12 @@ export default function TablaListaObservacion({
                 return (
                   <tr key={registro.idLista}>
                     <td className="tabla-observacion-persona">
-<<<<<<< HEAD
                       <NombrePersonaEditable
                         idPersona={idPersona}
                         nombre={registro.nombrePersona}
                         onConfirmar={onRenombrar}
-                        editable={puedeEditar}
+                        editable={puedeRenombrar}
                       />
-=======
-                      {onRenombrar ? (
-                        <NombrePersonaEditable idPersona={idPersona} nombre={registro.nombrePersona} onConfirmar={onRenombrar} />
-                      ) : <strong>{registro.nombrePersona}</strong>}
->>>>>>> 10d0c3dcda1141aa5c15e11ed78790cc56564e68
                     </td>
                     <td>
                       <span className="tabla-observacion-motivo">
@@ -135,7 +130,7 @@ export default function TablaListaObservacion({
                     </td>
                     <td>
                       <div className="tabla-observacion-acciones">
-                        {onQuitar && <button
+                        <button
                           className="tabla-ingresos-accion historial"
                           type="button"
                           onClick={() => onVerHistorial?.(registro)}
@@ -143,13 +138,13 @@ export default function TablaListaObservacion({
                           title="Ver historial de ingresos"
                         >
                           <img src={iconoHistorial} alt="" aria-hidden="true" />
-                        </button>}
+                        </button>
                         <button
                           className="tabla-observacion-quitar"
                           type="button"
                           onClick={() => onQuitar?.(registro)}
                           disabled={
-                            !puedeEditar || personaQuitando === idPersona
+                            !puedeGestionar || personaQuitando === idPersona
                           }
                           aria-label={`Quitar a ${registro.nombrePersona} de la lista de observación`}
                           title="Quitar de la lista de observación"

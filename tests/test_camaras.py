@@ -14,6 +14,7 @@ class AutenticacionCamarasFalsa:
             "id": 5,
             "idCuenta": 7,
             "rol": rol,
+            "permisos": ["ver_camaras"],
         }
 
     def obtener_sesion(self, token):
@@ -23,7 +24,10 @@ class AutenticacionCamarasFalsa:
 
     def exigir_permiso(self, token, codigo_permiso):
         usuario = self.obtener_sesion(token)["user"]
-        if usuario["rol"] != "Administrador" and codigo_permiso != "ver":
+        if (
+            usuario["rol"] != "Administrador"
+            and codigo_permiso not in usuario["permisos"]
+        ):
             raise PermisoDenegado("No tienes permiso para realizar esta operacion")
         return usuario
 
