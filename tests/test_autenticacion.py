@@ -9,6 +9,7 @@ from backend.aplicacion.autenticacion import (
 from backend.exceptions import (
     CredencialesInvalidas,
     ErrorAutenticacion,
+    PermisoDenegado,
     RegistroDuplicado,
 )
 
@@ -61,6 +62,9 @@ class RepositorioUsuariosFalso:
 
     def registrar_acceso(self, id_usuario):
         self.ultimo_acceso = id_usuario
+
+    def obtener_permisos(self, id_usuario):
+        return ["ver", "anadir", "editar", "eliminar", "configuracion"]
 
     def obtener_resumen_cuenta(self, id_cuenta):
         self.cuenta_resumen_solicitada = id_cuenta
@@ -158,6 +162,10 @@ class PruebasAutenticacion(unittest.TestCase):
         )
         self.assertTrue(login["ok"])
         self.assertEqual(login["user"]["rol"], "Administrador")
+        self.assertEqual(
+            login["user"]["permisos"],
+            ["ver", "anadir", "editar", "eliminar", "configuracion"],
+        )
         self.assertEqual(self.repositorio.ultimo_acceso, 1)
         self.assertEqual(
             self.servicio.obtener_sesion(login["token"])["user"]["id"],
@@ -290,6 +298,19 @@ class PruebasAutenticacion(unittest.TestCase):
         self.servicio._sesiones[login["token"]]["rol"] = "Subusuario"
         with self.assertRaises(ErrorAutenticacion):
             self.servicio.listar_subusuarios(login["token"])
+
+    def test_sesion_solo_autoriza_permisos_efectivos(self):
+        self.servicio.registrar(self.datos)
+        login = self.servicio.iniciar_sesion(
+            {"nombreUsuario": "matias", "contrasena": "segura123"}
+        )
+        self.servicio._sesiones[login["token"]]["rol"] = "Subusuario"
+        self.servicio._sesiones[login["token"]]["permisos"] = ["ver"]
+
+        usuario = self.servicio.exigir_permiso(login["token"], "ver")
+        self.assertEqual(usuario["id"], 1)
+        with self.assertRaises(PermisoDenegado):
+            self.servicio.exigir_permiso(login["token"], "eliminar")
 
     def test_rechaza_filtro_de_subusuarios_desconocido(self):
         self.servicio.registrar(self.datos)

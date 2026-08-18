@@ -95,6 +95,9 @@ class AutenticacionFalsa:
             raise RuntimeError("Token incorrecto")
         return {"ok": True, "user": self.usuario}
 
+    def exigir_permiso(self, token, codigo_permiso):
+        return self.obtener_sesion(token)["user"]
+
     def obtener_resumen_cuenta(self, token):
         if token != self.token:
             raise CredencialesInvalidas("La sesion no es valida")
@@ -309,6 +312,9 @@ class CamarasFalso:
             raise ErrorCamara("La camara no es valida")
         return 10
 
+    def validar_detencion(self, token, id_camara):
+        self._validar(token)
+
 
 class PruebasApi(unittest.TestCase):
     def setUp(self):
@@ -394,7 +400,11 @@ class PruebasApi(unittest.TestCase):
         self.assertEqual(estado, 200)
         self.assertEqual(cabeceras["Content-Type"], "image/jpeg")
         self.assertTrue(cuerpo.startswith(b"\xff\xd8"))
-        estado, _, cuerpo = self._solicitar("GET", "/api/status")
+        estado, _, cuerpo = self._solicitar(
+            "GET",
+            "/api/status",
+            cabeceras_extra={"Authorization": "Bearer token-prueba"},
+        )
         datos = json.loads(cuerpo)
         self.assertEqual(estado, 200)
         self.assertEqual(
@@ -442,12 +452,16 @@ class PruebasApi(unittest.TestCase):
             self.puerto,
             timeout=3,
         )
-        conexion.request("GET", "/video_feed")
+        conexion.request("GET", "/video_feed?token=token-prueba")
         respuesta = conexion.getresponse()
         fragmento = respuesta.read(60)
         self.assertEqual(respuesta.status, 200)
         self.assertIn(b"--frame", fragmento)
         conexion.close()
+
+        estado, _, cuerpo = self._solicitar("GET", "/video_feed")
+        self.assertEqual(estado, 401)
+        self.assertFalse(json.loads(cuerpo)["ok"])
 
     def test_error_inesperado_get_no_expone_detalles_internos(self):
         with self.assertLogs("backend.api.handler", level="ERROR"):
@@ -496,6 +510,15 @@ class PruebasApi(unittest.TestCase):
         self.assertEqual(self.monitoreo.id_camara, 17)
 
         estado, _, cuerpo = self._solicitar("POST", "/api/stop", {})
+        self.assertEqual(estado, 401)
+        self.assertFalse(json.loads(cuerpo)["ok"])
+
+        estado, _, cuerpo = self._solicitar(
+            "POST",
+            "/api/stop",
+            {},
+            {"Authorization": "Bearer token-prueba"},
+        )
         self.assertEqual(estado, 200)
         self.assertEqual(json.loads(cuerpo), {"ok": True})
         operaciones = [

@@ -36,6 +36,9 @@ export default function TablaIngresos({
   onRenombrarPersona,
   personaAgregando = null,
   personaEliminando = null,
+  puedeAnadir = false,
+  puedeEditar = false,
+  puedeEliminar = false,
 }) {
   const totalPaginas = Math.max(1, Math.ceil(total / limite));
   const inicio = total === 0 ? 0 : (pagina - 1) * limite + 1;
@@ -98,6 +101,7 @@ export default function TablaIngresos({
                       idPersona={ingreso.idPersona}
                       nombre={ingreso.nombrePersona}
                       onConfirmar={onRenombrarPersona}
+                      editable={puedeEditar}
                     />
                   </td>
                   <td>
@@ -126,7 +130,11 @@ export default function TablaIngresos({
                       <button
                         className={`tabla-ingresos-accion observar${ingreso.enListaObservacion ? " agregado" : ""}`}
                         type="button"
-                        disabled={ingreso.enListaObservacion || personaAgregando === ingreso.idPersona}
+                        disabled={
+                          !puedeAnadir
+                          || ingreso.enListaObservacion
+                          || personaAgregando === ingreso.idPersona
+                        }
                         onClick={() => onAgregarObservacion?.(ingreso)}
                         aria-label={`Añadir ${ingreso.nombrePersona} a la lista de observación`}
                         title={
@@ -141,7 +149,8 @@ export default function TablaIngresos({
                         className="tabla-ingresos-accion eliminar"
                         type="button"
                         disabled={
-                          ingreso.enListaObservacion
+                          !puedeEliminar
+                          || ingreso.enListaObservacion
                           || personaEliminando === ingreso.idPersona
                         }
                         onClick={() => onEliminarPersona?.(ingreso)}

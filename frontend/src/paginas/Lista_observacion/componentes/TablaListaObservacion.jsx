@@ -43,6 +43,7 @@ export default function TablaListaObservacion({
   cargandoHistorial = false,
   errorHistorial = "",
   onCerrarHistorial,
+  puedeEditar = false,
 }) {
   const totalRegistros = registros.length;
   const totalPaginas = Math.max(1, Math.ceil(total / limite));
@@ -108,6 +109,7 @@ export default function TablaListaObservacion({
                         idPersona={idPersona}
                         nombre={registro.nombrePersona}
                         onConfirmar={onRenombrar}
+                        editable={puedeEditar}
                       />
                     </td>
                     <td>
@@ -140,7 +142,9 @@ export default function TablaListaObservacion({
                           className="tabla-observacion-quitar"
                           type="button"
                           onClick={() => onQuitar?.(registro)}
-                          disabled={personaQuitando === idPersona}
+                          disabled={
+                            !puedeEditar || personaQuitando === idPersona
+                          }
                           aria-label={`Quitar a ${registro.nombrePersona} de la lista de observación`}
                           title="Quitar de la lista de observación"
                         >

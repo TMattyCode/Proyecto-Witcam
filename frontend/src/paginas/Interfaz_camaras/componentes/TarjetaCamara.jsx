@@ -1,6 +1,7 @@
 import "./TarjetaCamara.css";
 import iconoBasurero from "../../../assets/iconos/028 icono-basurero.png";
 import iconoEditar from "../../../assets/iconos/029 icono-editar.blanco.png";
+import { obtenerTokenSesion } from "../../../servicios/api";
 
 function IconoCamara() {
   return (
@@ -23,7 +24,8 @@ export default function TarjetaCamara({
   onDetener,
   onEditar,
   onEliminar,
-  gestionHabilitada = true,
+  edicionHabilitada = true,
+  eliminacionHabilitada = true,
 }) {
   const simulada = camara.tipo === "simulada";
   const onvif = camara.tipo === "onvif";
@@ -52,6 +54,8 @@ export default function TarjetaCamara({
         ? "Stream de red · RTSP"
       : `Webcam local · Dispositivo ${camara.fuente}`;
   const descripcion = `${descripcionFuente} · ${nombreGrupo}`;
+  const token = obtenerTokenSesion();
+  const rutaStream = `/video_feed?token=${encodeURIComponent(token || "")}&v=${versionStream}`;
 
   return (
     <article className={`tarjeta-camara${simulada ? ` simulada escena-${camara.escena}` : ""}`}>
@@ -72,7 +76,7 @@ export default function TarjetaCamara({
 
       <div className="tarjeta-camara-video">
         <img
-          src={simulada || fuenteRed ? imagenSimulacion : `/video_feed?v=${versionStream}`}
+          src={simulada || fuenteRed ? imagenSimulacion : rutaStream}
           alt={simulada ? `Vista simulada de ${camara.nombre}` : fuenteRed ? `Fuente de red ${camara.nombre}` : `Transmisión de ${camara.nombre}`}
         />
 
@@ -104,7 +108,8 @@ export default function TarjetaCamara({
           )
         )}
 
-        {gestionHabilitada && <div className="tarjeta-camara-acciones-iconos">
+        {(edicionHabilitada || eliminacionHabilitada) && <div className="tarjeta-camara-acciones-iconos">
+          {edicionHabilitada && (
           <button
             className="boton-camara editar"
             type="button"
@@ -115,7 +120,9 @@ export default function TarjetaCamara({
           >
             <img src={iconoEditar} alt="" aria-hidden="true" />
           </button>
+          )}
 
+          {eliminacionHabilitada && (
           <button
             className="boton-camara eliminar"
             type="button"
@@ -126,6 +133,7 @@ export default function TarjetaCamara({
           >
             <img src={iconoBasurero} alt="" aria-hidden="true" />
           </button>
+          )}
         </div>}
       </footer>
     </article>

@@ -263,7 +263,7 @@ class PipelineReconocimiento:
         if dato.embedding is None:
             return ResultadoVisual(
                 box,
-                f"ID {tracker_id} | Sin embedding",
+                "Rostro detectado | Sin embedding",
                 (0, 0, 255),
             )
         return self._resolver_reconocimiento(
@@ -364,8 +364,7 @@ class PipelineReconocimiento:
                 )
                 return ResultadoVisual(
                     box,
-                    f"ID {tracker_id} | {identidad['nombre']} "
-                    "| identidad corporal",
+                    "Rostro asociado",
                     color,
                 )
         if dato is not None and dato.reconocido:
@@ -381,7 +380,7 @@ class PipelineReconocimiento:
             )
             return ResultadoVisual(
                 box,
-                f"ID {tracker_id} | {dato.nombre} | {etiqueta}",
+                f"{dato.nombre} | {etiqueta}",
                 (160, 160, 160),
             )
         return None
@@ -396,7 +395,7 @@ class PipelineReconocimiento:
         if historial is None:
             return ResultadoVisual(
                 box,
-                f"ID {tracker_id} | Sin match",
+                "Rostro detectado | Sin coincidencia",
                 (0, 0, 255),
             )
         color = (
@@ -405,7 +404,7 @@ class PipelineReconocimiento:
             else (0, 255, 255)
         )
         texto = (
-            f"ID {tracker_id} | {historial['nombre']} | "
+            f"{historial['nombre']} | "
             f"{historial['similitud']:.2f}"
         )
         return ResultadoVisual(box, texto, color)
@@ -440,7 +439,7 @@ class PipelineReconocimiento:
                 candidato.bbox = dato.bbox
             return ResultadoVisual(
                 box,
-                f"ID {tracker_id} | No evaluable | "
+                "Rostro no evaluable | "
                 f"{dato.motivo_no_evaluable}",
                 (160, 160, 160),
             )
@@ -452,7 +451,7 @@ class PipelineReconocimiento:
         historial["ultimo_visto"] = time.time()
         historial["bbox"] = dato.bbox
         texto = (
-            f"ID {tracker_id} | {historial['nombre']} | "
+            f"{historial['nombre']} | "
             f"{dato.motivo_no_evaluable}"
         )
         return ResultadoVisual(box, texto, (0, 180, 255))
@@ -488,7 +487,7 @@ class PipelineReconocimiento:
             )
             return ResultadoVisual(
                 box,
-                f"ID {tracker_id} | {historial['nombre']} | seguimiento",
+                f"{historial['nombre']} | Seguimiento",
                 color,
             )
         candidato = estado.candidatos_desconocidos.get(
@@ -501,13 +500,13 @@ class PipelineReconocimiento:
             tiempo_visible = ahora - candidato.inicio
             return ResultadoVisual(
                 box,
-                f"ID {tracker_id} | Desconocido en seguimiento... "
+                "Rostro desconocido | Analizando... "
                 f"{tiempo_visible:.1f}s",
                 (160, 160, 160),
             )
         return ResultadoVisual(
             box,
-            f"ID {tracker_id} | Rostro detectado",
+            "Rostro detectado",
             (160, 160, 160),
         )
 
@@ -545,7 +544,7 @@ class PipelineReconocimiento:
             )
             return ResultadoVisual(
                 box,
-                f"ID {tracker_id} | {historial['nombre']} | "
+                f"{historial['nombre']} | "
                 "identidad estable",
                 color,
             )
@@ -575,7 +574,7 @@ class PipelineReconocimiento:
                 )
                 return ResultadoVisual(
                     box,
-                    f"ID {tracker_id} | {dato.nombre} | "
+                    f"{dato.nombre} | "
                     "coincidencia ambigua",
                     (160, 160, 160),
                 )
@@ -606,9 +605,9 @@ class PipelineReconocimiento:
             else (0, 255, 255)
         )
         texto = (
-            f"ID {tracker_id} | {dato.nombre} | {dato.similitud:.2f}"
+            f"{dato.nombre} | Reconocida | {dato.similitud:.2f}"
             if dato.tipo == "oficial"
-            else f"ID {tracker_id} | Pendiente: {dato.nombre} | "
+            else f"{dato.nombre} | Pendiente | "
             f"{dato.similitud:.2f}"
         )
         return ResultadoVisual(box, texto, color)

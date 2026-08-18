@@ -8,6 +8,7 @@ import IngresosIdentificados from "./paginas/Ingresos_identificados/Ingresos_ide
 import ListaObservacion from "./paginas/Lista_observacion/Lista_observacion";
 import Configuracion from "./paginas/Configuracion/Configuracion";
 import { useAutenticacion } from "./contextos/AutenticacionContext";
+import { PERMISOS, tienePermiso } from "./utilidades/permisos";
 
 function PantallaCarga() {
   return (
@@ -34,6 +35,14 @@ function RutaPublica({ children }) {
   return usuario ? <Navigate to="/resumen" replace /> : children;
 }
 
+function RutaAutorizada({ permiso, soloAdministrador = false, children }) {
+  const { usuario } = useAutenticacion();
+  const autorizado = soloAdministrador
+    ? usuario?.rol === "Administrador"
+    : tienePermiso(usuario, permiso);
+  return autorizado ? children : <Navigate to="/resumen" replace />;
+}
+
 function App() {
   return (
     <Routes>
@@ -56,10 +65,10 @@ function App() {
 
       <Route element={<RutaProtegida />}>
         <Route path="/resumen" element={<ResumenSistema />} />
-        <Route path="/camaras" element={<InterfazCamaras />} />
-        <Route path="/ingresos" element={<IngresosIdentificados />} />
-        <Route path="/observacion" element={<ListaObservacion />} />
-        <Route path="/configuracion" element={<Configuracion />} />
+        <Route path="/camaras" element={<RutaAutorizada permiso={PERMISOS.VER}><InterfazCamaras /></RutaAutorizada>} />
+        <Route path="/ingresos" element={<RutaAutorizada permiso={PERMISOS.VER}><IngresosIdentificados /></RutaAutorizada>} />
+        <Route path="/observacion" element={<RutaAutorizada permiso={PERMISOS.VER}><ListaObservacion /></RutaAutorizada>} />
+        <Route path="/configuracion" element={<RutaAutorizada soloAdministrador><Configuracion /></RutaAutorizada>} />
       </Route>
 
       <Route path="/" element={<Navigate to="/inicio-sesion" replace />} />

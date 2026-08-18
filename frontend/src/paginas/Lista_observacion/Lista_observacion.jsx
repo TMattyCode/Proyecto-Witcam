@@ -9,10 +9,14 @@ import {
   renombrarPersona,
 } from "../../servicios/api";
 import TablaListaObservacion from "./componentes/TablaListaObservacion";
+import { useAutenticacion } from "../../contextos/AutenticacionContext";
+import { PERMISOS, tienePermiso } from "../../utilidades/permisos";
 
 const LIMITE_PAGINA = 25;
 
 export default function ListaObservacion() {
+  const { usuario } = useAutenticacion();
+  const puedeEditar = tienePermiso(usuario, PERMISOS.EDITAR);
   const [registros, setRegistros] = useState([]);
   const [pagina, setPagina] = useState(1);
   const [total, setTotal] = useState(0);
@@ -138,6 +142,7 @@ export default function ListaObservacion() {
           cargandoHistorial={cargandoHistorial}
           errorHistorial={errorHistorial}
           onCerrarHistorial={() => setHistorial(null)}
+          puedeEditar={puedeEditar}
         />
 
         {personaQuitar && (

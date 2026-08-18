@@ -14,6 +14,10 @@ class ErrorAutenticacion(ErrorWitcam):
     """Una operacion de autenticacion no pudo completarse."""
 
 
+class PermisoDenegado(ErrorWitcam):
+    """El usuario autenticado no puede realizar la operacion."""
+
+
 class CredencialesInvalidas(ErrorAutenticacion):
     """El usuario o la contrasena no son validos."""
 

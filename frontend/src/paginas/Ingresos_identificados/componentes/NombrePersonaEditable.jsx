@@ -4,6 +4,7 @@ export default function NombrePersonaEditable({
   idPersona,
   nombre,
   onConfirmar,
+  editable = true,
 }) {
   const [editando, setEditando] = useState(false);
   const [valor, setValor] = useState("");
@@ -43,6 +44,10 @@ export default function NombrePersonaEditable({
       setGuardando(false);
     }
   };
+
+  if (!editable) {
+    return <strong>{nombre || "Persona sin nombre"}</strong>;
+  }
 
   if (!editando) {
     return (

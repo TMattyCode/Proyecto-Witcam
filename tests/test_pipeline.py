@@ -103,7 +103,7 @@ class PruebasPipeline(unittest.TestCase):
         self.assertEqual(len(resultados), 1)
         self.assertEqual(
             resultados[0].texto,
-            "ID 7 | Matias | 1.00",
+            "Matias | Reconocida | 1.00",
         )
         self.assertEqual(self.reconocedor.llamadas, 1)
 
@@ -117,7 +117,7 @@ class PruebasPipeline(unittest.TestCase):
         )
         self.assertEqual(
             resultados[0].texto,
-            "ID 7 | Rostro detectado",
+            "Rostro detectado",
         )
         self.assertEqual(self.reconocedor.llamadas, 0)
 

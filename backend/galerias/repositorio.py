@@ -1,5 +1,6 @@
 import hashlib
 import json
+import re
 import shutil
 import threading
 from contextlib import contextmanager
@@ -32,6 +33,45 @@ class RepositorioGalerias:
         with self._bloqueo:
             self.config.carpeta_referencias.mkdir(parents=True, exist_ok=True)
             self.config.carpeta_pendientes.mkdir(parents=True, exist_ok=True)
+
+    def generar_nombre_provisional(self) -> str:
+        """Genera un alias secuencial y persistente para una persona nueva."""
+        with self._bloqueo:
+            prefijo = self.nombre_seguro(
+                self.config.prefijo_nombre_provisional
+            )
+            patron = re.compile(
+                rf"^{re.escape(prefijo)}_(\d+)$",
+                re.IGNORECASE,
+            )
+            ultimo = 0
+            for carpeta in (
+                self.config.carpeta_referencias,
+                self.config.carpeta_pendientes,
+            ):
+                carpeta.mkdir(parents=True, exist_ok=True)
+                for elemento in carpeta.iterdir():
+                    coincidencia = patron.fullmatch(elemento.name)
+                    if elemento.is_dir() and coincidencia:
+                        ultimo = max(ultimo, int(coincidencia.group(1)))
+
+            ruta_contador = (
+                self.config.carpeta_pendientes.parent
+                / ".witcam-secuencia-personas"
+            )
+            try:
+                ultimo = max(
+                    ultimo,
+                    int(ruta_contador.read_text(encoding="ascii").strip()),
+                )
+            except (FileNotFoundError, OSError, ValueError):
+                pass
+
+            siguiente = ultimo + 1
+            temporal = ruta_contador.with_suffix(".tmp")
+            temporal.write_text(str(siguiente), encoding="ascii")
+            temporal.replace(ruta_contador)
+            return f"{prefijo}_{siguiente}"
 
     def carpeta_por_tipo(self, tipo: str) -> Path:
         return (
@@ -210,7 +250,7 @@ class RepositorioGalerias:
             raise ErrorGaleria("El nombre no puede estar vacio")
         caracteres = []
         for caracter in base:
-            if caracter.isalnum() or caracter in ("-", "_"):
+            if caracter.isalnum() or caracter in ("-", "_", "#"):
                 caracteres.append(caracter)
             elif caracter.isspace():
                 caracteres.append("_")
@@ -226,7 +266,7 @@ class RepositorioGalerias:
             raise ErrorGaleria("El nombre no puede estar vacio")
         caracteres = []
         for caracter in base:
-            if caracter.isalnum() or caracter in ("-", "_"):
+            if caracter.isalnum() or caracter in ("-", "_", "#"):
                 caracteres.append(caracter)
             elif caracter.isspace():
                 caracteres.append(" ")

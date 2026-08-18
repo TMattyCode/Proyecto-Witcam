@@ -109,7 +109,7 @@ Cada persona se representa mediante una subcarpeta y puede contener varias muest
 ```text
 cuenta_7/galerias/reconocimiento/Matias/frontal.jpg
 cuenta_7/galerias/reconocimiento/Matias/perfil.jpg
-cuenta_7/galerias/pendientes/desconocido_track_8_.../muestra_01.jpg
+cuenta_7/galerias/pendientes/Persona_65/muestra_01.jpg
 cuenta_7/detecciones/2026/08/deteccion_<uuid>.jpg
 ```
 
@@ -120,6 +120,8 @@ El nombre de la subcarpeta es la identidad mostrada en pantalla. InsightFace com
 La primera vez puedes ejecutar la app aunque no exista ninguna imagen de referencia. Las carpetas de la cuenta se crean al iniciar una de sus camaras y el programa sigue funcionando con la galeria vacia.
 
 Cuando detecte un rostro desconocido valido, creara una galeria en `galerias/pendientes/` dentro de la cuenta propietaria de la camara. Mientras siga observando esa identidad pendiente, puede agregar vistas diferentes hasta completar la galeria.
+
+Las identidades nuevas reciben un alias provisional secuencial como `Persona_65`. El mismo nombre se utiliza en el recuadro de la IA, la carpeta de la galeria y la fila de `Persona` en SQL Server. Un contador local por cuenta evita reutilizar numeros aunque se elimine una galeria; el ID interno guardado en `.witcam.json` mantiene el vinculo aunque posteriormente se cambie el nombre desde React.
 
 Antes de crear la galeria, el recorte se procesa una segunda vez con SCRFD. Si el propio modelo no puede volver a detectar ese rostro guardado, la captura se descarta y el motor espera un angulo reutilizable.
 
@@ -246,6 +248,8 @@ La interfaz de `frontend/` incluye actualmente:
 - Registro de cuentas administradoras e inicio de sesion con rutas protegidas.
 - Restauracion y cierre de sesion, nombre real de la cuenta y resumen de subusuarios activos.
 - Creacion de subusuarios y administracion de sus permisos desde un unico panel, con buscador, filtros acumulables, paginacion y eliminacion logica con confirmacion propia. El administrador no puede modificar los datos personales ni la contrasena de un subusuario ya creado; esa edicion correspondera al propio usuario.
+- Aplicacion efectiva de permisos tanto en React como en el backend. `ver` habilita camaras, transmisiones, ingresos, observacion e imagenes; `anadir` permite crear camaras y enviar personas a observacion; `editar` permite modificar camaras, renombrar personas y devolverlas a ingresos; `eliminar` permite desactivar camaras y eliminar personas; `configuracion` permite gestionar grupos de camaras. Las solicitudes manipuladas sin autorizacion reciben HTTP `403`.
+- La gestion de subusuarios y de sus permisos continua siendo exclusiva del administrador y no depende de los cinco permisos operativos. Cuando se modifican los permisos de un subusuario, sus sesiones abiertas se cierran para que deba ingresar nuevamente con la autorizacion actualizada.
 - Gestion por cuenta de grupos y camaras, incluyendo validacion para conservar al menos un grupo y para impedir desactivar grupos que aun contienen camaras activas.
 - Registro de fuentes `webcam`, `RTSP`, `ONVIF` y simuladas, filtros por camara y grupo, seleccion de cuadricula y vista en pantalla completa.
 - Visualizacion en vivo de una webcam local mediante el MJPEG procesado por YOLO, SCRFD, InsightFace y ByteTrack. RTSP y ONVIF muestran por ahora el estado de fuente registrada hasta completar su conexion al motor.
@@ -323,7 +327,7 @@ cd frontend
 npm test
 ```
 
-Actualmente existen 87 pruebas automaticas de Python y 10 pruebas de Node. Tambien se completo una reproduccion real de diez minutos, 1920x1080 a 30 FPS, con InsightFace/SCRFD, YOLO y ByteTrack usando galerias temporales. El pipeline llego al final del video sin cortes y la firma de galerias permanecio valida. La webcam y la escritura en SQL Server ya forman parte del flujo integrado probado durante el desarrollo; RTSP y ONVIF siguen requiriendo pruebas manuales con fuentes disponibles.
+Actualmente existen 90 pruebas automaticas de Python y 13 pruebas de Node. Tambien se completo una reproduccion real de diez minutos, 1920x1080 a 30 FPS, con InsightFace/SCRFD, YOLO y ByteTrack usando galerias temporales. El pipeline llego al final del video sin cortes y la firma de galerias permanecio valida. La webcam y la escritura en SQL Server ya forman parte del flujo integrado probado durante el desarrollo; RTSP y ONVIF siguen requiriendo pruebas manuales con fuentes disponibles.
 
 ## Oclusion
 
@@ -378,6 +382,7 @@ ConfiguracionTracking.tolerancia_oclusion = 6.0
 
 ConfiguracionGalerias.max_muestras_por_persona = 6
 ConfiguracionGalerias.similitud_evitar_duplicado = 0.40
+ConfiguracionGalerias.prefijo_nombre_provisional = "Persona"
 
 ConfiguracionDesconocidos.tiempo_confirmacion = 1.5
 ConfiguracionDesconocidos.muestras_minimas = 3
@@ -434,6 +439,8 @@ Las galerias pendientes admiten hasta `ConfiguracionGalerias.max_muestras_por_pe
 - Amarillo: persona detectada desde `referencias_pendientes/`.
 - Rojo: persona desconocida.
 - Naranjo/celeste: persona conocida con posible oclusion.
+
+Los IDs temporales de ByteTrack se mantienen solamente dentro del motor y no se muestran al usuario. El recuadro corporal presenta el nombre y su estado (`Reconocida`, `Pendiente`, `rostro detectado` o `sin rostro visible`), mientras que el recuadro facial informa estados como `Rostro asociado`, `Seguimiento`, `No evaluable` o `Analizando`.
 
 ## Privacidad
 

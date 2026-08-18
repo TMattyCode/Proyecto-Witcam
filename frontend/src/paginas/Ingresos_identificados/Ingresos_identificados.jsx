@@ -13,11 +13,17 @@ import {
 import FiltrosIngresos from "./componentes/FiltrosIngresos";
 import HistorialIngresos from "./componentes/HistorialIngresos";
 import TablaIngresos from "./componentes/TablaIngresos";
+import { useAutenticacion } from "../../contextos/AutenticacionContext";
+import { PERMISOS, tienePermiso } from "../../utilidades/permisos";
 
 const LIMITE_PAGINA = 25;
 const INTERVALO_ACTUALIZACION = 7000;
 
 export default function IngresosIdentificados() {
+  const { usuario } = useAutenticacion();
+  const puedeAnadir = tienePermiso(usuario, PERMISOS.ANADIR);
+  const puedeEditar = tienePermiso(usuario, PERMISOS.EDITAR);
+  const puedeEliminar = tienePermiso(usuario, PERMISOS.ELIMINAR);
   const [ingresos, setIngresos] = useState([]);
   const [pagina, setPagina] = useState(1);
   const [total, setTotal] = useState(0);
@@ -240,6 +246,9 @@ export default function IngresosIdentificados() {
           onRenombrarPersona={confirmarRenombrado}
           personaAgregando={personaAgregando}
           personaEliminando={personaEliminando}
+          puedeAnadir={puedeAnadir}
+          puedeEditar={puedeEditar}
+          puedeEliminar={puedeEliminar}
         />
 
         {personaObservacion && (

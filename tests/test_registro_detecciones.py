@@ -125,6 +125,12 @@ class PruebasRegistroDetecciones(unittest.TestCase):
         consultas = "\n".join(consulta for consulta, _ in conexion.consultas)
         self.assertIn("INSERT INTO Persona", consultas)
         self.assertIn("INSERT INTO Deteccion", consultas)
+        parametros_persona = next(
+            parametros
+            for consulta, parametros in conexion.consultas
+            if "INSERT INTO Persona" in consulta
+        )
+        self.assertEqual(parametros_persona, (7, "Matias"))
         self.assertEqual(resultado.id_cuenta, 7)
         self.assertEqual(resultado.id_persona, 12)
         self.assertTrue(resultado.insertada)

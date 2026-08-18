@@ -132,6 +132,21 @@ class PruebasIdentidades(unittest.TestCase):
         )
         self.assertEqual(persona.tracker_id, 2)
 
+    def test_recuadro_corporal_oculta_id_y_muestra_estado_util(self):
+        resultados = self.gestor.crear_resultados_personas(
+            [DeteccionPersona((0, 0, 100, 220), 65)],
+            [],
+            {
+                65: {
+                    "nombre": "Persona_1",
+                    "tipo": "pendiente",
+                }
+            },
+        )
+
+        self.assertEqual(resultados[0].texto, "Persona_1 | Pendiente")
+        self.assertNotIn("65", resultados[0].texto)
+
     def test_contradiccion_conserva_resultado_de_v1(self):
         persona_v1 = {
             "nombre": "Matias",

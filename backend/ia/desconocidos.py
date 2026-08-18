@@ -229,7 +229,7 @@ class GestorDesconocidos:
                 historial["bbox"] = bbox
                 self.eliminar(candidatos, tracker_id, persona_id)
                 texto = (
-                    f"ID {tracker_id} | {historial['nombre']} | "
+                    f"{historial['nombre']} | "
                     f"oclusion {rostro.similitud:.2f}"
                 )
                 return ResultadoVisual(box, texto, (0, 180, 255))
@@ -249,7 +249,7 @@ class GestorDesconocidos:
             }
             self.eliminar(candidatos, tracker_id, persona_id)
             texto = (
-                f"ID {tracker_id} | {reidentificado['nombre']} | "
+                f"{reidentificado['nombre']} | "
                 f"reidentificado {similitud:.2f}"
             )
             return ResultadoVisual(box, texto, (0, 180, 255))
@@ -266,7 +266,7 @@ class GestorDesconocidos:
         ):
             self.eliminar(candidatos, tracker_id, persona_id)
             texto = (
-                f"ID {tracker_id} | Posible {rostro.nombre} | "
+                f"Posible {rostro.nombre} | "
                 "esperando mejor angulo"
             )
             return ResultadoVisual(box, texto, (160, 160, 160))
@@ -276,7 +276,7 @@ class GestorDesconocidos:
         ):
             return ResultadoVisual(
                 box,
-                f"ID {tracker_id} | Desconocido | rostro muy pequeno",
+                "Rostro desconocido | Muy pequeno",
                 (0, 0, 255),
             )
 
@@ -305,7 +305,7 @@ class GestorDesconocidos:
                     candidato.ultimo_visto = ahora
                     return ResultadoVisual(
                         box,
-                        f"ID {tracker_id} | Candidato corporal en verificacion",
+                        "Rostro desconocido | Identidad en verificacion",
                         (160, 160, 160),
                     )
                 self._reiniciar(
@@ -342,7 +342,7 @@ class GestorDesconocidos:
         candidato = candidatos[clave]
         tiempo_visible = ahora - candidato.inicio
         texto = (
-            f"ID {tracker_id} | Desconocido analizando... "
+            "Rostro desconocido | Analizando... "
             f"{tiempo_visible:.1f}s"
         )
         tiempo_requerido = (
@@ -380,7 +380,7 @@ class GestorDesconocidos:
                 )
                 return ResultadoVisual(
                     box,
-                    f"ID {tracker_id} | Esperando una captura reutilizable",
+                    "Rostro desconocido | Esperando mejor captura",
                     (160, 160, 160),
                 )
             nombre_temporal, ruta, embedding_muestra, calidad_muestra = captura
@@ -430,7 +430,7 @@ class GestorDesconocidos:
                     candidato.ultima_captura = ahora
                     candidato.guardado = True
                     texto = (
-                        f"ID {tracker_id} | {nombre_existente} | "
+                        f"{nombre_existente} | "
                         "reidentificado desde mejor captura "
                         f"{similitud_existente:.2f}"
                     )
@@ -469,7 +469,7 @@ class GestorDesconocidos:
                     else "esperando mejor angulo"
                 )
                 texto = (
-                    f"ID {tracker_id} | Posible {nombre_existente} | "
+                    f"Posible {nombre_existente} | "
                     f"{estado_texto}"
                 )
                 return ResultadoVisual(box, texto, (160, 160, 160))
@@ -505,6 +505,6 @@ class GestorDesconocidos:
                 )
             candidato.ultima_captura = ahora
             candidato.guardado = True
-            texto = f"ID {tracker_id} | Pendiente guardado: {nombre_temporal}"
+            texto = f"{nombre_temporal} | Pendiente guardada"
             self.registrar_evento(texto)
         return ResultadoVisual(box, texto, (0, 0, 255))

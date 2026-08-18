@@ -59,6 +59,28 @@ class PruebasGalerias(unittest.TestCase):
         self.repositorio.rechazar("Matías")
         self.assertEqual(self.repositorio.contar(self.config.carpeta_pendientes), 0)
 
+    def test_nombre_provisional_es_corto_y_evita_colisiones(self):
+        (self.config.carpeta_referencias / "Persona_64").mkdir()
+        (self.config.carpeta_pendientes / "Persona_65").mkdir()
+
+        nombre = self.repositorio.generar_nombre_provisional()
+        (self.config.carpeta_pendientes / "Persona_65").rmdir()
+        siguiente = self.repositorio.generar_nombre_provisional()
+
+        self.assertEqual(nombre, "Persona_66")
+        self.assertEqual(siguiente, "Persona_67")
+        self.assertEqual(
+            self.repositorio.ruta_galeria(
+                self.config.carpeta_pendientes,
+                nombre,
+            ).name,
+            "Persona_66",
+        )
+        self.assertEqual(
+            self.repositorio.nombre_persona_seguro("Persona_#65"),
+            "Persona_#65",
+        )
+
     def test_elimina_galeria_por_id_persistente_aunque_cambie_el_nombre(self):
         ruta = self.config.carpeta_pendientes / "Nombre_antiguo" / "muestra.jpg"
         self._crear_imagen(ruta)

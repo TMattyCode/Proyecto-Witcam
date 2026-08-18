@@ -142,6 +142,7 @@ class ConfiguracionGalerias:
     directorio_datos: Path = field(default_factory=_directorio_datos)
     carpeta_referencias: Path = PROJECT_ROOT / "referencias_reconocimiento"
     carpeta_pendientes: Path = PROJECT_ROOT / "referencias_pendientes"
+    prefijo_nombre_provisional: str = "Persona"
     intervalo_revision: float = 2.0
     similitud_evitar_duplicado: float = 0.40
     similitud_mapeo_renombrada: float = 0.95

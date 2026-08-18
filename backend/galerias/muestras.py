@@ -1,5 +1,4 @@
 import time
-from datetime import datetime
 from pathlib import Path
 
 import numpy as np
@@ -145,15 +144,11 @@ class GestorMuestras:
             return None
         embedding = normalizar_vector(rostro.embedding)
         calidad = calcular_calidad_muestra(recorte)
-        nombre = datetime.now().strftime(
-            f"desconocido_track_{tracker_id}_%Y%m%d_%H%M%S"
-        )
         with self.repositorio.transaccion():
-            galeria = self.repositorio.ruta_directorio_unica(
-                self.repositorio.ruta_galeria(
-                    self.repositorio.config.carpeta_pendientes,
-                    nombre,
-                )
+            nombre = self.repositorio.generar_nombre_provisional()
+            galeria = self.repositorio.ruta_galeria(
+                self.repositorio.config.carpeta_pendientes,
+                nombre,
             )
             galeria.mkdir(parents=True)
             ruta = galeria / "muestra_01.jpg"

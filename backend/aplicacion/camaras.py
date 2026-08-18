@@ -22,16 +22,14 @@ class ServicioCamaras:
         )
 
     def listar(self, token: str) -> dict:
-        usuario = self._usuario(token)
-        datos = self.repositorio.listar(
-            usuario["idCuenta"],
-            usuario["id"],
-            usuario.get("rol") == "Administrador",
-        )
+        usuario = self.autenticacion.exigir_permiso(token, "ver")
+        datos = self._listar_disponibles(usuario)
         return {"ok": True, **datos}
 
     def guardar_grupos(self, token: str, datos: dict) -> dict:
-        administrador = self._administrador(token)
+        administrador = self.autenticacion.exigir_permiso(
+            token, "configuracion"
+        )
         if not isinstance(datos, dict) or not isinstance(
             datos.get("grupos"), list
         ):
@@ -52,8 +50,11 @@ class ServicioCamaras:
         return self.listar(token)
 
     def crear(self, token: str, datos: dict) -> dict:
-        administrador = self._administrador(token)
+        administrador = self.autenticacion.exigir_permiso(token, "anadir")
         normalizados = self._validar_camara(datos, creando=True)
+        self._exigir_grupo_disponible(
+            administrador, normalizados["id_grupo"]
+        )
         id_camara = self.repositorio.crear(
             administrador["idCuenta"],
             normalizados,
@@ -66,12 +67,8 @@ class ServicioCamaras:
         id_camara: int,
         fuente: int | str | None,
     ) -> int:
-        usuario = self._usuario(token)
-        camaras = self.repositorio.listar(
-            usuario["idCuenta"],
-            usuario["id"],
-            usuario.get("rol") == "Administrador",
-        )["camaras"]
+        usuario = self.autenticacion.exigir_permiso(token, "ver")
+        camaras = self._listar_disponibles(usuario)["camaras"]
         camara = next(
             (
                 actual
@@ -92,11 +89,29 @@ class ServicioCamaras:
             raise ErrorCamara("La fuente no corresponde a la camara indicada")
         return usuario["idCuenta"]
 
+    def validar_detencion(
+        self,
+        token: str,
+        id_camara: int | None,
+    ) -> None:
+        usuario = self.autenticacion.exigir_permiso(token, "ver")
+        if id_camara is None:
+            return
+        camaras = self._listar_disponibles(usuario)["camaras"]
+        if not any(camara["id"] == id_camara for camara in camaras):
+            raise ErrorCamara(
+                "La camara no existe o no esta asignada a este usuario"
+            )
+
     def editar(self, token: str, datos: dict) -> dict:
-        administrador = self._administrador(token)
+        administrador = self.autenticacion.exigir_permiso(token, "editar")
         id_camara = self._id_positivo(datos, "id")
         self._exigir_camara_detenida(id_camara)
+        self._exigir_camara_disponible(administrador, id_camara)
         normalizados = self._validar_camara(datos, creando=False)
+        self._exigir_grupo_disponible(
+            administrador, normalizados["id_grupo"]
+        )
         if not self.repositorio.editar(
             administrador["idCuenta"],
             id_camara,
@@ -108,9 +123,10 @@ class ServicioCamaras:
         return {"ok": True, **self.listar(token)}
 
     def eliminar(self, token: str, datos: dict) -> dict:
-        administrador = self._administrador(token)
+        administrador = self.autenticacion.exigir_permiso(token, "eliminar")
         id_camara = self._id_positivo(datos, "id")
         self._exigir_camara_detenida(id_camara)
+        self._exigir_camara_disponible(administrador, id_camara)
         if not self.repositorio.eliminar(
             administrador["idCuenta"],
             id_camara,
@@ -126,16 +142,42 @@ class ServicioCamaras:
                 "No se puede editar ni eliminar una camara mientras transmite"
             )
 
-    def _usuario(self, token: str) -> dict:
-        return self.autenticacion.obtener_sesion(token)["user"]
+    def _listar_disponibles(self, usuario: dict) -> dict:
+        acceso_total = (
+            usuario.get("rol") == "Administrador"
+            or "configuracion" in usuario.get("permisos", [])
+        )
+        return self.repositorio.listar(
+            usuario["idCuenta"],
+            usuario["id"],
+            acceso_total,
+        )
 
-    def _administrador(self, token: str) -> dict:
-        usuario = self._usuario(token)
-        if usuario.get("rol") != "Administrador":
+    def _exigir_grupo_disponible(
+        self,
+        usuario: dict,
+        id_grupo: int,
+    ) -> None:
+        if not any(
+            grupo["id"] == id_grupo
+            for grupo in self._listar_disponibles(usuario)["grupos"]
+        ):
             raise ErrorCamara(
-                "Solo un administrador puede gestionar camaras"
+                "El grupo no existe o no esta asignado a este usuario"
             )
-        return usuario
+
+    def _exigir_camara_disponible(
+        self,
+        usuario: dict,
+        id_camara: int,
+    ) -> None:
+        if not any(
+            camara["id"] == id_camara
+            for camara in self._listar_disponibles(usuario)["camaras"]
+        ):
+            raise ErrorCamara(
+                "La camara no existe o no esta asignada a este usuario"
+            )
 
     @classmethod
     def _validar_grupo(cls, grupo, indice: int) -> dict:

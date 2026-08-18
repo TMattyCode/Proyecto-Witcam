@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 from backend.aplicacion.camaras import ServicioCamaras
 from backend.database.camaras import RepositorioCamaras, _es_error_duplicado
-from backend.exceptions import ErrorCamara
+from backend.exceptions import ErrorCamara, PermisoDenegado
 import pyodbc
 
 
@@ -20,6 +20,12 @@ class AutenticacionCamarasFalsa:
         if token != "token-prueba":
             raise RuntimeError("Token inesperado")
         return {"ok": True, "user": self.usuario}
+
+    def exigir_permiso(self, token, codigo_permiso):
+        usuario = self.obtener_sesion(token)["user"]
+        if usuario["rol"] != "Administrador" and codigo_permiso != "ver":
+            raise PermisoDenegado("No tienes permiso para realizar esta operacion")
+        return usuario
 
 
 class RepositorioCamarasFalso:
@@ -240,7 +246,7 @@ class PruebasServicioCamaras(unittest.TestCase):
             self.repositorio.llamada,
             ("listar", 7, 5, False),
         )
-        with self.assertRaisesRegex(ErrorCamara, "administrador"):
+        with self.assertRaises(PermisoDenegado):
             servicio.eliminar("token-prueba", {"id": 9})
 
     def test_camara_en_transmision_no_se_puede_editar_ni_eliminar(self):

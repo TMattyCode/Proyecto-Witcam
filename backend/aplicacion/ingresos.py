@@ -34,8 +34,8 @@ class ServicioIngresos:
             maximo=100,
         )
         filtros_validados = self._validar_filtros(filtros)
-        sesion = self.autenticacion.obtener_sesion(token)
-        id_cuenta = sesion["user"]["idCuenta"]
+        usuario = self.autenticacion.exigir_permiso(token, "ver")
+        id_cuenta = usuario["idCuenta"]
         return {
             "ok": True,
             **self.repositorio.listar(
@@ -47,8 +47,8 @@ class ServicioIngresos:
         }
 
     def listar_camaras(self, token: str) -> dict:
-        sesion = self.autenticacion.obtener_sesion(token)
-        id_cuenta = sesion["user"]["idCuenta"]
+        usuario = self.autenticacion.exigir_permiso(token, "ver")
+        id_cuenta = usuario["idCuenta"]
         return {
             "ok": True,
             "camaras": self.repositorio.listar_camaras(id_cuenta),
@@ -60,9 +60,9 @@ class ServicioIngresos:
             "idPersona",
             minimo=1,
         )
-        sesion = self.autenticacion.obtener_sesion(token)
+        usuario = self.autenticacion.exigir_permiso(token, "ver")
         historial = self.repositorio.listar_historial(
-            sesion["user"]["idCuenta"],
+            usuario["idCuenta"],
             identificador,
         )
         if historial is None:
@@ -75,8 +75,8 @@ class ServicioIngresos:
             "idDeteccion",
             minimo=1,
         )
-        sesion = self.autenticacion.obtener_sesion(token)
-        id_cuenta = sesion["user"]["idCuenta"]
+        usuario = self.autenticacion.exigir_permiso(token, "ver")
+        id_cuenta = usuario["idCuenta"]
         ruta = self.repositorio.obtener_ruta_imagen_deteccion(
             id_cuenta,
             identificador,
@@ -96,8 +96,8 @@ class ServicioIngresos:
             "idPersona",
             minimo=1,
         )
-        sesion = self.autenticacion.obtener_sesion(token)
-        id_cuenta = sesion["user"]["idCuenta"]
+        usuario = self.autenticacion.exigir_permiso(token, "ver")
+        id_cuenta = usuario["idCuenta"]
         persona = self.repositorio.obtener_persona(
             id_cuenta,
             identificador,
@@ -222,7 +222,7 @@ class ServicioIngresos:
         motivo = motivo.strip()
         if len(motivo) > 500:
             raise ValueError("El motivo no puede superar los 500 caracteres")
-        usuario = self.autenticacion.obtener_sesion(token)["user"]
+        usuario = self.autenticacion.exigir_permiso(token, "anadir")
         id_cuenta = usuario["idCuenta"]
         persona = self.repositorio.obtener_persona(id_cuenta, id_persona)
         if persona is None:
@@ -293,7 +293,7 @@ class ServicioIngresos:
             minimo=1,
             maximo=100,
         )
-        usuario = self.autenticacion.obtener_sesion(token)["user"]
+        usuario = self.autenticacion.exigir_permiso(token, "ver")
         resultado = self.repositorio.listar_observacion(
             usuario["idCuenta"],
             pagina,
@@ -309,7 +309,7 @@ class ServicioIngresos:
             "idPersona",
             minimo=1,
         )
-        usuario = self.autenticacion.obtener_sesion(token)["user"]
+        usuario = self.autenticacion.exigir_permiso(token, "editar")
         id_cuenta = usuario["idCuenta"]
         persona = self.repositorio.obtener_persona(id_cuenta, id_persona)
         if persona is None:

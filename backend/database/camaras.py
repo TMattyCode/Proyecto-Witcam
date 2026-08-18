@@ -25,17 +25,24 @@ class RepositorioCamaras:
         es_administrador: bool,
     ) -> dict:
         restriccion = "" if es_administrador else """
-            AND EXISTS (
-                SELECT 1
-                FROM Usuario_GrupoCamara ugc
-                WHERE ugc.id_grupo_camara = gc.id_grupo_camara
-                  AND ugc.id_usuario = ?
+            AND (
+                NOT EXISTS (
+                    SELECT 1
+                    FROM Usuario_GrupoCamara asignacion
+                    WHERE asignacion.id_usuario = ?
+                )
+                OR EXISTS (
+                    SELECT 1
+                    FROM Usuario_GrupoCamara ugc
+                    WHERE ugc.id_grupo_camara = gc.id_grupo_camara
+                      AND ugc.id_usuario = ?
+                )
             )
         """
         parametros = (
             (id_cuenta,)
             if es_administrador
-            else (id_cuenta, id_usuario)
+            else (id_cuenta, id_usuario, id_usuario)
         )
         with self.conexiones.conectar() as conexion:
             filas = conexion.cursor().execute(

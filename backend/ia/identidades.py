@@ -425,15 +425,22 @@ class GestorIdentidades:
             identidad = historial_personas.get(persona.tracker_id, {})
             if identidad.get("identidad_suspendida"):
                 estado = "identidad en verificacion"
+                etiqueta = "Persona detectada"
                 color = (160, 160, 160)
             elif "nombre" in identidad:
-                estado = identidad["nombre"]
+                etiqueta = identidad["nombre"]
+                estado = (
+                    "Reconocida"
+                    if identidad["tipo"] == "oficial"
+                    else "Pendiente"
+                )
                 color = (
                     (0, 255, 0)
                     if identidad["tipo"] == "oficial"
                     else (0, 255, 255)
                 )
             else:
+                etiqueta = "Persona detectada"
                 estado = (
                     "rostro detectado" if tiene_rostro else "sin rostro visible"
                 )
@@ -441,7 +448,7 @@ class GestorIdentidades:
             resultados.append(
                 ResultadoVisual(
                     persona.bbox,
-                    f"Persona {persona.tracker_id} | {estado}",
+                    f"{etiqueta} | {estado}",
                     color,
                 )
             )

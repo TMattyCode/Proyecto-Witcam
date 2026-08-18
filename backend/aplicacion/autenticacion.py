@@ -7,7 +7,11 @@ import threading
 from datetime import datetime
 
 from backend.database.usuarios import RepositorioUsuarios
-from backend.exceptions import CredencialesInvalidas, ErrorAutenticacion
+from backend.exceptions import (
+    CredencialesInvalidas,
+    ErrorAutenticacion,
+    PermisoDenegado,
+)
 
 
 ITERACIONES_PBKDF2 = 310_000
@@ -92,6 +96,7 @@ class ServicioAutenticacion:
             "apellido": fila.apellido,
             "correo": fila.correo,
             "rol": fila.nombre_rol,
+            "permisos": self.usuarios.obtener_permisos(fila.id_usuario),
         }
         self.usuarios.registrar_acceso(fila.id_usuario)
         token = secrets.token_urlsafe(32)
@@ -105,8 +110,8 @@ class ServicioAutenticacion:
 
     def exigir_permiso(self, token: str, codigo_permiso: str) -> dict:
         usuario = self._obtener_usuario_sesion(token)
-        if not self.usuarios.tiene_permiso(usuario["id"], codigo_permiso):
-            raise ErrorAutenticacion(
+        if codigo_permiso not in usuario.get("permisos", []):
+            raise PermisoDenegado(
                 "No tienes permiso para realizar esta operacion"
             )
         return usuario

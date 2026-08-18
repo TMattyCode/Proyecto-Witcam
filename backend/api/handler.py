@@ -19,6 +19,7 @@ from backend.exceptions import (
     CredencialesInvalidas,
     ErrorAutenticacion,
     ErrorGaleria,
+    PermisoDenegado,
     RegistroDuplicado,
     ErrorCamara,
 )
@@ -48,6 +49,8 @@ def crear_handler(
         def do_GET(self):
             try:
                 self._procesar_get()
+            except PermisoDenegado as error:
+                self._json({"ok": False, "error": str(error)}, estado=403)
             except CredencialesInvalidas as error:
                 self._json(
                     {"ok": False, "error": str(error)},
@@ -75,6 +78,9 @@ def crear_handler(
                 self._servir_archivo("index.html")
                 return
             if ruta == "/video_feed":
+                self._exigir_autenticacion()
+                token = self._token_consulta(url)
+                autenticacion.exigir_permiso(token, "ver")
                 self._servir_video()
                 return
             if ruta == "/placeholder":
@@ -86,6 +92,8 @@ def crear_handler(
                 )
                 return
             if ruta == "/api/status":
+                self._exigir_autenticacion()
+                autenticacion.exigir_permiso(self._token_sesion(), "ver")
                 self._json(monitoreo.estado())
                 return
             if ruta == "/api/list":
@@ -513,6 +521,15 @@ def crear_handler(
                     self._json({"ok": True})
                     return
                 if ruta == "/api/stop":
+                    self._exigir_autenticacion()
+                    if camaras is None:
+                        raise ErrorCamara(
+                            "El servicio de camaras no esta disponible"
+                        )
+                    camaras.validar_detencion(
+                        self._token_sesion(),
+                        monitoreo.estado().get("camera_id"),
+                    )
                     monitoreo.detener()
                     self._json({"ok": True})
                     return
@@ -550,6 +567,11 @@ def crear_handler(
                     self._json({"ok": True})
                     return
                 self.send_error(404)
+            except PermisoDenegado as error:
+                self._json(
+                    {"ok": False, "error": str(error)},
+                    estado=403,
+                )
             except CredencialesInvalidas as error:
                 self._json(
                     {"ok": False, "error": str(error)},
@@ -594,6 +616,13 @@ def crear_handler(
             if not autorizacion.startswith(prefijo):
                 raise CredencialesInvalidas("Falta el token de sesion")
             return autorizacion[len(prefijo):].strip()
+
+        @staticmethod
+        def _token_consulta(url) -> str:
+            token = parse_qs(url.query).get("token", [""])[0].strip()
+            if not token:
+                raise CredencialesInvalidas("Falta el token de sesion")
+            return token
 
         def _leer_json(self) -> dict:
             try:

@@ -7,6 +7,10 @@ function obtenerToken() {
   );
 }
 
+export function obtenerTokenSesion() {
+  return obtenerToken();
+}
+
 function notificarSesionExpirada(ruta, respuesta) {
   if (respuesta.status !== 401 || ruta === "/api/auth/login") return;
   globalThis.dispatchEvent?.(new Event(EVENTO_SESION_EXPIRADA));
