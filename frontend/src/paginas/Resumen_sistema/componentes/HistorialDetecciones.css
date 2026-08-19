@@ -48,6 +48,11 @@
     color:#013fd0;
 }
 
+.panel-ver-todo:disabled {
+    color: #9aa5b8;
+    cursor: not-allowed;
+}
+
 .tabla-detecciones {
   width: 100%;
   border-collapse: collapse;

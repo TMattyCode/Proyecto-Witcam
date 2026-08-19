@@ -162,6 +162,19 @@ class AutenticacionFalsa:
             },
         }
 
+    def actualizar_perfil(self, token, datos):
+        if token != self.token:
+            raise CredencialesInvalidas("La sesion no es valida")
+        self.usuario = {
+            **self.usuario,
+            "nombre": datos["nombre"],
+            "apellido": datos["apellido"],
+            "nombreUsuario": datos["nombreUsuario"],
+            "correo": datos["correo"],
+            "telefono": datos.get("telefono") or None,
+        }
+        return {"ok": True, "user": self.usuario}
+
     def cerrar_sesion(self, token):
         return None
 
@@ -585,6 +598,22 @@ class PruebasApi(unittest.TestCase):
         conexion.close()
         self.assertEqual(respuesta.status, 200)
         self.assertEqual(sesion["user"]["nombreUsuario"], "matias")
+
+        estado, _, cuerpo = self._solicitar(
+            "POST",
+            "/api/perfil",
+            {
+                "nombre": "Matias",
+                "apellido": "Actualizado",
+                "nombreUsuario": "matias.nuevo",
+                "correo": "nuevo@example.com",
+                "telefono": "",
+            },
+            {"Authorization": "Bearer token-prueba"},
+        )
+        perfil = json.loads(cuerpo)
+        self.assertEqual(estado, 200)
+        self.assertEqual(perfil["user"]["nombreUsuario"], "matias.nuevo")
 
     def test_registro_duplicado_responde_conflicto(self):
         estado, _, cuerpo = self._solicitar(

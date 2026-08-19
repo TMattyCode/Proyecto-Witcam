@@ -1,13 +1,22 @@
 ﻿import "./EstadoSistema.css";
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 import iconoEscudo from "../../../assets/iconos/022 icono-escudo.png";
 import iconoCamaraAzul from "../../../assets/iconos/025 icono-camara-azul.png";
 import iconoCamaraBlanca from "../../../assets/iconos/011 icono-camara.png";
+import { useAutenticacion } from "../../../contextos/AutenticacionContext";
+import { PERMISOS, tienePermiso } from "../../../utilidades/permisos";
 
 export default function EstadoSistema() {
     
     const [hover, setHover] = useState(false);
+    const navegar = useNavigate();
+    const { usuario } = useAutenticacion();
+    const puedeVerCamaras = tienePermiso(
+      usuario,
+      PERMISOS.GESTIONAR_CAMARAS,
+    );
 
   return (
     <div className="estado-sistema">
@@ -26,9 +35,13 @@ export default function EstadoSistema() {
       </div>
 
       <button
+        type="button"
         className="estado-boton"
+        disabled={!puedeVerCamaras}
+        onClick={() => navegar("/camaras")}
         onMouseEnter={() => setHover(true)}
         onMouseLeave={() => setHover(false)}
+        title={puedeVerCamaras ? "Abrir cámaras en vivo" : "Sin permiso para ver cámaras"}
       >
         <img
             src={hover ? iconoCamaraBlanca : iconoCamaraAzul}

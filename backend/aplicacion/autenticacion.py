@@ -19,15 +19,10 @@ PATRON_CORREO = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
 PATRON_USUARIO = re.compile(r"^[\w.-]+$", re.UNICODE)
 PATRON_TELEFONO = re.compile(r"^[+\d\s().-]+$")
 PERMISOS_SUBUSUARIO = (
-    "ver_resumen", "ver_camaras", "controlar_camaras", "ver_ingresos",
-    "gestionar_identidades", "eliminar_identidades", "ver_observacion",
-    "gestionar_observacion",
+    "gestionar_camaras", "gestionar_identidades", "eliminar_identidades",
 )
 DEPENDENCIAS_PERMISOS = {
-    "controlar_camaras": "ver_camaras",
-    "gestionar_identidades": "ver_ingresos",
-    "eliminar_identidades": "ver_ingresos",
-    "gestionar_observacion": "ver_observacion",
+    "eliminar_identidades": "gestionar_identidades",
 }
 
 
@@ -106,6 +101,7 @@ class ServicioAutenticacion:
             "nombre": fila.nombre,
             "apellido": fila.apellido,
             "correo": fila.correo,
+            "telefono": getattr(fila, "telefono", None),
             "rol": fila.nombre_rol,
             "permisos": (
                 list(PERMISOS_SUBUSUARIO)
@@ -150,6 +146,57 @@ class ServicioAutenticacion:
         if resumen is None:
             raise ErrorAutenticacion("La cuenta asociada ya no existe")
         return {"ok": True, **resumen}
+
+    def actualizar_perfil(self, token: str, datos: dict) -> dict:
+        usuario = self._obtener_usuario_sesion(token)
+        normalizados, password_actual, password_nuevo = (
+            self._validar_perfil(
+                datos,
+                permite_editar_cuenta=usuario.get("rol") == "Administrador",
+            )
+        )
+        fila = self.usuarios.obtener_para_perfil(
+            usuario["idCuenta"],
+            usuario["id"],
+        )
+        if fila is None:
+            raise ErrorAutenticacion("El usuario activo ya no existe")
+
+        nuevo_hash = None
+        if password_nuevo:
+            if not verificar_password(password_actual, fila.password_hash):
+                raise ErrorAutenticacion(
+                    "La contrasena actual no es correcta"
+                )
+            nuevo_hash = crear_hash_password(password_nuevo)
+
+        actualizado = self.usuarios.actualizar_perfil(
+            usuario["idCuenta"],
+            usuario["id"],
+            normalizados,
+            nuevo_hash,
+            nombre_cuenta=normalizados.get("nombre_cuenta"),
+        )
+        if not actualizado:
+            raise ErrorAutenticacion("No se pudo actualizar el perfil")
+
+        cambios_sesion = {
+            "nombre": normalizados["nombre"],
+            "apellido": normalizados["apellido"],
+            "nombreUsuario": normalizados["nombre_usuario"],
+            "correo": normalizados["correo"],
+            "telefono": normalizados["telefono"],
+        }
+        with self._bloqueo:
+            for sesion in self._sesiones.values():
+                if sesion.get("id") == usuario["id"]:
+                    sesion.update(cambios_sesion)
+                if normalizados.get("nombre_cuenta") and (
+                    sesion.get("idCuenta") == usuario["idCuenta"]
+                ):
+                    sesion["nombreCuenta"] = normalizados["nombre_cuenta"]
+            usuario_actualizado = dict(self._sesiones[token])
+        return {"ok": True, "user": usuario_actualizado}
 
     def listar_subusuarios(self, token: str, filtros: dict | str | None = None) -> dict:
         administrador = self._obtener_administrador(token)
@@ -448,6 +495,83 @@ class ServicioAutenticacion:
         ):
             raise ErrorAutenticacion("El telefono no es valido")
         return campos
+
+    @staticmethod
+    def _validar_perfil(
+        datos: dict,
+        permite_editar_cuenta: bool = False,
+    ) -> tuple[dict, str, str]:
+        if not isinstance(datos, dict):
+            raise ErrorAutenticacion("Los datos del perfil no son validos")
+        campos = {
+            "nombre_usuario": ServicioAutenticacion._leer_texto(
+                datos, "nombreUsuario", 100
+            ),
+            "correo": ServicioAutenticacion._leer_texto(
+                datos, "correo", 250
+            ).lower(),
+            "telefono": ServicioAutenticacion._leer_texto(
+                datos, "telefono", 20
+            ) or None,
+            "nombre": ServicioAutenticacion._leer_texto(
+                datos, "nombre", 100
+            ),
+            "apellido": ServicioAutenticacion._leer_texto(
+                datos, "apellido", 100
+            ),
+        }
+        if permite_editar_cuenta and "nombreCuenta" in datos:
+            campos["nombre_cuenta"] = ServicioAutenticacion._leer_texto(
+                datos, "nombreCuenta", 150
+            )
+        if any(
+            not campos[campo]
+            for campo in (
+                "nombre_usuario",
+                "correo",
+                "nombre",
+                "apellido",
+                *(
+                    ("nombre_cuenta",)
+                    if "nombre_cuenta" in campos
+                    else ()
+                ),
+            )
+        ):
+            raise ErrorAutenticacion("Completa todos los campos obligatorios")
+        if not PATRON_USUARIO.fullmatch(campos["nombre_usuario"]):
+            raise ErrorAutenticacion(
+                "El usuario solo puede contener letras, numeros, punto, "
+                "guion y guion bajo"
+            )
+        if not PATRON_CORREO.fullmatch(campos["correo"]):
+            raise ErrorAutenticacion("El correo electronico no es valido")
+        if campos["telefono"] and not PATRON_TELEFONO.fullmatch(
+            campos["telefono"]
+        ):
+            raise ErrorAutenticacion("El telefono no es valido")
+
+        password_actual = ServicioAutenticacion._leer_texto(
+            datos, "contrasenaActual", 128, recortar=False
+        )
+        password_nuevo = ServicioAutenticacion._leer_texto(
+            datos, "contrasenaNueva", 128, recortar=False
+        )
+        confirmacion = ServicioAutenticacion._leer_texto(
+            datos, "confirmarContrasena", 128, recortar=False
+        )
+        if password_actual or password_nuevo or confirmacion:
+            if not password_actual or not password_nuevo or not confirmacion:
+                raise ErrorAutenticacion(
+                    "Completa los tres campos para cambiar la contrasena"
+                )
+            if len(password_nuevo) < 8:
+                raise ErrorAutenticacion(
+                    "La nueva contrasena debe tener al menos 8 caracteres"
+                )
+            if password_nuevo != confirmacion:
+                raise ErrorAutenticacion("Las contrasenas no coinciden")
+        return campos, password_actual, password_nuevo
 
     @staticmethod
     def _validar_subusuario(

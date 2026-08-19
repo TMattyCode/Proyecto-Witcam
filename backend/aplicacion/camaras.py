@@ -22,7 +22,7 @@ class ServicioCamaras:
         )
 
     def listar(self, token: str) -> dict:
-        usuario = self.autenticacion.exigir_permiso(token, "ver_camaras")
+        usuario = self.autenticacion.exigir_permiso(token, "gestionar_camaras")
         datos = self._listar_disponibles(usuario)
         return {"ok": True, **datos}
 
@@ -66,7 +66,7 @@ class ServicioCamaras:
         fuente: int | str | None,
     ) -> int:
         usuario = self.autenticacion.exigir_permiso(
-            token, "controlar_camaras"
+            token, "gestionar_camaras"
         )
         camaras = self._listar_disponibles(usuario)["camaras"]
         camara = next(
@@ -95,7 +95,7 @@ class ServicioCamaras:
         id_camara: int | None,
     ) -> None:
         usuario = self.autenticacion.exigir_permiso(
-            token, "controlar_camaras"
+            token, "gestionar_camaras"
         )
         if id_camara is None:
             return

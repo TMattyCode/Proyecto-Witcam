@@ -96,6 +96,61 @@ test("traduce una caida de red a un mensaje comprensible", async () => {
   }
 });
 
+test("una consulta GET se recupera de un fallo transitorio", async () => {
+  const fetchAnterior = globalThis.fetch;
+  const localStorageAnterior = globalThis.localStorage;
+  const sessionStorageAnterior = globalThis.sessionStorage;
+  const almacenamientoVacio = { getItem: () => null };
+  let intentos = 0;
+  globalThis.localStorage = almacenamientoVacio;
+  globalThis.sessionStorage = almacenamientoVacio;
+  globalThis.fetch = async () => {
+    intentos += 1;
+    if (intentos === 1) throw new TypeError("Failed to fetch");
+    return {
+      ok: true,
+      headers: { get: () => "application/json" },
+      json: async () => ({ nombreCuenta: "Witcam" }),
+    };
+  };
+
+  try {
+    const respuesta = await obtenerResumenCuenta();
+    assert.equal(respuesta.nombreCuenta, "Witcam");
+    assert.equal(intentos, 2);
+  } finally {
+    globalThis.fetch = fetchAnterior;
+    globalThis.localStorage = localStorageAnterior;
+    globalThis.sessionStorage = sessionStorageAnterior;
+  }
+});
+
+test("una escritura POST no se repite despues de un fallo", async () => {
+  const fetchAnterior = globalThis.fetch;
+  const localStorageAnterior = globalThis.localStorage;
+  const sessionStorageAnterior = globalThis.sessionStorage;
+  const almacenamientoVacio = { getItem: () => null };
+  let intentos = 0;
+  globalThis.localStorage = almacenamientoVacio;
+  globalThis.sessionStorage = almacenamientoVacio;
+  globalThis.fetch = async () => {
+    intentos += 1;
+    throw new TypeError("Failed to fetch");
+  };
+
+  try {
+    await assert.rejects(
+      actualizarPermisosSubusuario(8, ["gestionar_identidades"]),
+      /No se pudo conectar con Witcam/,
+    );
+    assert.equal(intentos, 1);
+  } finally {
+    globalThis.fetch = fetchAnterior;
+    globalThis.localStorage = localStorageAnterior;
+    globalThis.sessionStorage = sessionStorageAnterior;
+  }
+});
+
 test("traduce una respuesta JSON incompleta", async () => {
   const fetchAnterior = globalThis.fetch;
   const localStorageAnterior = globalThis.localStorage;

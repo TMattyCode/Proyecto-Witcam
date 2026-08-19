@@ -4,16 +4,18 @@ import "./HistorialDetecciones.css";
 
 import iconoReloj from "../../../assets/iconos/016 icono-reloj.png";
 import { obtenerRostroDeteccion, obtenerUltimosIngresos } from "../../../servicios/api";
+import { useAutenticacion } from "../../../contextos/AutenticacionContext";
+import { PERMISOS, tienePermiso } from "../../../utilidades/permisos";
 
 const FORMATEADOR_FECHA = new Intl.DateTimeFormat("es-CL", {
   day: "2-digit", month: "2-digit", year: "numeric",
   hour: "2-digit", minute: "2-digit",
 });
 
-function RostroIngreso({ ingreso }) {
+function RostroIngreso({ ingreso, visible }) {
   const [url, setUrl] = useState("");
   useEffect(() => {
-    if (!ingreso.tieneRostro) return undefined;
+    if (!visible || !ingreso.tieneRostro) return undefined;
     let activo = true;
     let urlCreada = "";
     obtenerRostroDeteccion(ingreso.idDeteccion).then((imagen) => {
@@ -22,7 +24,10 @@ function RostroIngreso({ ingreso }) {
       setUrl(urlCreada);
     }).catch(() => { if (activo) setUrl(""); });
     return () => { activo = false; if (urlCreada) URL.revokeObjectURL(urlCreada); };
-  }, [ingreso.idDeteccion, ingreso.tieneRostro]);
+  }, [ingreso.idDeteccion, ingreso.tieneRostro, visible]);
+  if (!visible) {
+    return <span className="ultimo-ingreso-sin-rostro">Restringido</span>;
+  }
   return url
     ? <img className="ultimo-ingreso-rostro" src={url} alt={`Rostro de ${ingreso.nombrePersona}`} />
     : <span className="ultimo-ingreso-sin-rostro">Sin rostro</span>;
@@ -33,15 +38,25 @@ function HistorialDetecciones() {
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
   const navegar = useNavigate();
+  const { usuario } = useAutenticacion();
+  const puedeVerIngresos = tienePermiso(
+    usuario,
+    PERMISOS.GESTIONAR_IDENTIDADES,
+  );
 
   useEffect(() => {
     let activo = true;
+    let cargaExitosa = false;
     const cargar = async () => {
       try {
         const datos = await obtenerUltimosIngresos(5);
-        if (activo) { setIngresos(datos.ingresos || []); setError(""); }
+        if (activo) {
+          cargaExitosa = true;
+          setIngresos(datos.ingresos || []);
+          setError("");
+        }
       } catch (errorCarga) {
-        if (activo) setError(errorCarga.message);
+        if (activo && !cargaExitosa) setError(errorCarga.message);
       } finally { if (activo) setCargando(false); }
     };
     cargar();
@@ -53,7 +68,15 @@ function HistorialDetecciones() {
     <section className="panel-tabla">
       <div className="panel-tabla-header">
         <div className="panel-tabla-titulo"><img src={iconoReloj} alt="" /><h2>Últimos ingresos</h2></div>
-        <button type="button" className="panel-ver-todo" onClick={() => navegar("/ingresos")}>Ver todo</button>
+        <button
+          type="button"
+          className="panel-ver-todo"
+          disabled={!puedeVerIngresos}
+          onClick={() => navegar("/ingresos")}
+          title={puedeVerIngresos ? "Ver todos los ingresos" : "Sin permiso para ver ingresos"}
+        >
+          Ver todo
+        </button>
       </div>
       <table className="tabla-detecciones">
         <thead><tr><th>Persona</th><th>Cámara</th><th>Fecha y hora</th><th>Rostro</th></tr></thead>
@@ -65,7 +88,7 @@ function HistorialDetecciones() {
             <td className="ultimo-ingreso-persona">{ingreso.nombrePersona}</td>
             <td>{ingreso.nombreCamara}</td>
             <td>{FORMATEADOR_FECHA.format(new Date(ingreso.fechaHora))}</td>
-            <td><RostroIngreso ingreso={ingreso} /></td>
+            <td><RostroIngreso ingreso={ingreso} visible={puedeVerIngresos} /></td>
           </tr>)}
         </tbody>
       </table>

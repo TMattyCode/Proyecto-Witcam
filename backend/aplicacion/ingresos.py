@@ -34,7 +34,7 @@ class ServicioIngresos:
             maximo=100,
         )
         filtros_validados = self._validar_filtros(filtros)
-        usuario = self.autenticacion.exigir_permiso(token, "ver_ingresos")
+        usuario = self.autenticacion.exigir_permiso(token, "gestionar_identidades")
         id_cuenta = usuario["idCuenta"]
         return {
             "ok": True,
@@ -47,7 +47,7 @@ class ServicioIngresos:
         }
 
     def listar_camaras(self, token: str) -> dict:
-        usuario = self.autenticacion.exigir_permiso(token, "ver_ingresos")
+        usuario = self.autenticacion.exigir_permiso(token, "gestionar_identidades")
         id_cuenta = usuario["idCuenta"]
         return {
             "ok": True,
@@ -58,9 +58,7 @@ class ServicioIngresos:
         limite_validado = self._validar_entero(
             limite, "limite", minimo=1, maximo=100
         )
-        usuario = self.autenticacion.exigir_algun_permiso(
-            token, {"ver_resumen", "ver_ingresos", "ver_observacion"}
-        )
+        usuario = self.autenticacion.obtener_sesion(token)["user"]
         return {
             "ok": True,
             "alertas": self.repositorio.listar_alertas(
@@ -72,9 +70,7 @@ class ServicioIngresos:
         limite_validado = self._validar_entero(
             limite, "limite", minimo=1, maximo=20
         )
-        usuario = self.autenticacion.exigir_algun_permiso(
-            token, {"ver_resumen", "ver_ingresos"}
-        )
+        usuario = self.autenticacion.obtener_sesion(token)["user"]
         return {
             "ok": True,
             "ingresos": self.repositorio.listar_ultimos_ingresos(
@@ -88,8 +84,8 @@ class ServicioIngresos:
             "idPersona",
             minimo=1,
         )
-        usuario = self.autenticacion.exigir_algun_permiso(
-            token, {"ver_ingresos", "ver_observacion"}
+        usuario = self.autenticacion.exigir_permiso(
+            token, "gestionar_identidades"
         )
         historial = self.repositorio.listar_historial(
             usuario["idCuenta"],
@@ -105,8 +101,8 @@ class ServicioIngresos:
             "idDeteccion",
             minimo=1,
         )
-        usuario = self.autenticacion.exigir_algun_permiso(
-            token, {"ver_ingresos", "ver_observacion"}
+        usuario = self.autenticacion.exigir_permiso(
+            token, "gestionar_identidades"
         )
         id_cuenta = usuario["idCuenta"]
         ruta = self.repositorio.obtener_ruta_imagen_deteccion(
@@ -128,8 +124,8 @@ class ServicioIngresos:
             "idPersona",
             minimo=1,
         )
-        usuario = self.autenticacion.exigir_algun_permiso(
-            token, {"ver_ingresos", "ver_observacion"}
+        usuario = self.autenticacion.exigir_permiso(
+            token, "gestionar_identidades"
         )
         id_cuenta = usuario["idCuenta"]
         persona = self.repositorio.obtener_persona(
@@ -327,7 +323,9 @@ class ServicioIngresos:
             minimo=1,
             maximo=100,
         )
-        usuario = self.autenticacion.exigir_permiso(token, "ver_observacion")
+        usuario = self.autenticacion.exigir_permiso(
+            token, "gestionar_identidades"
+        )
         resultado = self.repositorio.listar_observacion(
             usuario["idCuenta"],
             pagina,
@@ -343,7 +341,9 @@ class ServicioIngresos:
             "idPersona",
             minimo=1,
         )
-        usuario = self.autenticacion.exigir_permiso(token, "gestionar_observacion")
+        usuario = self.autenticacion.exigir_permiso(
+            token, "gestionar_identidades"
+        )
         id_cuenta = usuario["idCuenta"]
         persona = self.repositorio.obtener_persona(id_cuenta, id_persona)
         if persona is None:

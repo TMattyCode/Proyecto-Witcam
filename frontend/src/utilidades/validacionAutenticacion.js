@@ -69,6 +69,85 @@ export function validarInicioSesion(datos) {
   return { nombreUsuario, contrasena };
 }
 
+export function validarPerfil(datos, permiteEditarCuenta = false) {
+  const normalizados = {
+    nombreUsuario: texto(datos.nombreUsuario, "nombre de usuario", 100),
+    correo: texto(datos.correo, "correo", 250).toLowerCase(),
+    telefono: texto(datos.telefono, "teléfono", 20),
+    nombre: texto(datos.nombre, "nombre", 100),
+    apellido: texto(datos.apellido, "apellido", 100),
+    contrasenaActual: texto(
+      datos.contrasenaActual,
+      "contraseña actual",
+      128,
+      false,
+    ),
+    contrasenaNueva: texto(
+      datos.contrasenaNueva,
+      "contraseña nueva",
+      128,
+      false,
+    ),
+    confirmarContrasena: texto(
+      datos.confirmarContrasena,
+      "confirmación de contraseña",
+      128,
+      false,
+    ),
+  };
+  if (permiteEditarCuenta) {
+    normalizados.nombreCuenta = texto(
+      datos.nombreCuenta,
+      "nombre de la empresa",
+      150,
+    );
+  }
+  if (
+    !normalizados.nombreUsuario
+    || !normalizados.correo
+    || !normalizados.nombre
+    || !normalizados.apellido
+    || (permiteEditarCuenta && !normalizados.nombreCuenta)
+  ) {
+    throw new Error("Completa todos los campos obligatorios");
+  }
+  if (!PATRON_USUARIO.test(normalizados.nombreUsuario)) {
+    throw new Error(
+      "El usuario solo puede contener letras, números, punto, guion y guion bajo",
+    );
+  }
+  if (!PATRON_CORREO.test(normalizados.correo)) {
+    throw new Error("El correo electrónico no es válido");
+  }
+  if (normalizados.telefono && !PATRON_TELEFONO.test(normalizados.telefono)) {
+    throw new Error("El teléfono no es válido");
+  }
+  const cambiaContrasena = Boolean(
+    normalizados.contrasenaActual
+    || normalizados.contrasenaNueva
+    || normalizados.confirmarContrasena
+  );
+  if (cambiaContrasena) {
+    if (
+      !normalizados.contrasenaActual
+      || !normalizados.contrasenaNueva
+      || !normalizados.confirmarContrasena
+    ) {
+      throw new Error("Completa los tres campos para cambiar la contraseña");
+    }
+    if (normalizados.contrasenaNueva.length < 8) {
+      throw new Error("La nueva contraseña debe tener al menos 8 caracteres");
+    }
+    if (
+      normalizados.contrasenaNueva
+      !== normalizados.confirmarContrasena
+    ) {
+      throw new Error("Las contraseñas no coinciden");
+    }
+  }
+  return normalizados;
+}
+
 export function validarSubusuario(datos) {
   const registro = validarRegistro({
     ...datos,

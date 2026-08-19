@@ -52,14 +52,9 @@ GO
 
 INSERT INTO Permiso (codigo_permiso, nombre_permiso, descripcion)
 VALUES
-    (N'ver_resumen', N'Ver resumen', N'Permite acceder al resumen del sistema'),
-    (N'ver_camaras', N'Ver cámaras', N'Permite consultar cámaras asignadas y su estado'),
-    (N'controlar_camaras', N'Controlar cámaras', N'Permite iniciar y detener transmisiones'),
-    (N'ver_ingresos', N'Ver ingresos', N'Permite consultar ingresos e historiales'),
-    (N'gestionar_identidades', N'Gestionar identidades', N'Permite renombrar personas y enviarlas a observación'),
-    (N'eliminar_identidades', N'Eliminar identidades', N'Permite eliminar identidades registradas'),
-    (N'ver_observacion', N'Ver lista de observación', N'Permite consultar personas observadas'),
-    (N'gestionar_observacion', N'Gestionar lista de observación', N'Permite quitar y modificar personas observadas');
+    (N'gestionar_camaras', N'Gestionar cámaras', N'Permite consultar y controlar las cámaras asignadas'),
+    (N'gestionar_identidades', N'Gestionar identidades', N'Permite consultar, renombrar y mover personas entre ingresos y observación'),
+    (N'eliminar_identidades', N'Eliminar identidades', N'Permite eliminar identidades que no están en observación');
 GO
 
 

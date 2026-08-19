@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 
 import {
   validarInicioSesion,
+  validarPerfil,
   validarRegistro,
   validarSubusuario,
 } from "../src/utilidades/validacionAutenticacion.js";
@@ -58,4 +59,56 @@ test("valida subusuarios y elimina permisos duplicados", () => {
   });
   assert.equal("nombreCuenta" in resultado, false);
   assert.deepEqual(resultado.permisos, ["ver", "editar"]);
+});
+
+test("el perfil permite conservar la contrasena actual", () => {
+  const resultado = validarPerfil({
+    nombre: " Matias ",
+    apellido: "Prueba",
+    nombreUsuario: "matias.nuevo",
+    correo: " NUEVO@example.com ",
+    telefono: "",
+    contrasenaActual: "",
+    contrasenaNueva: "",
+    confirmarContrasena: "",
+  });
+  assert.equal(resultado.nombre, "Matias");
+  assert.equal(resultado.correo, "nuevo@example.com");
+});
+
+test("el perfil del administrador exige el nombre de la empresa", () => {
+  const perfil = {
+    nombreCuenta: "Witcam SpA",
+    nombre: "Matias",
+    apellido: "Prueba",
+    nombreUsuario: "matias",
+    correo: "matias@example.com",
+    telefono: "",
+    contrasenaActual: "",
+    contrasenaNueva: "",
+    confirmarContrasena: "",
+  };
+  assert.equal(validarPerfil(perfil, true).nombreCuenta, "Witcam SpA");
+  assert.throws(
+    () => validarPerfil({ ...perfil, nombreCuenta: "" }, true),
+    /campos obligatorios/,
+  );
+});
+
+test("el cambio de contrasena exige los tres campos", () => {
+  const perfil = {
+    nombre: "Matias",
+    apellido: "Prueba",
+    nombreUsuario: "matias",
+    correo: "matias@example.com",
+    telefono: "",
+    contrasenaActual: "segura123",
+    contrasenaNueva: "nuevaSegura123",
+    confirmarContrasena: "",
+  };
+  assert.throws(() => validarPerfil(perfil), /tres campos/);
+  assert.throws(
+    () => validarPerfil({ ...perfil, confirmarContrasena: "distinta123" }),
+    /no coinciden/,
+  );
 });

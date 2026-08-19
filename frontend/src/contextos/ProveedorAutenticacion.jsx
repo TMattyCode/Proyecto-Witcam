@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import {
+  actualizarPerfil as solicitarActualizacionPerfil,
   cerrarSesion as solicitarCierreSesion,
   EVENTO_SESION_EXPIRADA,
   iniciarSesion as solicitarInicioSesion,
@@ -23,6 +24,13 @@ function guardarSesion(respuesta, recordar) {
   const almacenamiento = recordar ? localStorage : sessionStorage;
   almacenamiento.setItem(CLAVE_TOKEN, respuesta.token);
   almacenamiento.setItem(CLAVE_USUARIO, JSON.stringify(respuesta.user));
+}
+
+function guardarUsuarioActualizado(usuario) {
+  const almacenamiento = localStorage.getItem(CLAVE_TOKEN)
+    ? localStorage
+    : sessionStorage;
+  almacenamiento.setItem(CLAVE_USUARIO, JSON.stringify(usuario));
 }
 
 export default function ProveedorAutenticacion({ children }) {
@@ -94,9 +102,22 @@ export default function ProveedorAutenticacion({ children }) {
     }
   };
 
+  const actualizarPerfil = async (datos) => {
+    const respuesta = await solicitarActualizacionPerfil(datos);
+    guardarUsuarioActualizado(respuesta.user);
+    setUsuario(respuesta.user);
+    return respuesta.user;
+  };
+
   return (
     <AutenticacionContext.Provider
-      value={{ usuario, cargando, iniciarSesion, cerrarSesion }}
+      value={{
+        usuario,
+        cargando,
+        iniciarSesion,
+        cerrarSesion,
+        actualizarPerfil,
+      }}
     >
       {children}
     </AutenticacionContext.Provider>

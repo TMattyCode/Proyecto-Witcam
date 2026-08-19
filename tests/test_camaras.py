@@ -14,7 +14,7 @@ class AutenticacionCamarasFalsa:
             "id": 5,
             "idCuenta": 7,
             "rol": rol,
-            "permisos": ["ver_camaras"],
+            "permisos": ["gestionar_camaras"],
         }
 
     def obtener_sesion(self, token):

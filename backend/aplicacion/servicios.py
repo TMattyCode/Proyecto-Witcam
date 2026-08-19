@@ -59,9 +59,7 @@ class ServicioGalerias:
     def _obtener_repositorio(
         self,
         token: str | None = None,
-        permisos: str | set[str] = frozenset(
-            {"ver_ingresos", "ver_observacion"}
-        ),
+        permisos: str | set[str] = "gestionar_identidades",
     ) -> RepositorioGalerias:
         if isinstance(self.repositorio, RepositorioGalerias):
             return self.repositorio
@@ -99,7 +97,7 @@ class ServicioGalerias:
         token: str | None = None,
     ) -> None:
         self._obtener_repositorio(
-            token, "gestionar_observacion"
+            token, "gestionar_identidades"
         ).devolver_a_pendiente(nombre)
 
     def renombrar(

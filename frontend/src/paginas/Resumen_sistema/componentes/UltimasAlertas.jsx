@@ -3,16 +3,18 @@ import "./UltimasAlertas.css";
 
 import iconoCampana from "../../../assets/iconos/020 icono-campana.png";
 import { obtenerAlertas, obtenerRostroDeteccion } from "../../../servicios/api";
+import { useAutenticacion } from "../../../contextos/AutenticacionContext";
+import { PERMISOS, tienePermiso } from "../../../utilidades/permisos";
 
 const FORMATEADOR_FECHA = new Intl.DateTimeFormat("es-CL", {
   day: "2-digit", month: "2-digit", year: "numeric",
   hour: "2-digit", minute: "2-digit",
 });
 
-function RostroAlerta({ alerta }) {
+function RostroAlerta({ alerta, visible }) {
   const [url, setUrl] = useState("");
   useEffect(() => {
-    if (!alerta.tieneRostro) return undefined;
+    if (!visible || !alerta.tieneRostro) return undefined;
     let activo = true;
     let urlCreada = "";
     obtenerRostroDeteccion(alerta.idDeteccion).then((imagen) => {
@@ -21,7 +23,10 @@ function RostroAlerta({ alerta }) {
       setUrl(urlCreada);
     }).catch(() => { if (activo) setUrl(""); });
     return () => { activo = false; if (urlCreada) URL.revokeObjectURL(urlCreada); };
-  }, [alerta.idDeteccion, alerta.tieneRostro]);
+  }, [alerta.idDeteccion, alerta.tieneRostro, visible]);
+  if (!visible) {
+    return <span className="ultima-alerta-sin-rostro">Restringido</span>;
+  }
   return url
     ? <img className="ultima-alerta-rostro" src={url} alt={`Rostro de ${alerta.nombrePersona}`} />
     : <span className="ultima-alerta-sin-rostro">Sin rostro</span>;
@@ -31,15 +36,25 @@ export default function UltimasAlertas() {
   const [alertas, setAlertas] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
+  const { usuario } = useAutenticacion();
+  const puedeVerRostros = tienePermiso(
+    usuario,
+    PERMISOS.GESTIONAR_IDENTIDADES,
+  );
 
   useEffect(() => {
     let activo = true;
+    let cargaExitosa = false;
     const cargar = async () => {
       try {
         const datos = await obtenerAlertas(5);
-        if (activo) { setAlertas(datos.alertas || []); setError(""); }
+        if (activo) {
+          cargaExitosa = true;
+          setAlertas(datos.alertas || []);
+          setError("");
+        }
       } catch (errorCarga) {
-        if (activo) setError(errorCarga.message);
+        if (activo && !cargaExitosa) setError(errorCarga.message);
       } finally { if (activo) setCargando(false); }
     };
     cargar();
@@ -62,7 +77,7 @@ export default function UltimasAlertas() {
             <td className="ultima-alerta-persona">{alerta.nombrePersona}</td>
             <td className="ultima-alerta-motivo">{alerta.motivo || "Sin motivo"}</td>
             <td>{FORMATEADOR_FECHA.format(new Date(alerta.fechaHora))}</td>
-            <td><RostroAlerta alerta={alerta} /></td>
+            <td><RostroAlerta alerta={alerta} visible={puedeVerRostros} /></td>
           </tr>)}
         </tbody>
       </table>

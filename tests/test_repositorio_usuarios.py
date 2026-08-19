@@ -102,6 +102,32 @@ class PruebasRepositorioUsuarios(unittest.TestCase):
             conexion._cursor.consulta,
         )
 
+    def test_perfil_actualiza_usuario_y_nombre_de_cuenta_juntos(self):
+        conexion = ConexionFalsa()
+        perfil = {
+            "nombre": "Matias",
+            "apellido": "Prueba",
+            "nombre_usuario": "matias",
+            "correo": "matias@example.com",
+            "telefono": None,
+        }
+        with patch("backend.database.conexion.pyodbc.connect", return_value=conexion):
+            actualizado = self.repositorio.actualizar_perfil(
+                10,
+                20,
+                perfil,
+                None,
+                nombre_cuenta="Empresa Actualizada",
+            )
+
+        consultas = "\n".join(
+            consulta for consulta, _ in conexion._cursor.consultas
+        )
+        self.assertTrue(actualizado)
+        self.assertIn("UPDATE u", consultas)
+        self.assertIn("UPDATE Cuenta", consultas)
+        self.assertTrue(conexion.confirmada)
+
     def test_duplicado_revierte_la_cuenta_y_no_confirma(self):
         error = pyodbc.IntegrityError(
             "23000",

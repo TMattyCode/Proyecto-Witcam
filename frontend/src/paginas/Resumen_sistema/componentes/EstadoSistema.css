@@ -66,6 +66,14 @@
     color:#ffffff;
 }
 
+.estado-boton:disabled,
+.estado-boton:disabled:hover {
+    border-color: #c7d0df;
+    background: #f3f5f8;
+    color: #8d98aa;
+    cursor: not-allowed;
+}
+
 .estado-boton img{
     width:40px;
     height:40px;

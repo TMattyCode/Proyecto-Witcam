@@ -80,7 +80,7 @@ def crear_handler(
             if ruta == "/video_feed":
                 self._exigir_autenticacion()
                 token = self._token_consulta(url)
-                autenticacion.exigir_permiso(token, "ver_camaras")
+                autenticacion.exigir_permiso(token, "gestionar_camaras")
                 self._servir_video()
                 return
             if ruta == "/placeholder":
@@ -94,7 +94,7 @@ def crear_handler(
             if ruta == "/api/status":
                 self._exigir_autenticacion()
                 autenticacion.exigir_permiso(
-                    self._token_sesion(), "ver_camaras"
+                    self._token_sesion(), "gestionar_camaras"
                 )
                 self._json(monitoreo.estado())
                 return
@@ -399,6 +399,15 @@ def crear_handler(
                     self._exigir_autenticacion()
                     autenticacion.cerrar_sesion(self._token_sesion())
                     self._json({"ok": True})
+                    return
+                if ruta == "/api/perfil":
+                    self._exigir_autenticacion()
+                    self._json(
+                        autenticacion.actualizar_perfil(
+                            self._token_sesion(),
+                            datos,
+                        )
+                    )
                     return
                 if ruta == "/api/subusuarios":
                     self._exigir_autenticacion()

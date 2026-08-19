@@ -18,7 +18,7 @@ export default function ListaObservacion() {
   const { usuario } = useAutenticacion();
   const puedeGestionar = tienePermiso(
     usuario,
-    PERMISOS.GESTIONAR_OBSERVACION,
+    PERMISOS.GESTIONAR_IDENTIDADES,
   );
   const puedeRenombrar = tienePermiso(
     usuario,

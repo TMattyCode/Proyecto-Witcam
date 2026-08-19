@@ -50,7 +50,6 @@ export default function IngresosIdentificados() {
     let activo = true;
     let solicitudEnCurso = false;
     let conexionConfirmada = false;
-    let fallosConsecutivos = 0;
 
     const actualizarIngresos = async (esCargaInicial = false) => {
       if (solicitudEnCurso) return;
@@ -63,18 +62,16 @@ export default function IngresosIdentificados() {
         );
         if (!activo) return;
         conexionConfirmada = true;
-        fallosConsecutivos = 0;
         setIngresos(respuesta.ingresos);
         setTotal(respuesta.total);
         setError("");
       } catch (errorSolicitud) {
         if (!activo) return;
-        fallosConsecutivos += 1;
         if (esCargaInicial) {
           setIngresos([]);
           setTotal(0);
         }
-        if (!conexionConfirmada || fallosConsecutivos >= 2) {
+        if (!conexionConfirmada) {
           setError(errorSolicitud.message);
         }
       } finally {

@@ -62,7 +62,7 @@ export default function InterfazCamaras() {
   const esAdministrador = usuario?.rol === "Administrador";
   const puedeControlar = tienePermiso(
     usuario,
-    PERMISOS.CONTROLAR_CAMARAS,
+    PERMISOS.GESTIONAR_CAMARAS,
   );
   const [camaras, setCamaras] = useState([]);
   const [estado, setEstado] = useState(ESTADO_DETENIDO);
@@ -119,7 +119,6 @@ export default function InterfazCamaras() {
     let activo = true;
     let solicitudEnCurso = false;
     let conexionConfirmada = false;
-    let fallosConsecutivos = 0;
 
     async function actualizar() {
       if (solicitudEnCurso) return;
@@ -128,14 +127,12 @@ export default function InterfazCamaras() {
         const siguienteEstado = await obtenerEstadoMonitoreo();
         if (activo) {
           conexionConfirmada = true;
-          fallosConsecutivos = 0;
           setEstado(siguienteEstado);
           setErrorMonitoreo("");
         }
       } catch (error) {
         if (activo && tieneWebcam) {
-          fallosConsecutivos += 1;
-          if (!conexionConfirmada || fallosConsecutivos >= 3) {
+          if (!conexionConfirmada) {
             setErrorMonitoreo(error.message);
           }
         }

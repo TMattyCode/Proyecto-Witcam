@@ -118,7 +118,7 @@ export default function TablaIngresos({
                   </td>
                   <td>
                     <div className="tabla-ingresos-celda-acciones">
-                      {onAgregarObservacion && <button
+                      <button
                         className="tabla-ingresos-accion historial"
                         type="button"
                         onClick={() => onVerHistorial?.(ingreso)}
@@ -126,8 +126,8 @@ export default function TablaIngresos({
                         title="Ver historial de ingresos"
                       >
                         <img src={iconoHistorial} alt="" aria-hidden="true" />
-                      </button>}
-                      {onEliminarPersona && <button
+                      </button>
+                      {onAgregarObservacion && <button
                         className={`tabla-ingresos-accion observar${ingreso.enListaObservacion ? " agregado" : ""}`}
                         type="button"
                         disabled={
@@ -145,7 +145,7 @@ export default function TablaIngresos({
                       >
                         <img src={iconoObservacion} alt="" aria-hidden="true" />
                       </button>}
-                      <button
+                      {onEliminarPersona && <button
                         className="tabla-ingresos-accion eliminar"
                         type="button"
                         disabled={
@@ -162,7 +162,7 @@ export default function TablaIngresos({
                         }
                       >
                         <img src={iconoBasurero} alt="" aria-hidden="true" />
-                      </button>
+                      </button>}
                     </div>
                   </td>
                 </tr>

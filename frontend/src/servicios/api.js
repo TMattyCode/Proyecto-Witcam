@@ -1,4 +1,5 @@
 export const EVENTO_SESION_EXPIRADA = "witcam:sesion-expirada";
+const ESPERA_REINTENTO_GET_MS = 250;
 
 function obtenerToken() {
   return (
@@ -16,18 +17,44 @@ function notificarSesionExpirada(ruta, respuesta) {
   globalThis.dispatchEvent?.(new Event(EVENTO_SESION_EXPIRADA));
 }
 
+function esperar(milisegundos) {
+  return new Promise((resolver) => globalThis.setTimeout(resolver, milisegundos));
+}
+
+async function obtenerRespuesta(ruta, opciones, token) {
+  const metodo = (opciones.method || "GET").toUpperCase();
+  const intentos = metodo === "GET" ? 2 : 1;
+  let ultimoError;
+
+  for (let intento = 0; intento < intentos; intento += 1) {
+    try {
+      const respuesta = await fetch(ruta, {
+        ...opciones,
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...opciones.headers,
+        },
+      });
+      const tipoContenido = respuesta.headers.get("content-type") || "";
+      if (tipoContenido.includes("application/json") || intento === intentos - 1) {
+        return respuesta;
+      }
+    } catch (error) {
+      ultimoError = error;
+      if (intento === intentos - 1) throw error;
+    }
+    await esperar(ESPERA_REINTENTO_GET_MS);
+  }
+
+  throw ultimoError;
+}
+
 async function solicitar(ruta, opciones = {}) {
   const token = obtenerToken();
   let respuesta;
   try {
-    respuesta = await fetch(ruta, {
-      ...opciones,
-      headers: {
-        "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        ...opciones.headers,
-      },
-    });
+    respuesta = await obtenerRespuesta(ruta, opciones, token);
   } catch {
     throw new Error(
       "No se pudo conectar con Witcam. Verifica que el servidor de Python esté funcionando.",
@@ -70,6 +97,13 @@ export function iniciarSesion(datos) {
 
 export function obtenerSesion() {
   return solicitar("/api/auth/session");
+}
+
+export function actualizarPerfil(datos) {
+  return solicitar("/api/perfil", {
+    method: "POST",
+    body: JSON.stringify(datos),
+  });
 }
 
 export function obtenerResumenCuenta() {

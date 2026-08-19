@@ -28,6 +28,8 @@ class RepositorioUsuariosFalso:
         self.filtros_subusuarios = None
         self.cambio_estado_solicitado = None
         self.edicion_solicitada = None
+        self.perfil_solicitado = None
+        self.nombre_cuenta_actualizado = None
 
     def registrar_administrador(self, datos, password_hash):
         if self.registrado is not None and (
@@ -65,7 +67,32 @@ class RepositorioUsuariosFalso:
         self.ultimo_acceso = id_usuario
 
     def obtener_permisos_usuario(self, id_usuario):
-        return ["ver_ingresos"]
+        return ["gestionar_identidades"]
+
+    def obtener_para_perfil(self, id_cuenta, id_usuario):
+        if self.registrado is None or (id_cuenta, id_usuario) != (1, 1):
+            return None
+        return SimpleNamespace(password_hash=self.hash_guardado)
+
+    def actualizar_perfil(
+        self,
+        id_cuenta,
+        id_usuario,
+        datos,
+        password_hash,
+        nombre_cuenta=None,
+    ):
+        self.perfil_solicitado = {
+            "idCuenta": id_cuenta,
+            "idUsuario": id_usuario,
+            "datos": datos,
+            "password_hash": password_hash,
+            "nombreCuenta": nombre_cuenta,
+        }
+        self.nombre_cuenta_actualizado = nombre_cuenta
+        if password_hash is not None:
+            self.hash_guardado = password_hash
+        return (id_cuenta, id_usuario) == (1, 1)
 
     def obtener_resumen_cuenta(self, id_cuenta):
         self.cuenta_resumen_solicitada = id_cuenta
@@ -85,8 +112,8 @@ class RepositorioUsuariosFalso:
             "permisos": [
                 {
                     "id": 1,
-                    "codigo": "ver_ingresos",
-                    "nombre": "Ver ingresos",
+                    "codigo": "gestionar_identidades",
+                    "nombre": "Gestionar identidades",
                     "descripcion": None,
                 }
             ],
@@ -253,14 +280,17 @@ class PruebasAutenticacion(unittest.TestCase):
         listado = self.servicio.listar_subusuarios(login["token"])
         self.assertEqual(self.repositorio.subusuarios_cuenta_solicitada, 1)
         self.assertEqual(self.repositorio.subusuarios_estado_solicitado, "Activo")
-        self.assertEqual(listado["permisos"][0]["codigo"], "ver_ingresos")
+        self.assertEqual(
+            listado["permisos"][0]["codigo"],
+            "gestionar_identidades",
+        )
 
         self.servicio.listar_subusuarios(
             login["token"],
             {
                 "estado": "activo",
                 "usuario": "ana",
-                "permiso": "ver_ingresos",
+                "permiso": "gestionar_identidades",
                 "registroDesde": "2026-08-01",
                 "sinAcceso": "true",
                 "pagina": "2",
@@ -269,7 +299,7 @@ class PruebasAutenticacion(unittest.TestCase):
         )
         filtros = self.repositorio.filtros_subusuarios
         self.assertEqual(filtros["usuario"], "ana")
-        self.assertEqual(filtros["permiso"], "ver_ingresos")
+        self.assertEqual(filtros["permiso"], "gestionar_identidades")
         self.assertTrue(filtros["sin_acceso"])
         self.assertEqual(filtros["pagina"], 2)
 
@@ -281,7 +311,7 @@ class PruebasAutenticacion(unittest.TestCase):
             "telefono": "",
             "contrasena": "segura123",
             "confirmarContrasena": "segura123",
-            "permisos": ["ver_ingresos", "ver_ingresos"],
+            "permisos": ["gestionar_identidades", "gestionar_identidades"],
             "idCuenta": 999,
             "rol": "Administrador",
         }
@@ -291,7 +321,7 @@ class PruebasAutenticacion(unittest.TestCase):
         )
         guardado = self.repositorio.subusuario_registrado
         self.assertEqual(guardado["idCuenta"], 1)
-        self.assertEqual(guardado["permisos"], ["ver_ingresos"])
+        self.assertEqual(guardado["permisos"], ["gestionar_identidades"])
         self.assertEqual(guardado["datos"]["correo"], "ana@example.com")
         self.assertNotIn("segura123", guardado["password_hash"])
         self.assertEqual(resultado["subusuario"]["estado"], "Activo")
@@ -305,15 +335,107 @@ class PruebasAutenticacion(unittest.TestCase):
         with self.assertRaises(ErrorAutenticacion):
             self.servicio.listar_subusuarios(login["token"])
 
+    def test_usuario_actualiza_solo_su_perfil(self):
+        self.servicio.registrar(self.datos)
+        login = self.servicio.iniciar_sesion(
+            {"nombreUsuario": "matias", "contrasena": "segura123"}
+        )
+        resultado = self.servicio.actualizar_perfil(
+            login["token"],
+            {
+                "nombre": "Matías",
+                "apellido": "Actualizado",
+                "nombreUsuario": "matias.nuevo",
+                "correo": "NUEVO@example.com",
+                "telefono": "+56 9 1234 5678",
+                "contrasenaActual": "",
+                "contrasenaNueva": "",
+                "confirmarContrasena": "",
+                "nombreCuenta": "Empresa Actualizada",
+            },
+        )
+        guardado = self.repositorio.perfil_solicitado
+        self.assertEqual(guardado["idCuenta"], 1)
+        self.assertEqual(guardado["idUsuario"], 1)
+        self.assertIsNone(guardado["password_hash"])
+        self.assertEqual(resultado["user"]["nombreUsuario"], "matias.nuevo")
+        self.assertEqual(resultado["user"]["correo"], "nuevo@example.com")
+        self.assertEqual(
+            resultado["user"]["nombreCuenta"],
+            "Empresa Actualizada",
+        )
+        self.assertEqual(
+            self.repositorio.nombre_cuenta_actualizado,
+            "Empresa Actualizada",
+        )
+
+    def test_subusuario_no_puede_modificar_el_nombre_de_la_cuenta(self):
+        self.servicio.registrar(self.datos)
+        login = self.servicio.iniciar_sesion(
+            {"nombreUsuario": "matias", "contrasena": "segura123"}
+        )
+        self.servicio._sesiones[login["token"]]["rol"] = "Subusuario"
+        resultado = self.servicio.actualizar_perfil(
+            login["token"],
+            {
+                "nombre": "Matias",
+                "apellido": "Prueba",
+                "nombreUsuario": "matias",
+                "correo": "matias@example.com",
+                "telefono": "",
+                "nombreCuenta": "Cuenta manipulada",
+                "contrasenaActual": "",
+                "contrasenaNueva": "",
+                "confirmarContrasena": "",
+            },
+        )
+        self.assertIsNone(self.repositorio.nombre_cuenta_actualizado)
+        self.assertEqual(resultado["user"]["nombreCuenta"], "Cuenta Prueba")
+
+    def test_cambio_password_exige_la_contrasena_actual(self):
+        self.servicio.registrar(self.datos)
+        login = self.servicio.iniciar_sesion(
+            {"nombreUsuario": "matias", "contrasena": "segura123"}
+        )
+        datos = {
+            "nombre": "Matias",
+            "apellido": "Prueba",
+            "nombreUsuario": "matias",
+            "correo": "matias@example.com",
+            "telefono": "",
+            "contrasenaActual": "incorrecta",
+            "contrasenaNueva": "nuevaSegura123",
+            "confirmarContrasena": "nuevaSegura123",
+        }
+        with self.assertRaisesRegex(
+            ErrorAutenticacion,
+            "contrasena actual",
+        ):
+            self.servicio.actualizar_perfil(login["token"], datos)
+        self.assertIsNone(self.repositorio.perfil_solicitado)
+
+        datos["contrasenaActual"] = "segura123"
+        self.servicio.actualizar_perfil(login["token"], datos)
+        self.assertTrue(
+            verificar_password(
+                "nuevaSegura123",
+                self.repositorio.perfil_solicitado["password_hash"],
+            )
+        )
+
     def test_sesion_solo_autoriza_permisos_efectivos(self):
         self.servicio.registrar(self.datos)
         login = self.servicio.iniciar_sesion(
             {"nombreUsuario": "matias", "contrasena": "segura123"}
         )
         self.servicio._sesiones[login["token"]]["rol"] = "Subusuario"
-        self.servicio._sesiones[login["token"]]["permisos"] = ["ver_ingresos"]
+        self.servicio._sesiones[login["token"]]["permisos"] = [
+            "gestionar_identidades"
+        ]
 
-        usuario = self.servicio.exigir_permiso(login["token"], "ver_ingresos")
+        usuario = self.servicio.exigir_permiso(
+            login["token"], "gestionar_identidades"
+        )
         self.assertEqual(usuario["id"], 1)
         with self.assertRaises(PermisoDenegado):
             self.servicio.exigir_permiso(
@@ -394,14 +516,14 @@ class PruebasAutenticacion(unittest.TestCase):
         )
         datos = {
             "id": 2,
-            "permisos": ["ver_ingresos"],
+            "permisos": ["gestionar_identidades"],
         }
         resultado = self.servicio.editar_subusuario(login["token"], datos)
         guardado = self.repositorio.edicion_solicitada
         self.assertEqual(guardado["idCuenta"], 1)
-        self.assertEqual(guardado["permisos"], ["ver_ingresos"])
+        self.assertEqual(guardado["permisos"], ["gestionar_identidades"])
         self.assertEqual(
-            resultado["subusuario"]["permisos"], ["ver_ingresos"]
+            resultado["subusuario"]["permisos"], ["gestionar_identidades"]
         )
 
         with self.assertRaisesRegex(ErrorAutenticacion, "solo puede modificar"):
@@ -409,6 +531,15 @@ class PruebasAutenticacion(unittest.TestCase):
                 login["token"],
                 {**datos, "correo": "otro@example.com"},
             )
+
+    def test_eliminar_identidades_incluye_gestionar_identidades(self):
+        permisos = self.servicio._validar_permisos(
+            {"permisos": ["eliminar_identidades"]}
+        )
+        self.assertEqual(
+            permisos,
+            ["gestionar_identidades", "eliminar_identidades"],
+        )
 
 
 if __name__ == "__main__":

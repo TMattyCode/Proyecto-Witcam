@@ -38,10 +38,7 @@ const FILTROS_INICIALES = {
 };
 
 const DEPENDENCIAS_PERMISOS = {
-  controlar_camaras: "ver_camaras",
-  gestionar_identidades: "ver_ingresos",
-  eliminar_identidades: "ver_ingresos",
-  gestionar_observacion: "ver_observacion",
+  eliminar_identidades: "gestionar_identidades",
 };
 
 function alternarPermisoConDependencias(permisos, codigo) {
@@ -483,6 +480,8 @@ function ModalAdministracionSubusuario({
 }
 
 function TablaSubusuarios({ onSubusuariosCambiaron }) {
+  const consultaAutomatica = useRef(false);
+  const cargaExitosa = useRef(false);
   const [subusuarios, setSubusuarios] = useState([]);
   const [historialAbierto, setHistorialAbierto] = useState(false);
   const [permisos, setPermisos] = useState([]);
@@ -504,6 +503,8 @@ function TablaSubusuarios({ onSubusuariosCambiaron }) {
 
   useEffect(() => {
     let activo = true;
+    const esConsultaAutomatica = consultaAutomatica.current;
+    consultaAutomatica.current = false;
     obtenerSubusuarios({
       ...filtrosDiferidos,
       pagina,
@@ -511,6 +512,7 @@ function TablaSubusuarios({ onSubusuariosCambiaron }) {
     })
       .then((datos) => {
         if (activo) {
+          cargaExitosa.current = true;
           setSubusuarios(datos.subusuarios);
           setPermisos(datos.permisos);
           setTotal(datos.total);
@@ -518,7 +520,12 @@ function TablaSubusuarios({ onSubusuariosCambiaron }) {
         }
       })
       .catch((errorSolicitud) => {
-        if (activo) setError(errorSolicitud.message);
+        if (
+          activo
+          && (!esConsultaAutomatica || !cargaExitosa.current)
+        ) {
+          setError(errorSolicitud.message);
+        }
       })
       .finally(() => {
         if (activo) {
@@ -533,7 +540,10 @@ function TablaSubusuarios({ onSubusuariosCambiaron }) {
 
   useEffect(() => {
     const intervalo = globalThis.setInterval(
-      () => setVersionConsulta((version) => version + 1),
+      () => {
+        consultaAutomatica.current = true;
+        setVersionConsulta((version) => version + 1);
+      },
       15000,
     );
     return () => globalThis.clearInterval(intervalo);

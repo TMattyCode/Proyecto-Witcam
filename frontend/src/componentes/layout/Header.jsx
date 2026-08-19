@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import "./Header.css";
 import iconoCalendario from "../../assets/iconos/015 icono-calendario.png";
 import iconoReloj from "../../assets/iconos/016 icono-reloj.png";
@@ -16,7 +17,10 @@ function Header({ titulo = "Resumen del sistema", subtitulo = "Bienvenido, Admin
   const [alertas, setAlertas] = useState([]);
   const [alertasAbiertas, setAlertasAbiertas] = useState(false);
   const [errorAlertas, setErrorAlertas] = useState("");
+  const [menuUsuarioAbierto, setMenuUsuarioAbierto] = useState(false);
   const contenedorAlertas = useRef(null);
+  const contenedorUsuario = useRef(null);
+  const navegar = useNavigate();
 
   useEffect(() => {
     const intervalo = setInterval(() => setFechaHora(new Date()), 1000);
@@ -24,11 +28,18 @@ function Header({ titulo = "Resumen del sistema", subtitulo = "Bienvenido, Admin
   }, []);
   useEffect(() => {
     let activo = true;
+    let cargaExitosa = false;
     const cargar = async () => {
       try {
         const datos = await obtenerAlertas();
-        if (activo) { setAlertas(datos.alertas || []); setErrorAlertas(""); }
-      } catch (error) { if (activo) setErrorAlertas(error.message); }
+        if (activo) {
+          cargaExitosa = true;
+          setAlertas(datos.alertas || []);
+          setErrorAlertas("");
+        }
+      } catch (error) {
+        if (activo && !cargaExitosa) setErrorAlertas(error.message);
+      }
     };
     cargar();
     const intervalo = setInterval(cargar, 30000);
@@ -37,9 +48,20 @@ function Header({ titulo = "Resumen del sistema", subtitulo = "Bienvenido, Admin
   useEffect(() => {
     const cerrar = (evento) => {
       if (!contenedorAlertas.current?.contains(evento.target)) setAlertasAbiertas(false);
+      if (!contenedorUsuario.current?.contains(evento.target)) setMenuUsuarioAbierto(false);
+    };
+    const cerrarConEscape = (evento) => {
+      if (evento.key === "Escape") {
+        setAlertasAbiertas(false);
+        setMenuUsuarioAbierto(false);
+      }
     };
     document.addEventListener("mousedown", cerrar);
-    return () => document.removeEventListener("mousedown", cerrar);
+    document.addEventListener("keydown", cerrarConEscape);
+    return () => {
+      document.removeEventListener("mousedown", cerrar);
+      document.removeEventListener("keydown", cerrarConEscape);
+    };
   }, []);
 
   const fecha = fechaHora.toLocaleDateString("es-CL", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/-/g, "/");
@@ -73,7 +95,41 @@ function Header({ titulo = "Resumen del sistema", subtitulo = "Bienvenido, Admin
           </section>}
         </div>
         <div className="header-separator" />
-        <div className="header-user"><img className="header-avatar" src={logoUsuario} alt="Usuario" /><img className="header-arrow" src={iconoFlecha} alt="" /></div>
+        <div className="header-user-menu" ref={contenedorUsuario}>
+          <button
+            type="button"
+            className="header-user"
+            aria-label="Abrir menú de usuario"
+            aria-haspopup="menu"
+            aria-expanded={menuUsuarioAbierto}
+            onClick={() => setMenuUsuarioAbierto((abierto) => !abierto)}
+          >
+            <img className="header-avatar" src={logoUsuario} alt="" />
+            <img
+              className={`header-arrow${menuUsuarioAbierto ? " abierta" : ""}`}
+              src={iconoFlecha}
+              alt=""
+            />
+          </button>
+          {menuUsuarioAbierto && (
+            <div className="header-user-dropdown" role="menu">
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setMenuUsuarioAbierto(false);
+                  navegar("/perfil");
+                }}
+              >
+                <img src={logoUsuario} alt="" />
+                <span>
+                  <strong>Ver perfil</strong>
+                  <small>Administra tus datos personales</small>
+                </span>
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     </header>
   );

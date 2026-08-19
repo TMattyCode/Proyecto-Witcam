@@ -100,6 +100,7 @@ class RepositorioUsuarios:
                     u.apellido,
                     u.nombre_usuario,
                     u.correo,
+                    u.telefono,
                     u.password_hash,
                     r.nombre_rol,
                     c.nombre_cuenta,
@@ -114,6 +115,91 @@ class RepositorioUsuarios:
                 """,
                 nombre_usuario,
             ).fetchone()
+
+    def obtener_para_perfil(self, id_cuenta: int, id_usuario: int):
+        with self.conexiones.conectar() as conexion:
+            return conexion.cursor().execute(
+                """
+                SELECT
+                    u.id_usuario,
+                    u.id_cuenta,
+                    u.nombre,
+                    u.apellido,
+                    u.nombre_usuario,
+                    u.correo,
+                    u.telefono,
+                    u.password_hash
+                FROM Usuario u
+                INNER JOIN EstadoUsuario eu
+                    ON eu.id_estado_usuario = u.id_estado_usuario
+                WHERE u.id_usuario = ?
+                  AND u.id_cuenta = ?
+                  AND eu.nombre_estado = 'Activo'
+                """,
+                id_usuario,
+                id_cuenta,
+            ).fetchone()
+
+    def actualizar_perfil(
+        self,
+        id_cuenta: int,
+        id_usuario: int,
+        datos: dict,
+        password_hash: str | None,
+        nombre_cuenta: str | None = None,
+    ) -> bool:
+        try:
+            with self.conexiones.conectar() as conexion:
+                cursor = conexion.cursor()
+                cursor.execute(
+                    """
+                    UPDATE u
+                    SET nombre = ?,
+                        apellido = ?,
+                        nombre_usuario = ?,
+                        correo = ?,
+                        telefono = ?,
+                        password_hash = COALESCE(?, password_hash)
+                    FROM Usuario u
+                    INNER JOIN EstadoUsuario eu
+                        ON eu.id_estado_usuario = u.id_estado_usuario
+                    WHERE u.id_usuario = ?
+                      AND u.id_cuenta = ?
+                      AND eu.nombre_estado = 'Activo'
+                    """,
+                    datos["nombre"],
+                    datos["apellido"],
+                    datos["nombre_usuario"],
+                    datos["correo"],
+                    datos["telefono"],
+                    password_hash,
+                    id_usuario,
+                    id_cuenta,
+                )
+                actualizado = cursor.rowcount > 0
+                if actualizado:
+                    if nombre_cuenta is not None:
+                        cursor.execute(
+                            """
+                            UPDATE Cuenta
+                            SET nombre_cuenta = ?
+                            WHERE id_cuenta = ?
+                            """,
+                            nombre_cuenta,
+                            id_cuenta,
+                        )
+                        if cursor.rowcount == 0:
+                            raise RuntimeError(
+                                "La cuenta asociada ya no existe"
+                            )
+                    conexion.commit()
+                return actualizado
+        except pyodbc.IntegrityError as error:
+            if not _es_error_duplicado(error):
+                raise
+            raise RegistroDuplicado(
+                "El nombre de usuario o correo ya esta registrado"
+            ) from error
 
     def obtener_resumen_cuenta(self, id_cuenta: int) -> dict | None:
         with self.conexiones.conectar() as conexion:
