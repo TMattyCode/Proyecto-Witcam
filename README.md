@@ -10,6 +10,7 @@ El repositorio tambien contiene la interfaz definitiva desarrollada con React y 
 - La version estable anterior y su interfaz se conservan dentro de `interfaz_prueba/` como respaldo independiente.
 - La interfaz final se encuentra en `frontend/` y usa React, Vite, React Router, rutas protegidas y restauracion de sesion.
 - Registro, inicio, consulta y cierre de sesion consumen la API modular de Python. El backend evita cuentas activas duplicadas, restaura sesiones y actualiza el ultimo acceso.
+- El menu del usuario abre una pagina de perfil propia. Administradores y subusuarios pueden actualizar sus datos personales y cambiar su contrasena verificando primero la actual; solo el administrador puede cambiar el nombre visible de la empresa o negocio.
 - Cada administrador tiene su propia cuenta y recibe un `Grupo 1` inicial. Puede gestionar subusuarios y asignarles los permisos preestablecidos, mientras que los registros desactivados se conservan como historial.
 - Los grupos y camaras se persisten por cuenta en SQL Server. La interfaz permite crear, editar, filtrar y desactivar camaras `webcam`, `RTSP`, `ONVIF` y simuladas, con un maximo visual actual de nueve camaras.
 - La webcam local puede iniciarse y detenerse desde React con el pipeline de IA habilitado. Las fuentes RTSP y ONVIF ya se registran de forma segura, pero su conexion al motor de video por `id_camara` sigue pendiente; las camaras simuladas muestran una imagen estatica para probar la cuadricula.
@@ -224,6 +225,8 @@ http://localhost:5173/
 
 Durante el desarrollo, Python usa `http://localhost:8000/` y React usa normalmente `http://localhost:5173/`. El proxy de Vite dirige `/api` y `/video_feed` al backend. Las camaras y grupos se cargan desde SQL Server segun la cuenta autenticada; `localStorage` ya no se usa para persistirlos.
 
+El motor admite una ruta de video local desde `ConfiguracionVideo.fuente`, pero la interfaz React todavia no incluye un selector para subir o elegir ese archivo. En React, las fuentes funcionales conectadas al motor se limitan actualmente a la webcam; `RTSP` y `ONVIF` se pueden registrar, y las camaras simuladas utilizan imagenes estaticas para revisar la cuadricula.
+
 La version final se empaquetara como aplicacion de escritorio: React se compilara, Python servira sus archivos y una ventana nativa iniciara ambos componentes desde un unico ejecutable. El cliente no necesitara ejecutar Vite ni abrir el navegador manualmente.
 
 La version anterior sigue disponible como respaldo independiente:
@@ -250,7 +253,8 @@ La interfaz de `frontend/` incluye actualmente:
 - Creacion de subusuarios y administracion de sus permisos desde un unico panel, con buscador, filtros acumulables, paginacion y eliminacion logica con confirmacion propia. El administrador no puede modificar los datos personales ni la contrasena de un subusuario ya creado; esa edicion correspondera al propio usuario.
 - Aplicacion efectiva de permisos tanto en React como en el backend. `gestionar_camaras` habilita la consulta y el control de camaras; `gestionar_identidades` habilita ingresos, observacion, historiales, imagenes, cambios de nombre y movimientos entre ambas listas; `eliminar_identidades` permite eliminar personas que no esten en observacion. Este ultimo incluye automaticamente `gestionar_identidades`, y las solicitudes manipuladas sin autorizacion reciben HTTP `403`.
 - La gestion de subusuarios y de sus permisos es exclusiva del administrador y no constituye un permiso asignable. Cuando se modifican los permisos de un subusuario, la autorizacion de sus sesiones abiertas se actualiza inmediatamente.
-- El menu del avatar permite a administradores y subusuarios acceder a su perfil y modificar sus propios datos. El cambio de contrasena es opcional, exige verificar la contrasena actual y nunca permite alterar desde ese formulario el rol, la cuenta o los permisos.
+- Todo el control del avatar y su flecha abre un menu de usuario con acceso a `Mi perfil`. La pagina incluye un boton para volver, permite que cada usuario modifique sus propios datos y exige verificar la contrasena actual antes de cambiarla.
+- El administrador puede editar desde su perfil el nombre visible de la empresa o negocio. El cambio se guarda en `Cuenta.nombre_cuenta` y se propaga a las sesiones activas de esa cuenta. Los subusuarios solo pueden verlo: ni la interfaz ni una solicitud manipulada permiten cambiar la cuenta, el rol o los permisos.
 - Gestion por cuenta de grupos y camaras, incluyendo validacion para conservar al menos un grupo y para impedir desactivar grupos que aun contienen camaras activas.
 - Registro de fuentes `webcam`, `RTSP`, `ONVIF` y simuladas, filtros por camara y grupo, seleccion de cuadricula y vista en pantalla completa.
 - Visualizacion en vivo de una webcam local mediante el MJPEG procesado por YOLO, SCRFD, InsightFace y ByteTrack. RTSP y ONVIF muestran por ahora el estado de fuente registrada hasta completar su conexion al motor.
@@ -302,11 +306,12 @@ Las vistas previas incluyen una version basada en la fecha de modificacion y se 
 La v2 conserva las rutas originales de la version estable y agrega los contratos utilizados por React:
 
 - Video y galerias: `GET /`, `/video_feed`, `/placeholder`, `/api/status`, `/api/list` y `/api/galerias/imagen`.
-- Autenticacion: `GET /api/auth/session` y `POST /api/auth/register`, `/api/auth/login`, `/api/auth/logout`.
+- Autenticacion y perfil: `GET /api/auth/session`, `POST /api/auth/register`, `/api/auth/login`, `/api/auth/logout` y `POST /api/perfil`.
 - Cuenta y subusuarios: `GET /api/cuenta/resumen`, `GET/POST /api/subusuarios`, `POST /api/subusuarios/editar` para administrar exclusivamente permisos y `POST /api/subusuarios/estado` para la eliminacion logica.
 - Camaras y grupos: `GET /api/camaras`, `POST /api/camaras/crear`, `/api/camaras/editar`, `/api/camaras/eliminar` y `/api/grupos-camara/guardar`.
 - Ingresos: `GET /api/ingresos`, `GET /api/ingresos/camaras`, `GET /api/ingresos/historial`, `GET /api/ingresos/rostro`, `GET /api/ingresos/deteccion-rostro`, `POST /api/ingresos/lista-observacion`, `POST /api/ingresos/renombrar-persona` y `POST /api/ingresos/eliminar-persona`.
 - Lista de observacion: `GET /api/lista-observacion`, con `pagina` y `limite`, y `POST /api/ingresos/quitar-lista-observacion` para devolver una persona a ingresos identificados.
+- Resumen y alertas: `GET /api/alertas` y `GET /api/ingresos/ultimos` para mostrar los eventos recientes de la cuenta autenticada.
 - Motor y galerias: `POST /api/start`, `/api/stop`, `/api/approve`, `/api/unapprove`, `/api/rename` y `/api/reject`.
 
 `POST /api/start` acepta `source`, el booleano `analysis` y `cameraId`; React envia `analysis: true` y el ID de la webcam para cargar exclusivamente la galeria de la cuenta propietaria. Las rutas de cuenta, subusuarios, camaras, ingresos, galerias y sus imagenes validan la sesion. El backend comprueba pertenencia a la cuenta para impedir consultar o modificar recursos de otro administrador. Las operaciones de galerias mantienen los campos `file`, `newName` y `type`, junto con las respuestas `ok/error`.
@@ -319,7 +324,7 @@ La interfaz anterior conserva sus archivos dentro de `interfaz_prueba/` y usa su
 
 ## Pruebas automaticas
 
-La suite de Python usa `unittest`, modelos falsos, galerias temporales y un servidor HTTP con puerto efimero. Cubre geometria, calidad facial, comparacion, reconciliacion, concurrencia, identidad, candidatos, pipeline, autenticacion, usuarios, camaras, ingresos y contratos HTTP/MJPEG. Las pruebas de Node verifican la validacion del registro, inicio de sesion y formularios de subusuarios.
+La suite de Python usa `unittest`, modelos falsos, galerias temporales y un servidor HTTP con puerto efimero. Cubre geometria, calidad facial, comparacion, reconciliacion, concurrencia, identidad, candidatos, pipeline, autenticacion, perfiles, usuarios, camaras, ingresos y contratos HTTP/MJPEG. Las pruebas de Node verifican la validacion del registro, inicio de sesion, perfil, permisos, llamadas del monitoreo y formularios de subusuarios.
 
 ```powershell
 python -m compileall -q backend tests main.py
@@ -328,7 +333,7 @@ cd frontend
 npm test
 ```
 
-Actualmente existen 90 pruebas automaticas de Python y 13 pruebas de Node. Tambien se completo una reproduccion real de diez minutos, 1920x1080 a 30 FPS, con InsightFace/SCRFD, YOLO y ByteTrack usando galerias temporales. El pipeline llego al final del video sin cortes y la firma de galerias permanecio valida. La webcam y la escritura en SQL Server ya forman parte del flujo integrado probado durante el desarrollo; RTSP y ONVIF siguen requiriendo pruebas manuales con fuentes disponibles.
+Actualmente existen 98 pruebas automaticas de Python y 18 pruebas de Node. Tambien se completo una reproduccion real de diez minutos, 1920x1080 a 30 FPS, con InsightFace/SCRFD, YOLO y ByteTrack usando galerias temporales. El pipeline llego al final del video sin cortes y la firma de galerias permanecio valida. La webcam y la escritura en SQL Server ya forman parte del flujo integrado probado durante el desarrollo; RTSP y ONVIF siguen requiriendo pruebas manuales con fuentes disponibles.
 
 ## Oclusion
 
@@ -391,6 +396,8 @@ ConfiguracionDesconocidos.cooldown_captura = 15.0
 ```
 
 `ConfiguracionVideo.fuente`: indice de webcam, URL RTSP de una camara IP o canal de NVR, o ruta de un video local. Los videos locales se reproducen segun sus FPS originales y vuelven al primer fotograma cada vez que se detiene e inicia el motor. En este modo no se necesitan MediaMTX ni FFmpeg.
+
+La seleccion de un video de prueba desde el formulario React sigue pendiente. Como un navegador no puede entregar a Python la ruta real elegida por el usuario, esa funcion requerira subir o copiar el archivo a un directorio de pruebas administrado por el backend antes de iniciar el motor. Esta fuente sera exclusiva de desarrollo y no formara parte del flujo normal de camaras del producto.
 
 `ConfiguracionRostro.umbral_similitud`: umbral para considerar una cara como reconocida. Mas alto es mas estricto; mas bajo reconoce mas facil, pero puede equivocarse mas.
 
